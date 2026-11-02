@@ -23,15 +23,17 @@
 
 ## Decisiones técnicas de la fase 1b
 
-- La interfaz usa Preact con htm; la base de datos, Dexie sobre IndexedDB (ver `vendor/LIBRERIAS.md`).
+- La interfaz usa Preact con htm; la base de datos, Dexie sobre IndexedDB (ver `LIBRERIAS.md`).
 - La lista de tablas de la copia se obtiene del esquema: las tablas futuras entran automáticamente salvo `local`.
 - La restauración reemplaza (no fusiona), es atómica y se verifica dentro de la transacción.
 - No hay copias automáticas silenciosas: guardar en disco exige una acción del usuario. Existe un recordatorio configurable (sin valor por defecto) y un aviso cuando nunca se ha creado una copia.
 - Los ajustes solo existen si el usuario los define.
 - La auditoría guarda acción y alcance, nunca valores de datos.
 - Rutas de la aplicación por hash (`#copias`), compatibles con alojamiento estático.
+- Estructura plana: todos los archivos en la raíz del repositorio, sin carpetas, porque la subida web de GitHub del usuario sube los archivos sueltos. Los módulos se importan con rutas `./nombre.js`. El origen de las librerías se llama `libs-fuente.js` para que no colisione con el compilado `libs.js`.
 - No hay inicio de sesión: la protección de acceso es la del perfil de usuario del equipo.
 
 ## Cambios
 
+- 2026-11-02: estructura plana para publicar con la subida web de GitHub. Versión de aplicación 1b-0.1.1 (solo cambian las rutas de importación, el punto de entrada y el número de versión; lógica, esquema 1, política de seguridad y copias, sin cambios).
 - 2026-11-01: fase 1b (esqueleto, navegación, copias de seguridad). Versión de aplicación 1b-0.1.0, esquema 1.

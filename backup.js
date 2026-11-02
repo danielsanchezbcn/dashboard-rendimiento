@@ -2,7 +2,7 @@
 // La lista de tablas se obtiene del esquema de la base: las tablas que se añadan en fases posteriores
 // entran automáticamente en la copia (salvo las de NON_BACKUP_TABLES).
 
-import { NON_BACKUP_TABLES, audit } from '../db.js';
+import { NON_BACKUP_TABLES, audit } from './db.js';
 
 export const FORMAT_ID = 'dashboard-rendimiento-backup';
 export const ENVELOPE_ID = 'dashboard-rendimiento-backup-envelope';

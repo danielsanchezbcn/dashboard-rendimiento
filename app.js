@@ -1,6 +1,6 @@
-import { html, useState, useEffect, useCallback } from '../../vendor/libs.js';
+import { html, useState, useEffect, useCallback } from './libs.js';
 import { AppContext } from './context.js';
-import { getLocal, getSetting, APP_VERSION } from '../db.js';
+import { getLocal, getSetting, APP_VERSION } from './db.js';
 import { backupState } from './util.js';
 import { Inicio, Bloque, Proximamente, Copias, Configuracion } from './pages.js';
 

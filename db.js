@@ -7,9 +7,9 @@
 //   local     estado propio de este navegador (última copia, carpeta recordada…)  (NO va en la copia)
 // Las tablas de jugadores, catálogo, sesiones, etc. se añadirán en fases posteriores con nuevas versiones del esquema.
 
-import { Dexie } from '../vendor/libs.js';
+import { Dexie } from './libs.js';
 
-export const APP_VERSION = '1b-0.1.0';
+export const APP_VERSION = '1b-0.1.1';
 export const DB_NAME = 'dashboard-rendimiento';
 export const NON_BACKUP_TABLES = ['local'];
 

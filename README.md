@@ -4,16 +4,41 @@ Aplicación web de uso personal para guardar y revisar datos de rendimiento. Se 
 
 No contiene datos de jugadores ni datos de ejemplo. No hay analítica, telemetría ni conexiones a servicios externos: la página lleva una política de seguridad que bloquea cualquier conexión de red.
 
-## Publicar la aplicación (GitHub Pages)
+## Estructura plana: todos los archivos en la raíz
 
-1. En tu cuenta de GitHub, crea un repositorio **público** llamado `dashboard-rendimiento` (con el plan gratuito, Pages exige repositorio público; el código será público, los datos nunca).
-2. Descomprime `dashboard-rendimiento.zip` (GitHub no descomprime ficheros: hay que subir las carpetas ya extraídas). Pulsa «Add file → Upload files» y arrastra el **contenido** de la carpeta `dashboard-rendimiento` (`index.html`, `style.css`, `LEEME.md` y las carpetas `src`, `vendor`, `docs` y `desarrollo`), conservando las carpetas. Confirma con «Commit changes». Si descargas los ficheros uno a uno desde el chat, las carpetas se pierden y la aplicación no arranca: usa el ZIP.
+Este repositorio no usa carpetas, para poder publicarlo con la subida web de GitHub, que sube los archivos sueltos. Todos los archivos están en la raíz y se importan entre sí con rutas del tipo `./db.js`.
+
+**Archivos necesarios para ejecutar la aplicación (11):**
+
+| Archivo | Contenido |
+|---|---|
+| `index.html` | Página y política de seguridad; carga `main.js` |
+| `style.css` | Estilos (claro/oscuro, adaptable a móvil, tableta y ordenador) |
+| `main.js` | Arranque |
+| `app.js` | Navegación y estructura de la aplicación |
+| `pages.js` | Páginas: inicio, bloques, copias de seguridad, configuración |
+| `context.js`, `util.js` | Contexto compartido y funciones auxiliares |
+| `db.js` | Base de datos, ajustes, auditoría y estado local |
+| `backup.js` | Copia completa, validación y restauración |
+| `io.js` | Guardado de copias en disco |
+| `libs.js` | Librerías de terceros ya compiladas (ver `LIBRERIAS.md`) |
+
+**Archivos opcionales** (la aplicación funciona sin ellos): `README.md`, `LEEME.md`, `DECISIONES.md`, `DICCIONARIO_DE_DATOS.md`, `LIBRERIAS.md`, y las herramientas de desarrollo `libs-fuente.js`, `package.json`, `package-lock.json`, `prueba-copias.test.mjs` y `prueba-interfaz.test.mjs`.
+
+**Atención: `libs.js` y `libs-fuente.js` son archivos distintos.** `libs.js` (unos 113 KB, ilegible: está compilado) es el que necesita la aplicación. `libs-fuente.js` (unas 10 líneas) es solo el origen para recompilarlo. Si en el repositorio `libs.js` pesa unos 500 bytes, contiene el origen por error y la aplicación no arranca: sube de nuevo `libs.js`.
+
+## Publicar la aplicación (GitHub Pages, subida web)
+
+1. En tu cuenta de GitHub, crea un repositorio **público** llamado `dashboard-rendimiento` (con el plan gratuito, Pages exige repositorio público; el código será público, los datos nunca). Si ya existe con archivos de una entrega anterior, usa ese mismo.
+2. Pulsa «Add file → Upload files» y selecciona o arrastra **todos los archivos a la vez**, sueltos, sin carpetas. Si un archivo ya existe con el mismo nombre, GitHub lo sustituye. Confirma con «Commit changes».
 3. En «Settings → Pages», elige «Deploy from a branch», rama `main` y carpeta `/ (root)`. Tras uno o dos minutos la aplicación estará en `https://TU-USUARIO.github.io/dashboard-rendimiento/`.
-4. Ábrela en Chrome o Edge y guarda la dirección en favoritos. **Usa siempre exactamente esa dirección**: otra variante (otro dominio, `http` en lugar de `https`) es otro origen y mostraría la aplicación vacía.
+4. Ábrela con Chrome o Edge y pulsa Ctrl+F5 para evitar versiones guardadas en caché. En la parte superior debe verse la versión `v1b-0.1.1`. Guarda la dirección en favoritos y **usa siempre exactamente esa dirección**: otra variante (otro dominio, `http` en lugar de `https`) es otro origen y mostraría la aplicación vacía.
+
+Si la página se queda en «Cargando…», revisa que `libs.js` es el compilado y que están los 11 archivos necesarios. En Chrome, F12 → pestaña «Consola» muestra qué archivo no se encuentra.
 
 ### Origen compartido (decisión D3)
 
-Los datos del navegador pertenecen al **origen** (`https://TU-USUARIO.github.io`), no a cada carpeta del sitio. Por eso, tal y como decidiste, **no publiques otros sitios en esta cuenta**: cualquier página servida desde el mismo origen podría leer la base de datos de la aplicación.
+Los datos del navegador pertenecen al **origen** (`https://TU-USUARIO.github.io`), no a cada repositorio. Por eso, tal y como decidiste, **no publiques otros sitios en esta cuenta**: cualquier página servida desde el mismo origen podría leer la base de datos de la aplicación.
 
 Cuando compruebes que esta aplicación funciona, **elimina o despublica el repositorio de la prueba de viabilidad** (`prueba-viabilidad`), que está en el mismo origen. Si quieres, antes pulsa en ella «Borrar datos de prueba».
 
@@ -47,24 +72,9 @@ Envíame cualquier mensaje de error que aparezca; en «Configuración» hay un c
 
 ## Qué se ha probado y qué no
 
-Pruebas automáticas con datos sintéticos (carpeta `desarrollo`; requieren Node: `npm ci` y después `npm test`, solo para quien quiera repetirlas): creación de la base, copias con y sin gzip y cifrado, validación y rechazo de copias alteradas, de esquema posterior o con tablas desconocidas, aceptación de una copia de un esquema anterior en una base de un esquema posterior, restauración atómica con verificación, 5.000 registros y la interfaz completa (navegación, bloques, creación y restauración de copias, copia inválida y cifrada) sobre un navegador y una IndexedDB simulados.
+Pruebas automáticas con datos sintéticos (`prueba-copias.test.mjs` y `prueba-interfaz.test.mjs`; requieren Node: en una carpeta con todos los archivos, `npm ci` y después `npm test`, solo para quien quiera repetirlas): creación de la base, copias con y sin gzip y cifrado, validación y rechazo de copias alteradas, de esquema posterior o con tablas desconocidas, aceptación de una copia de un esquema anterior en una base de un esquema posterior, restauración atómica con verificación, 5.000 registros y la interfaz completa (navegación, bloques, creación y restauración de copias, copia inválida y cifrada) sobre un navegador y una IndexedDB simulados.
 
 **No se ha probado todavía en Chrome real**: eso es lo que comprueba la lista anterior. Tampoco se ha probado en Edge ni con la política de seguridad aplicada por el navegador (la prueba de viabilidad sí demostró que Chrome la aplica).
-
-## Estructura
-
-```
-LEEME.md              Indica dónde está la documentación
-index.html            Página y política de seguridad
-style.css             Estilos (claro/oscuro, adaptable a móvil, tableta y ordenador)
-src/main.js           Arranque
-src/db.js             Base de datos, ajustes, auditoría y estado local
-src/backup/           Copia completa, validación, restauración y guardado en disco
-src/ui/               Navegación y páginas
-vendor/libs.js        Librerías de terceros ya compiladas (ver vendor/LIBRERIAS.md)
-docs/                 Este documento, decisiones y diccionario de datos
-desarrollo/           Pruebas y herramientas para recompilar las librerías (no necesarias para usarla)
-```
 
 ## Limitaciones conocidas
 

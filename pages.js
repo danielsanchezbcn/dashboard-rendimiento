@@ -1,11 +1,11 @@
-import { html, useState, useEffect, useRef } from '../../vendor/libs.js';
+import { html, useState, useEffect, useRef } from './libs.js';
 import { useApp } from './context.js';
 import { fmtNum, fmtMB, fmtDate, backupState } from './util.js';
-import { APP_VERSION, DB_NAME, getLocal, setLocal, getSetting, setSetting, clearSetting, audit, requestPersistence, storageEstimate } from '../db.js';
+import { APP_VERSION, DB_NAME, getLocal, setLocal, getSetting, setSetting, clearSetting, audit, requestPersistence, storageEstimate } from './db.js';
 import {
   buildBackup, encodeBackup, backupFileName, parseBackupText, decodeBackupObject, validateBackup, restoreBackup, readSnapshot, countTables,
-} from '../backup/backup.js';
-import { saveBackup, saveToRememberedDir, pickDirectory, rememberedDirStatus, canPickFile, canPickDir } from '../backup/io.js';
+} from './backup.js';
+import { saveBackup, saveToRememberedDir, pickDirectory, rememberedDirStatus, canPickFile, canPickDir } from './io.js';
 
 // ---------- Piezas comunes ----------
 

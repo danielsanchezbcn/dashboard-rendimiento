@@ -1,6 +1,6 @@
 # Librerías de terceros
 
-`libs.js` es un único fichero que agrupa las librerías de terceros. Se compiló una sola vez; el código propio de la aplicación (`src/`) no se compila.
+`libs.js` es un único fichero que agrupa las librerías de terceros. Se compiló una sola vez a partir de `libs-fuente.js`; el código propio de la aplicación no se compila. No confundas ambos ficheros: `libs.js` (unos 113 KB) es el que carga la aplicación; `libs-fuente.js` (unas 10 líneas) solo sirve para recompilarlo.
 
 | Librería | Versión | Licencia | Uso |
 |---|---|---|---|
@@ -12,5 +12,5 @@
 - **Criterio de versión:** la última versión estable publicada hace al menos 14 días en la fecha de la compilación (1 de noviembre de 2026). Existen versiones más nuevas (por ejemplo Preact 11.x y Dexie 4.4.7), publicadas hacía menos de ese plazo o de una línea mayor distinta que no se ha adoptado.
 - **SHA-256 de `libs.js`:** `a279561737e306f5f9263223b993bdc3c561baf2a64bf549b7f09b58bef34a5e`.
 - **Comprobaciones hechas:** el paquete no contiene `eval` ni `new Function` ni importaciones a direcciones externas, de modo que cumple la política de seguridad de la página (`script-src 'self'`).
-- **Reproducir la compilación:** en `desarrollo/`, `npm ci` y `npm run build-vendor`. No hace falta para usar la aplicación.
-- **Actualizar una librería:** cambiar la versión exacta en `desarrollo/package.json`, volver a compilar, ejecutar las pruebas (`npm test`) y actualizar esta tabla y el SHA-256.
+- **Reproducir la compilación:** en una carpeta con `libs-fuente.js`, `package.json` y `package-lock.json`, `npm ci` y `npm run build-vendor` (genera `libs.js`). No hace falta para usar la aplicación.
+- **Actualizar una librería:** cambiar la versión exacta en `package.json`, volver a compilar, ejecutar las pruebas (`npm test`) y actualizar esta tabla y el SHA-256.

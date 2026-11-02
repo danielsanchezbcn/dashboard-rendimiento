@@ -1,3 +1,3 @@
-import { createContext, useContext } from '../../vendor/libs.js';
+import { createContext, useContext } from './libs.js';
 export const AppContext = createContext(null);
 export const useApp = () => useContext(AppContext);

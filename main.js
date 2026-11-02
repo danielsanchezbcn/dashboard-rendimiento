@@ -1,6 +1,6 @@
-import { render, html } from '../vendor/libs.js';
+import { render, html } from './libs.js';
 import { createDb, initDb, requestPersistence } from './db.js';
-import { App } from './ui/app.js';
+import { App } from './app.js';
 
 const root = document.getElementById('app');
 

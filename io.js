@@ -1,5 +1,5 @@
 // io.js — guardado de copias: ubicación elegida, carpeta recordada o descarga.
-import { getLocal, setLocal, audit } from '../db.js';
+import { getLocal, setLocal, audit } from './db.js';
 
 export const canPickFile = () => 'showSaveFilePicker' in window;
 export const canPickDir = () => 'showDirectoryPicker' in window;
