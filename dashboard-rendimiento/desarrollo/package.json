@@ -1,0 +1,21 @@
+{
+  "name": "dashboard-rendimiento-desarrollo",
+  "version": "1.0.0",
+  "description": "Herramientas de desarrollo: compilación única de librerías de terceros y pruebas con datos sintéticos",
+  "scripts": {
+    "build-vendor": "esbuild vendor-src/libs.js --bundle --format=esm --minify --legal-comments=none --target=es2022 --outfile=../vendor/libs.js",
+    "test": "node tests/backup.test.mjs && node tests/ui.test.mjs"
+  },
+  "dependencies": {
+    "dexie": "4.4.6",
+    "esbuild": "0.28.2",
+    "htm": "3.1.1",
+    "preact": "10.29.8"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.7",
+    "jsdom": "^30.1.3"
+  },
+  "private": true,
+  "type": "module"
+}
