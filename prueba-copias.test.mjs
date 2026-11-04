@@ -11,9 +11,9 @@ const check = (name, cond, extra = '') => { console.log(`${cond ? 'OK  ' : 'FAIL
 // 1. Base y esquema
 const db = D.createDb('test-1b');
 await D.initDb(db);
-check('esquema v1 con 4 tablas', db.verno === 1 && db.tables.map((t) => t.name).sort().join() === 'auditLog,local,meta,settings');
+check('esquema 2 con 9 tablas', db.verno === 2 && db.tables.map((t) => t.name).sort().join() === 'anthropometry,auditLog,local,meta,playerAliases,playerPositions,players,positions,settings');
 check('meta.createdAt y auditoría inicial', !!(await db.meta.get('createdAt')) && (await db.auditLog.count()) === 1);
-check('la copia excluye la tabla local', B.backupTableNames(db).join() === 'auditLog,meta,settings');
+check('la copia excluye la tabla local', B.backupTableNames(db).join() === 'anthropometry,auditLog,meta,playerAliases,playerPositions,players,positions,settings');
 
 await D.setSetting(db, 'backupReminderDays', 14);
 await D.setLocal(db, 'lastBackup', { at: 'x' });
@@ -79,21 +79,27 @@ for (const [gzip, pw] of [[false, ''], [true, ''], [false, 'clave-segura-1'], [t
   check('restauración inválida lanza error y deja los datos intactos', threw && before === after);
 }
 
-// 6. Copia de versión anterior en una base de esquema posterior (migración aditiva)
+// 6. Copia de versión anterior en una base de esquema posterior (migración aditiva) y copia posterior rechazada
 {
-  const db2 = new Dexie('test-1b-v2');
-  db2.version(1).stores({ settings: 'key', auditLog: '++id, timestamp, action', meta: 'key', local: 'key' });
-  db2.version(2).stores({ players: '++id, name' });
-  await db2.open();
-  await db2.players.add({ name: 'Jugador sintético 01' });
-  check('base v2 incluye players en la copia', B.backupTableNames(db2).join() === 'auditLog,meta,players,settings');
-  const v = await B.validateBackup(db2, snap);
-  check('copia v1 válida en base v2 con aviso', v.ok && v.warnings.length === 1 && v.warnings[0].includes('players'), v.warnings[0]);
-  await B.restoreBackup(db2, snap);
-  check('restaurar copia v1 en v2 deja players vacía y recupera lo demás', (await db2.players.count()) === 0 && (await db2.settings.count()) === 1);
-  const snap2 = await B.buildBackup(db2, D.APP_VERSION);
-  check('copia v2 rechazada por una base v1', (await B.validateBackup(db, snap2)).errors.some((e) => e.includes('posterior') || e.includes('desconocida')));
-  db2.close();
+  const old = new Dexie('test-1b-old');
+  old.version(1).stores({ settings: 'key', auditLog: '++id, timestamp, action', meta: 'key', local: 'key' });
+  await old.open();
+  await old.settings.put({ key: 'backupReminderDays', value: 14, definedByUser: true });
+  const oldSnap = await B.buildBackup(old, '1b-0.1.1');
+  check('copia del esquema 1 no incluye las tablas nuevas', oldSnap.schemaVersion === 1 && B.backupTableNames(old).join() === 'auditLog,meta,settings');
+  const v = await B.validateBackup(db, oldSnap);
+  check('copia v1 válida en base v2 con un aviso por tabla ausente', v.ok && v.warnings.length === 5 && v.warnings.some((w) => w.includes('players')), `${v.warnings.length} avisos`);
+  await D.setSetting(db, 'otroAjuste', true);
+  await B.restoreBackup(db, oldSnap);
+  check('restaurar copia v1 en v2: recupera lo antiguo y deja vacías las nuevas', (await db.settings.count()) === 1 && (await D.getSetting(db, 'backupReminderDays')) === 14 && (await db.players.count()) === 0);
+  const db3 = new Dexie('test-1b-v3');
+  db3.version(1).stores({ settings: 'key', auditLog: '++id, timestamp, action', meta: 'key', local: 'key' });
+  db3.version(2).stores({ players: '++id, jerseyName, synthetic', playerAliases: '++id, playerId, source, normalizedKey, synthetic', positions: '++id, name, order, synthetic', playerPositions: '++id, playerId, positionId, validFrom, synthetic', anthropometry: '++id, playerId, date, synthetic' });
+  db3.version(3).stores({ extra: '++id' });
+  await db3.open();
+  const snap3 = await B.buildBackup(db3, 'futura');
+  check('copia de un esquema posterior (3) rechazada por la base actual (2)', (await B.validateBackup(db, snap3)).errors.some((e) => e.includes('posterior')));
+  old.close(); db3.close();
 }
 
 // 7. Volumen

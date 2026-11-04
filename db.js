@@ -1,15 +1,16 @@
 // db.js — base de datos local (IndexedDB mediante Dexie), ajustes, auditoría y estado local.
 //
-// Tablas de la fase 1b:
+// Tablas de la fase 1b (esquema 1) y de la fase 1c (esquema 2, ver createDb):
 //   settings  ajustes definidos por el usuario                (va en la copia)
 //   auditLog  registro de acciones, sin valores de datos      (va en la copia)
 //   meta      metadatos de la base                            (va en la copia)
 //   local     estado propio de este navegador (última copia, carpeta recordada…)  (NO va en la copia)
-// Las tablas de jugadores, catálogo, sesiones, etc. se añadirán en fases posteriores con nuevas versiones del esquema.
+//   players, playerAliases, positions, playerPositions, anthropometry  (van en la copia)
+// El catálogo, las sesiones, etc. se añadirán en fases posteriores con nuevas versiones del esquema.
 
 import { Dexie } from './libs.js';
 
-export const APP_VERSION = '1b-0.1.1';
+export const APP_VERSION = '1c-0.1.0';
 export const DB_NAME = 'dashboard-rendimiento';
 export const NON_BACKUP_TABLES = ['local'];
 
@@ -20,6 +21,15 @@ export function createDb(name = DB_NAME) {
     auditLog: '++id, timestamp, action',
     meta: 'key',
     local: 'key',
+  });
+  // Esquema 2 (fase 1c): jugadores, alias por fuente, posiciones con historial y antropometría fechada.
+  // «synthetic» vale 1 solo en los registros sintéticos (los booleanos no se pueden indexar).
+  db.version(2).stores({
+    players: '++id, jerseyName, synthetic',
+    playerAliases: '++id, playerId, source, normalizedKey, synthetic',
+    positions: '++id, name, order, synthetic',
+    playerPositions: '++id, playerId, positionId, validFrom, synthetic',
+    anthropometry: '++id, playerId, date, synthetic',
   });
   return db;
 }

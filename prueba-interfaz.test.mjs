@@ -31,7 +31,7 @@ await tick(600);
 // Navegación
 const links = $$('nav a').map((a) => a.textContent.trim());
 check('menú con 8 entradas y los 3 bloques', links.length === 8 && ['Manifestaciones de la fuerza', 'Perímetros', 'NME'].every((l) => links.includes(l)), links.join(' | '));
-check('versión visible 1b-0.1.1', document.querySelector('.ver')?.textContent === 'v1b-0.1.1', document.querySelector('.ver')?.textContent);
+check('versión visible 1c-0.1.0', document.querySelector('.ver')?.textContent === 'v1c-0.1.0', document.querySelector('.ver')?.textContent);
 check('inicio por defecto con aria-current', $('nav a[aria-current="page"]')?.textContent === 'Inicio');
 check('aviso de que no hay copia (sin plazo definido)', /Todavía no has creado ninguna copia/.test(text()));
 check('almacenamiento no persistente explicado', /no garantiza conservar los datos/.test(text()));
@@ -44,7 +44,7 @@ check('Perímetros: sin medidas precargadas', /No hay medidas de perímetro defi
 await go('nme');
 check('NME: etiqueta literal, sin expandir ni contenido', $('h2.page-title').textContent === 'NME' && /Bloque sin definir/.test(text()) && !/neuromuscular|NME \(/i.test(text()));
 await go('jugadores');
-check('Jugadores: marcador de fase 1c', /fase 1c/.test(text()));
+check('Jugadores: lista vacía y formulario, sin jugadores inventados', /Todavía no hay jugadores/.test(text()) && /Nuevo jugador/.test(text()));
 await go('importar');
 check('Importar: marcador de fases 3 y 4', /fase 3 y 4/.test(text()));
 
@@ -58,10 +58,11 @@ const plain = captured;
 
 // Cambiar un ajuste, luego restaurar
 await go('configuracion');
-const days = $('input[type="number"]');
+const reminderCard = $$('section.card').find((c) => c.querySelector('h2')?.textContent === 'Recordatorio de copia de seguridad');
+const days = reminderCard.querySelector('input[type="number"]');
 days.value = '14'; days.dispatchEvent(new w.Event('input', { bubbles: true }));
 await tick(100);
-await btn('Guardar').click();
+[...reminderCard.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Guardar').click();
 await tick(400);
 check('ajuste guardado', /se avisará si la última copia tiene más de 14 días/.test(text()));
 const audits1 = $$('tbody tr').length;

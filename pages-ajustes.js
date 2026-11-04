@@ -1,0 +1,112 @@
+import { html, useState } from './libs.js';
+import { useApp } from './context.js';
+import { Card, Msg, Sintetico, useLoad, useRunner } from './componentes.js';
+import { getSetting, setSetting, clearSetting } from './db.js';
+import { listPositions, createPosition, renamePosition, setPositionActive, movePosition, deletePosition, positionUsage } from './posiciones.js';
+import { loadSyntheticDemo, deleteSynthetic, countSynthetic, totalOf } from './sinteticos.js';
+
+// ---------- Posiciones: lista definida por el usuario con orden configurable (D9) ----------
+
+function PositionRow({ p, first, last, used }) {
+  const { db, bump } = useApp();
+  const [edit, setEdit] = useState(false);
+  const [name, setName] = useState(p.name);
+  const { msg, run, busy } = useRunner();
+  const act = (fn) => run(async () => { await fn(); bump(); });
+  return html`<tr class=${p.active ? '' : 'inactive'}>
+    <td>${edit
+      ? html`<input type="text" aria-label="Nombre de la posición" value=${name} onInput=${(e) => setName(e.target.value)} />`
+      : html`${p.name} ${p.synthetic ? html`<${Sintetico} />` : null} ${p.active ? null : html`<span class="badge">ARCHIVADA</span>`}`}
+      <${Msg} msg=${msg} /></td>
+    <td class="num">${used}</td>
+    <td class="acts">
+      <button type="button" class="secondary" aria-label=${`Subir ${p.name}`} disabled=${first || busy} onClick=${act(() => movePosition(db, p.id, 'up'))}>↑</button>
+      <button type="button" class="secondary" aria-label=${`Bajar ${p.name}`} disabled=${last || busy} onClick=${act(() => movePosition(db, p.id, 'down'))}>↓</button>
+      ${edit
+        ? html`<button type="button" disabled=${busy} onClick=${act(async () => { await renamePosition(db, p.id, name); setEdit(false); })}>Guardar</button><button type="button" class="secondary" onClick=${() => { setEdit(false); setName(p.name); }}>Cancelar</button>`
+        : html`<button type="button" class="secondary" onClick=${() => setEdit(true)}>Renombrar</button>`}
+      <button type="button" class="secondary" disabled=${busy} onClick=${act(() => setPositionActive(db, p.id, !p.active))}>${p.active ? 'Archivar' : 'Activar'}</button>
+      <button type="button" class="secondary" disabled=${busy || used > 0} title=${used > 0 ? 'La usan registros del historial: archívala' : ''} onClick=${act(async () => { if (confirm(`¿Eliminar la posición «${p.name}»?`)) await deletePosition(db, p.id); })}>Eliminar</button>
+    </td></tr>`;
+}
+
+export function PosicionesCard() {
+  const { db, version, bump } = useApp();
+  const [name, setName] = useState('');
+  const { msg, run, busy } = useRunner();
+  const { data } = useLoad(async () => {
+    const list = await listPositions(db);
+    const usage = {};
+    for (const p of list) usage[p.id] = await positionUsage(db, p.id);
+    return { list, usage };
+  }, [db, version]);
+  if (!data) return html`<${Card} titulo="Posiciones"><p>Cargando…</p><//>`;
+  return html`
+    <${Card} titulo="Posiciones" id="posiciones">
+      <p>Lista definida por ti; no se precarga ninguna. <strong>El orden es el que configures</strong> con las flechas: las posiciones nuevas se añaden al final y no hay un orden definitivo. Una posición usada en algún historial no se elimina: se archiva.</p>
+      ${data.list.length === 0 ? html`<p class="muted">Todavía no hay posiciones.</p>` : html`<div class="table-wrap"><table>
+        <thead><tr><th scope="col">Posición (por orden)</th><th scope="col" class="num">Registros que la usan</th><th scope="col"><span class="sr">Acciones</span></th></tr></thead>
+        <tbody>${data.list.map((p, i) => html`<${PositionRow} key=${p.id} p=${p} first=${i === 0} last=${i === data.list.length - 1} used=${data.usage[p.id]} />`)}</tbody></table></div>`}
+      <form class="fields" onSubmit=${run(async () => { await createPosition(db, { name }); setName(''); bump(); }, 'posición creada al final de la lista.')}>
+        <label>Nueva posición <input type="text" required value=${name} onInput=${(e) => setName(e.target.value)} /></label>
+        <div class="actions"><button type="submit" disabled=${busy}>Añadir posición</button></div>
+      </form>
+      <${Msg} msg=${msg} />
+    <//>`;
+}
+
+// ---------- Ventana antropométrica ----------
+
+export function VentanaCard() {
+  const { db, version, bump } = useApp();
+  const [input, setInput] = useState(null);
+  const { msg, setMsg, run } = useRunner();
+  const { data: days } = useLoad(async () => (await getSetting(db, 'anthropometryWindowDays')) ?? null, [db, version]);
+  const shown = input ?? (days != null ? String(days) : '');
+  const save = async (e) => {
+    e.preventDefault();
+    const n = Number(shown);
+    if (shown === '' || !Number.isInteger(n) || n < 0 || n > 3650) return setMsg({ level: 'fail', text: 'Introduce un número entero de días entre 0 y 3650.' });
+    await setSetting(db, 'anthropometryWindowDays', n);
+    setInput(null);
+    setMsg({ level: 'ok', text: `ventana de ${n} días guardada.` });
+    bump();
+  };
+  return html`
+    <${Card} titulo="Ventana antropométrica">
+      <p>Días máximos entre la fecha de un test y la medición antropométrica que se usa para valores relativos. ${days != null ? `Ahora: ${days} días.` : 'Sin definir: mientras no la definas, los valores relativos figurarán como no disponibles (no se usa «la última medición» sin límite).'}</p>
+      <form class="fields" onSubmit=${save}>
+        <label>Días <input type="number" min="0" max="3650" value=${shown} onInput=${(e) => setInput(e.target.value)} /></label>
+        <div class="actions">
+          <button type="submit">Guardar</button>
+          <button type="button" class="secondary" disabled=${days == null} onClick=${run(async () => { await clearSetting(db, 'anthropometryWindowDays'); setInput(null); bump(); }, 'ventana eliminada: sin definir.')}>Quitar</button>
+        </div>
+      </form>
+      <${Msg} msg=${msg} />
+    <//>`;
+}
+
+// ---------- Datos sintéticos ----------
+
+export function SinteticosCard() {
+  const { db, version, bump } = useApp();
+  const { msg, run, busy } = useRunner();
+  const { data } = useLoad(() => countSynthetic(db), [db, version]);
+  const total = data ? totalOf(data) : 0;
+  return html`
+    <${Card} titulo="Datos sintéticos de demostración" id="sinteticos">
+      <p>Datos ficticios para probar la aplicación. Se identifican con la etiqueta <${Sintetico} /> y se eliminan todos juntos con un botón. <strong>No representan jugadores, posiciones ni mediciones reales.</strong> Incluyen las posiciones «Posición sintética 1» y «2» y los jugadores A a F del conjunto de aceptación de <code>REQUISITOS.md</code>, además de una pareja con y sin ñ para probar la propuesta de candidatos.</p>
+      ${data ? html`<p class=${'status ' + (total ? 'warn' : '')}>${total ? `Hay ${total} registros sintéticos: ${data.players} jugadores, ${data.playerAliases} alias, ${data.positions} posiciones, ${data.playerPositions} registros de posición y ${data.anthropometry} mediciones.` : 'No hay datos sintéticos cargados.'}</p>` : null}
+      <div class="actions">
+        <button type="button" disabled=${busy || total > 0} onClick=${run(async () => { const r = await loadSyntheticDemo(db); bump(); return r; }, (r) => `${r.counts.players} jugadores sintéticos cargados (lote ${r.batch}).`)}>Cargar datos sintéticos</button>
+        <button type="button" class="danger" disabled=${busy || total === 0} onClick=${run(async () => {
+          if (!confirm(`Se eliminarán TODOS los datos sintéticos (${total} registros: jugadores, alias, posiciones sintéticas, historial y mediciones sintéticas). Los datos reales no se tocan. ¿Continuar?`)) throw new Error('Eliminación cancelada: no se ha borrado nada.');
+          const r = await deleteSynthetic(db);
+          bump();
+          return r;
+        }, (r) => `${totalOf(r)} registros sintéticos eliminados.`)}>Eliminar todos los datos sintéticos</button>
+      </div>
+      <p class="muted">Si restauras una copia hecha mientras había datos sintéticos, volverán a aparecer. Si algún dato real depende de uno sintético (por ejemplo, un jugador real con una posición sintética), no se elimina nada hasta que lo reasignes.</p>
+      <${Msg} msg=${msg} />
+    <//>`;
+}

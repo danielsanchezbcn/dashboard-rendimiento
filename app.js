@@ -3,6 +3,7 @@ import { AppContext } from './context.js';
 import { getLocal, getSetting, APP_VERSION } from './db.js';
 import { backupState } from './util.js';
 import { Inicio, Bloque, Proximamente, Copias, Configuracion } from './pages.js';
+import { Jugadores, PerfilJugador } from './pages-jugadores.js';
 
 export const NAV = [
   { id: 'inicio', label: 'Inicio' },
@@ -15,17 +16,20 @@ export const NAV = [
   { id: 'configuracion', label: 'Configuración' },
 ];
 
+// Rutas por hash: «#copias», «#jugadores» y «#jugador-12» (perfil del jugador con id 12).
 const routeFromHash = () => {
-  const id = location.hash.replace(/^#\/?/, '');
-  return NAV.some((n) => n.id === id) ? id : 'inicio';
+  const h = location.hash.replace(/^#\/?/, '');
+  const m = /^jugador-(\d+)$/.exec(h);
+  if (m) return { id: 'jugadores', param: Number(m[1]) };
+  return { id: NAV.some((n) => n.id === h) ? h : 'inicio', param: null };
 };
 
 function Page({ route }) {
-  switch (route) {
+  switch (route.id) {
     case 'inicio':
       return html`<${Inicio} />`;
     case 'jugadores':
-      return html`<${Proximamente} titulo="Jugadores" fase="1c" detalle="Lista de jugadores, nombre en camiseta, alias por fuente, posiciones con fecha y antropometría con historial." />`;
+      return route.param ? html`<${PerfilJugador} id=${route.param} />` : html`<${Jugadores} />`;
     case 'fuerza':
       return html`<${Bloque}
         titulo="Manifestaciones de la fuerza"
@@ -79,12 +83,12 @@ export function App({ db }) {
     return () => {
       alive = false;
     };
-  }, [db, version, route]);
+  }, [db, version, route.id]);
 
-  const current = NAV.find((n) => n.id === route);
+  const current = NAV.find((n) => n.id === route.id);
   useEffect(() => {
     document.title = `${current.label} · Dashboard de rendimiento`;
-  }, [route]);
+  }, [route.id, route.param]);
 
   return html`
     <${AppContext.Provider} value=${{ db, version, bump }}>
@@ -98,13 +102,13 @@ export function App({ db }) {
           <ul>
             ${NAV.map(
               (n) => html`<li key=${n.id}>
-                <a href=${'#' + n.id} aria-current=${n.id === route ? 'page' : null} class=${n.id === route ? 'active' : ''}>${n.label}</a>
+                <a href=${'#' + n.id} aria-current=${n.id === route.id ? 'page' : null} class=${n.id === route.id ? 'active' : ''}>${n.label}</a>
               </li>`,
             )}
           </ul>
         </nav>
         <main id="contenido" tabindex="-1">
-          ${reminder && reminder.level === 'warn' && route !== 'copias'
+          ${reminder && reminder.level === 'warn' && route.id !== 'copias'
             ? html`<div class="banner warn" role="status">${reminder.text} <a href="#copias">Ir a copias de seguridad</a></div>`
             : null}
           <${Page} route=${route} />

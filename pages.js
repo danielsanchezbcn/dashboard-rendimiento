@@ -6,6 +6,7 @@ import {
   buildBackup, encodeBackup, backupFileName, parseBackupText, decodeBackupObject, validateBackup, restoreBackup, readSnapshot, countTables,
 } from './backup.js';
 import { saveBackup, saveToRememberedDir, pickDirectory, rememberedDirStatus, canPickFile, canPickDir } from './io.js';
+import { PosicionesCard, VentanaCard, SinteticosCard } from './pages-ajustes.js';
 
 // ---------- Piezas comunes ----------
 
@@ -37,10 +38,11 @@ export function Inicio() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [lastBackup, persistence, estimate, createdAt, audits, days] = await Promise.all([
+      const [lastBackup, persistence, estimate, createdAt, audits, days, players, activePlayers, positions] = await Promise.all([
         getLocal(db, 'lastBackup'), getLocal(db, 'persistence'), storageEstimate(), db.meta.get('createdAt'), db.auditLog.count(), getSetting(db, 'backupReminderDays'),
+        db.players.count(), db.players.filter((p) => p.active).count(), db.positions.count(),
       ]);
-      if (alive) setInfo({ lastBackup, persistence, estimate, createdAt: createdAt?.value, audits, days });
+      if (alive) setInfo({ lastBackup, persistence, estimate, createdAt: createdAt?.value, audits, days, players, activePlayers, positions });
     })();
     return () => { alive = false; };
   }, [db, version]);
@@ -66,7 +68,8 @@ export function Inicio() {
       <//>
       <${Card} titulo="Estado de la base">
         <p>Base creada el ${fmtDate(info.createdAt)}.</p>
-        <p class="muted">Registro de acciones: ${fmtNum(info.audits)} entradas. Todavía no hay jugadores ni mediciones: se añaden en las fases siguientes.</p>
+        <p>${info.players === 0 ? 'Todavía no hay jugadores.' : `Jugadores: ${fmtNum(info.players)} (${fmtNum(info.activePlayers)} activos). Posiciones definidas: ${fmtNum(info.positions)}.`} <a href="#jugadores">Ir a jugadores</a></p>
+        <p class="muted">Registro de acciones: ${fmtNum(info.audits)} entradas. Las mediciones de tests llegan en las fases siguientes.</p>
         <p class="muted">Los datos están solo en este navegador y este perfil de usuario; no se sincronizan con ningún servidor ni con otros dispositivos.</p>
       <//>
     </div>
@@ -290,6 +293,9 @@ export function Configuracion() {
 
   return html`
     <h2 class="page-title">Configuración</h2>
+    <${PosicionesCard} />
+    <${VentanaCard} />
+    <${SinteticosCard} />
     <${Card} titulo="Recordatorio de copia de seguridad">
       <p>Plazo máximo, en días, desde la última copia antes de mostrar un aviso. ${days ? `Ahora: ${days} días.` : 'Sin definir: solo se avisa si nunca has creado una copia.'}</p>
       <div class="fields"><label>Días <input type="number" min="1" max="365" value=${input} onInput=${(e) => setInput(e.target.value)} /></label></div>
