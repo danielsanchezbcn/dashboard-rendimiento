@@ -15,10 +15,10 @@ Siguen sin existir tests, sesiones, importaciones ni gráficos (fases 2 en adela
 
 ## Documentación del proyecto
 
-- `guia_dashboard_performance_claude.md`: la guía del proyecto, actualizada el 2 de noviembre de 2026 con los requisitos de gráficos, las referencias «La Liga» y Premier League, y los valores de seguimiento. Es documentación; no hace falta subirla para que la aplicación funcione.
-- `REQUISITOS.md`: requisitos funcionales obligatorios RF-01 a RF-03 (recorrido desde el jugador, recorrido desde el test y navegación entre ambos), con criterios de aceptación y un conjunto sintético para comprobarlos. Todavía no están implementados.
-- `PLAN_DE_FASES.md`: orden actual y orden propuesto de fases (este último **no aprobado**), gráficos por fase y reglas de entrega.
-- `DECISIONES.md`: decisiones tomadas y pendientes, incluido el conflicto sin resolver sobre la definición de Max (D12b).
+- `guia_dashboard_performance_claude.md`: la guía del proyecto, actualizada el 5 de noviembre de 2026 con los requisitos de gráficos, las referencias «La Liga» y Premier League, los valores de seguimiento (Average de sesión, Personal Average, Personal Best y Máxima repetición) y el orden de fases aprobado. Es documentación; no hace falta subirla para que la aplicación funcione.
+- `REQUISITOS.md`: requisitos funcionales obligatorios RF-01 a RF-03 (recorrido desde el jugador, recorrido desde el test y navegación entre ambos), con criterios de aceptación y un conjunto sintético para comprobarlos. Todavía no están implementados (fases 5a y 5b).
+- `PLAN_DE_FASES.md`: orden de fases aprobado (la fase 5 se divide en 5a, 5b y 5c), requisitos previos de cada fase, gráficos por fase y reglas de entrega.
+- `DECISIONES.md`: decisiones tomadas y pendientes, con las definiciones de los valores de seguimiento (D12).
 - `DICCIONARIO_DE_DATOS.md`: tablas y formato de copia actuales.
 
 ## Estructura plana: todos los archivos en la raíz

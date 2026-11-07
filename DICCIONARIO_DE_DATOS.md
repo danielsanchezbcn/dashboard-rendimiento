@@ -127,12 +127,36 @@ Si se comprime o se cifra, el fichero es un sobre (`dashboard-rendimiento-backup
 
 Reglas de restauración: se rechaza una copia de un esquema posterior al de la aplicación, con tablas desconocidas, con recuentos que no coincidan o con suma de verificación distinta. **Una copia del esquema 1 se acepta en la versión actual con un aviso por cada tabla ausente, que quedará vacía.** La restauración sustituye todos los datos en una sola transacción y la verifica dentro de ella; si algo falla, se revierte.
 
+## Formato observado: exportación de VALD ForceDecks, Run-Specific Ankle Iso-Push (RSAIP)
+
+Descrito a partir de un fichero de ejemplo aportado el 6 de noviembre de 2026 (128 filas, 47 jugadores, del 23/02/2023 al 27/10/2026). Los nombres y valores del fichero **no se copian** a la documentación ni a los datos sintéticos. Todo lo que sigue se ha comprobado en ese único fichero; otros tests o versiones de VALD pueden diferir.
+
+**Codificación y forma:** UTF-8 con marca BOM, todas las celdas entrecomilladas, 21 columnas, una fila por sesión y orden de la más reciente a la más antigua. Fechas `dd/mm/aaaa`, horas en formato de 12 horas con AM/PM, decimales con punto. Tres cabeceras llevan un espacio final («Peak Vertical Force [N] », «Force at 100ms [N] », «RFD - 100ms [N/s] »): el importador debe recortar las cabeceras. `ExternalId` está vacío en todas las filas (el jugador se identifica solo por el nombre, con la resolución de la fase 1c).
+
+**Columnas:** `Name`, `ExternalId`, `Test Type` (código «RSAIP»), `Date`, `Time`, `BW [KG]` (peso corporal, una cifra por test), `Reps (L)`, `Reps (R)`, `Tags` y, para cada una de las tres variables (Peak Vertical Force [N], Force at 100ms [N], RFD - 100ms [N/s]), cuatro columnas: valor de la sesión, izquierda `(L)`, derecha `(R)` y asimetría `(Asym)(%)`.
+
+**Lo comprobado sobre los valores** (375 valores de sesión con ambos lados):
+
+- La columna de la variable sin sufijo es la **media de todas las repeticiones de la sesión, ponderada por `Reps` de cada lado** (coincide en los 375 casos dentro del redondeo; en las 6 filas con repeticiones distintas por lado, la media simple no coincide en 17 de los 18 valores y la ponderada sí). Es exactamente la ponderación de D12a.
+- Los valores vienen redondeados a enteros (y en cifras grandes, a decenas), de modo que **no hay repeticiones individuales**: la Máxima repetición no está disponible con este formato.
+- La asimetría de VALD es un texto con magnitud y letra, por ejemplo «7.8 R»: la magnitud es |izquierda − derecha| ÷ máx(izquierda, derecha) × 100, redondeada a 2 cifras significativas según lo observado, y la letra es **el lado con el valor más alto** (0 discrepancias de letra en los casos sin empate). Con empate exacto la letra no es informativa («0 R», «0 L»). Coincide con la definición de dominante y con el signo decididos en D25. Como la magnitud está redondeada, se recalcula con los valores de cada lado y se conserva el texto original.
+
+**Casos especiales observados:**
+
+- **Un solo lado:** 3 filas con `Reps` vacío en un lado; en ellas faltan los valores y la asimetría del otro lado y la columna de la variable es la del lado presente. Esa cifra no es bilateral y no debe tratarse como tal.
+- **Repeticiones distintas por lado:** 6 filas (3 contra 2 o 2 contra 3). Por eso la ponderación por `Reps` de cada lado importa.
+- **Mismo jugador y día en dos filas:** 2 casos, cada uno con una segunda fila de un solo lado a los pocos minutos (D29).
+- **Etiquetas:** 80 filas sin etiqueta y 48 con 15 combinaciones distintas, unidas con guion (palabras sueltas o combinaciones de dos; no se interpreta su significado). Se importan tal cual (D31).
+- **Peso corporal:** presente en todas las filas, con hasta 2 decimales (D30).
+
+**Correspondencias propuestas (por confirmar en D32):** «RSAIP» = Run-Specific Ankle Iso-Push; «Peak Vertical Force [N]» = Peak Force (N); «RFD - 100ms [N/s]» = RFD a 100 ms. «Force at 100ms [N]» no está en el catálogo de la guía; no se crea hasta que lo decidas.
+
 ## Datos previstos (no implementados)
 
 Se definirán al implementar las fases correspondientes y no forman parte del esquema actual:
 
 - **Posición asignada a cada sesión en su fecha** (fases 2 y 3), tomada del historial de posiciones. Corregir el historial no reasigna sesiones existentes sin una acción explícita (guía).
-- **Sesiones y repeticiones** con su estado (válida, pendiente o excluida), para calcular Average y los demás valores (fases 2 a 4). La forma de guardar las repeticiones está pendiente (D8) y la definición de Max también (D12b).
+- **Sesiones y repeticiones** con su estado (válida, pendiente o excluida), para calcular Average y los demás valores (fases 2 a 4). La forma de guardar las repeticiones está pendiente (D8). El Average de sesión, el Personal Average y el Personal Best serán **valores calculados** a partir de las repeticiones o de los resúmenes de sesión, no datos guardados (definiciones en `DECISIONES.md`, D12); la Máxima repetición se obtiene de las repeticiones individuales y no existe para sesiones solo resumen.
 
 ## Pendiente de definir por el usuario
 

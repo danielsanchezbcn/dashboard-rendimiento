@@ -14,3 +14,11 @@
 - **Comprobaciones hechas:** el paquete no contiene `eval` ni `new Function` ni importaciones a direcciones externas, de modo que cumple la política de seguridad de la página (`script-src 'self'`).
 - **Reproducir la compilación:** en una carpeta con `libs-fuente.js`, `package.json` y `package-lock.json`, `npm ci` y `npm run build-vendor` (genera `libs.js`). No hace falta para usar la aplicación.
 - **Actualizar una librería:** cambiar la versión exacta en `package.json`, volver a compilar, ejecutar las pruebas (`npm test`) y actualizar esta tabla y el SHA-256.
+
+## Prevista (todavía no incorporada)
+
+| Librería | Versión | Licencia | Uso | Cuándo |
+|---|---|---|---|---|
+| Chart.js (con @kurkle/color 0.3.x) | 4.6.1, publicada el 22/10/2026 | MIT | Líneas, dispersión, barras y radar; solo esos componentes. Unos 180 KB minimizada en la prueba | Fase 5a, dentro de `libs.js` (decisión D20, 6/11/2026) |
+
+Pendiente de comprobar al integrarla: rendimiento con el volumen real, Chrome real, tema claro y accesibilidad. En ese momento se actualizará el SHA-256 de `libs.js`; hoy sigue siendo el indicado arriba.
