@@ -77,7 +77,7 @@ El **usuario introduce la carga externa del Iso-Hold** (máxima carga trabajada 
 ## 4. Constantes y cálculos del sistema
 
 - **Average de sesión, Personal Average** (todas las repeticiones válidas del periodo; ponderado por `Reps` en resúmenes), **Personal Best** (mejor Average según la dirección; **no definido** con rango objetivo, D23; **empate → la sesión más reciente**, D22), **Máxima repetición** (dato aparte, solo si hay repeticiones) **[Decidido, D12/D12b/D22/D23]**.
-- **SW (System Weight)** = 29 % del **último peso corporal medido anterior o igual a la fecha de la sesión** (100 kg → 29 kg). **Solo Hip** (Iso-Push e Iso-Hold). Knee y Ankle usan BW **[Decidido, D27]**. El 29 % no se ha verificado con fuente.
+- **SW (System Weight)** = 29 % del **último peso corporal medido anterior o igual a la fecha de la sesión** (100 kg → 29 kg). **Solo Hip** (Iso-Push, Iso-Hold y Supine Isometric 90°/90° Leg Curl). Knee y Ankle usan BW **[Decidido, D27]**. El 29 % no se ha verificado con fuente. **Variante al 5 %** del peso corporal para Single-Leg Seated Calf Raise (indicada por el usuario el 7/11; sin fuente verificada); misma regla de peso corporal que el SW de Hip **[Decidido, D36]**.
 - **Referencia «La Liga»** **[Decidido, D19/D28]**: se calcula desde la base propia, con **un valor por jugador** (media de todos sus tests válidos de todas las temporadas, sin sesiones excluidas), por test, protocolo y variable; los datos sintéticos se excluyen. Tests unilaterales: dos referencias, una por extremidad, y percentil por extremidad. Con una sola sesión el jugador ya cuenta. Pendiente: si el jugador evaluado se incluye en su propia referencia (se recomienda excluirlo), el caso de cambio de posición y el mínimo de jugadores.
 - **Premier League** (rangos de percentil por test, a aportar por el usuario) y **SCIENCE** (valor bibliográfico con cita) son referencias introducidas a mano, con fuente y población **[Decidido, D14/D21; rangos pendientes]**.
 
@@ -138,3 +138,7 @@ Entradas solo de adición: fecha y hora, entidad, campo, valor anterior, valor n
 - Un ejemplo de exportación de VALD por cada tipo de test (D32), con nombres de jugador cambiados.
 - Valor de la ventana antropométrica.
 - D16, D17 (si el perfil F-V entra en la fase 2) y `DIF_ABS`/`EVOLUCIÓN`.
+
+## Variables y unidades precargadas (D36, 7 de noviembre de 2026)
+
+Las variables y unidades de CMJ (20), SL CMJ (16), Squat Jump (4), Double-Leg Hop Test (11), DL Drop Jump 30 y 45 cm (12 cada uno) y las explosivas del Run-Specific Iso-Push (RFD at 100 ms en N/s y Force at 100 ms en N) están en `guia_dashboard_performance_claude.md` (tablas «… — variables y unidades»). Direcciones de interpretación y fórmulas relativas siguen sin definir.

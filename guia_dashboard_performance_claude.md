@@ -58,6 +58,7 @@ Esta lista es una primera estructura editable. No implica que los protocolos, va
 **Max Isometric Strength**
 
 - Run-Specific Hip Iso-Push — Peak Force
+- Hip Iso-Hold 20 s
 - Supine Isometric 90°/90° Leg Curl Test
 - Standing Isometric 90°/20° Hamstring Test
 
@@ -67,7 +68,6 @@ Esta lista es una primera estructura editable. No implica que los protocolos, va
 
 **Heavy Dynamic Strength**
 
-- Hip Iso-Hold 20 s
 - Nordic Hamstring Exercise
 - Hamstring Bridge 30 cm 8RM
 - Single-Leg Knee Flexion 8RM
@@ -79,6 +79,7 @@ Esta lista es una primera estructura editable. No implica que los protocolos, va
 **Max Isometric Strength**
 
 - Run-Specific Knee Iso-Push — Peak Force
+- Knee Iso-Hold 20 s
 - Seated Isometric 90°/90° Knee Extension Test
 
 **Explosive Strength**
@@ -87,7 +88,6 @@ Esta lista es una primera estructura editable. No implica que los protocolos, va
 
 **Heavy Dynamic Strength**
 
-- Knee Iso-Hold 20 s
 - Double-Leg Leg Press 45° 8RM
 - Single-Leg Leg Press 45° 8RM
 - RFESS 45° 8RM
@@ -99,6 +99,8 @@ Esta lista es una primera estructura editable. No implica que los protocolos, va
 **Max Isometric Strength**
 
 - Run-Specific Ankle Iso-Push — Peak Force
+- Ankle Iso-Hold 20 s
+- Single-Leg Seated Calf Raise Iso-Hold 20 s
 - Single-Leg Seated Calf Raise
 - Supine Isometric Ankle Inversion
 - Supine Isometric Ankle Eversion
@@ -109,9 +111,6 @@ Esta lista es una primera estructura editable. No implica que los protocolos, va
 
 **Heavy Dynamic Strength**
 
-- Ankle Iso-Hold 20 s
-- Single-Leg Seated Calf Raise Iso-Hold 20 s
-- Run-Specific Ankle Iso-Hold 20 s
 - Single-Leg Standing Calf Raise 12RM
 - Single-Leg Seated Calf Raise 6RM
 
@@ -127,49 +126,103 @@ The Groin list currently includes only the tests supplied above. Leave its Heavy
 
 #### Fast Dynamic Strength and Reactive Strength
 
-The global tests listed in “Manifestaciones de la fuerza” form the initial catalog for these categories. The CMJ and Reactive Strength variables supplied by the user are listed below. Their remaining protocol details and the variables for SL CMJ and Squat Jump remain to be specified.
+The global tests listed in “Manifestaciones de la fuerza” form the initial catalog for these categories. Los nombres, las variables y las unidades de CMJ, SL CMJ, Squat Jump, Double-Leg Hop Test y DL Drop Jump son los **definitivos aportados por el usuario el 7 de noviembre de 2026** mediante los PDF de exportación de VALD (`CMJ.pdf`, `CMJ SL.pdf`, `SQUAT JUMP.pdf`, `HOP TEST.pdf`, `DROP JUMP.pdf`, `ISO PUSH.pdf`). La unidad es la que muestra el PDF; si el PDF no la indica (índices RSI, cociente tiempo de vuelo/tiempo de contacto), queda sin definir. **Siguen sin definirse** las fórmulas relativas, la dirección de interpretación y las reglas de interpretación de las asimetrías. Las asimetrías de VALD ([% L,R]) se guardan en % como dato de origen; en el PDF el lado izquierdo aparece con valor negativo y el derecho con positivo.
 
-##### CMJ — variables aportadas por el usuario
+Los nombres de CMJ conservan las etiquetas abreviadas del usuario; los de los demás tests siguen el mismo estilo (mayúsculas, abreviado) y se han emparejado con el nombre de VALD por coincidencia de texto y unidad. Los PDF son de una sola prueba por test (un jugador, una fecha): sirven para fijar variables y unidades, no para validar valores.
 
-Configurar las siguientes variables para **CMJ**. Conservar estos nombres como etiquetas de origen; no asignarles unidades, fórmulas relativas, dirección de interpretación ni reglas de asimetría hasta que el usuario las defina. No asumir que esta lista también se aplica a SL CMJ o Squat Jump.
+**Notas de los PDF que afectan al importador (fase 3):** (1) el tiempo de contacto del Drop Jump está en **segundos** y el del Hop Test en **milisegundos**; el importador debe leer la unidad por test. (2) El PDF de Drop Jump no indica la altura (30 o 45 cm): se aplican las mismas variables a ambos. (3) En el PDF de Squat Jump, Concentric Impulse-100ms y Concentric RFD-100ms muestran valores negativos o casi nulos: el importador no debe asumir que son siempre positivos. (4) Las asimetrías de VALD llevan las letras L/R y un signo implícito; el importador debe convertirlas al criterio de la app (D25: positivo si domina la derecha).
 
-| Variable |
-|---|
-| ECC DECEL PHASE DURATION |
-| CONCENTRIC DURATION |
-| CONTRACTION TIME |
-| DEPTH |
-| RSI MOD |
-| COM STIFFNESS |
-| ECC DECEL RFD |
-| CON IMPULSE 100ms |
-| CON PEAK POWER/BM |
-| CON IMPULSE |
-| JH (imp-mom) |
-| FORCE AT 0 VELOCITY |
-| ECC DECELERATION IMPULSE |
-| ECC PEAK POWER/BM |
-| ECC DECEL RFD ASYM |
-| CON IMPULSE 100ms ASYM |
-| CON IMPULSE ASYM |
-| ECC DECEL IMPULSE ASYM |
-| PEAK LANDING FORCE ASYM |
+##### CMJ — variables y unidades (20)
 
-##### Reactive Strength — variables definitivas aportadas por el usuario
+| Variable | Unidad | Valores |
+|---|---|---|
+| ECC DECEL PHASE DURATION | s | valor único |
+| CONCENTRIC DURATION | ms | valor único |
+| CONTRACTION TIME | ms | valor único |
+| DEPTH | cm | valor único |
+| RSI MOD | m/s | valor único |
+| COM STIFFNESS | N/m | valor único |
+| ECC DECEL RFD | N/s/kg | valor único |
+| CON IMPULSE 100ms | N s | valor único |
+| CON PEAK POWER/BM | W/kg | valor único |
+| CON IMPULSE | N s | valor único |
+| JH (imp-mom) | cm | valor único |
+| FORCE AT 0 VELOCITY | N/kg | valor único |
+| ECC DECELERATION IMPULSE | N s | valor único |
+| ECC PEAK POWER/BM | W/kg | valor único |
+| ECC PEAK VELOCITY | m/s | valor único |
+| ECC DECEL RFD ASYM | % | valor único |
+| CON IMPULSE 100ms ASYM | % | valor único |
+| CON IMPULSE ASYM | % | valor único |
+| ECC DECEL IMPULSE ASYM | % | valor único |
+| PEAK LANDING FORCE ASYM | % | valor único |
 
-Configurar exactamente estas variables para cada test. No asignar unidades no indicadas, fórmulas adicionales, dirección de interpretación ni reglas de asimetría que el usuario no haya especificado.
+##### SL CMJ — variables y unidades (16, un valor por lado)
 
-| Test | Variable |
-|---|---|
-| DOUBLE LEG HOP TEST | MEAN RSI (FLIGHT TIME / CONTACT TIME) |
-| DOUBLE LEG HOP TEST | MEAN JUMP HEIGHT (Flight Time) (cm) |
-| DOUBLE LEG HOP TEST | MEAN CONTACT TIME |
-| DL DROP JUMP (30cm) | RSI (FLIGHT TIME / CONTACT TIME) |
-| DL DROP JUMP (30cm) | JUMP HEIGHT (Flight Time - cm) |
-| DL DROP JUMP (30cm) | CONTACT TIME |
-| DL DROP JUMP (45cm) | RSI (FLIGHT TIME / CONTACT TIME) |
-| DL DROP JUMP (45cm) | JUMP HEIGHT (Flight Time - cm) |
-| DL DROP JUMP (45cm) | CONTACT TIME |
+| Variable | Unidad | Valores |
+|---|---|---|
+| CONCENTRIC PEAK FORCE / BM | N/kg | por lado (izq. y der.) |
+| TAKEOFF PEAK FORCE / BM | N/kg | por lado (izq. y der.) |
+| ECC DECEL PHASE DURATION | s | por lado (izq. y der.) |
+| CONCENTRIC DURATION | ms | por lado (izq. y der.) |
+| CONTRACTION TIME | ms | por lado (izq. y der.) |
+| DEPTH | cm | por lado (izq. y der.) |
+| JH (imp-mom) | cm | por lado (izq. y der.) |
+| RSI MOD | m/s | por lado (izq. y der.) |
+| COM STIFFNESS | N/m | por lado (izq. y der.) |
+| ECC DECEL RFD | N/s/kg | por lado (izq. y der.) |
+| CON IMPULSE 100ms | N s | por lado (izq. y der.) |
+| CON PEAK POWER/BM | W/kg | por lado (izq. y der.) |
+| FORCE AT 0 VELOCITY | N/kg | por lado (izq. y der.) |
+| ECC PEAK POWER/BM | W/kg | por lado (izq. y der.) |
+| ECC PEAK VELOCITY | m/s | por lado (izq. y der.) |
+| PEAK LANDING FORCE / BM | N/kg | por lado (izq. y der.) |
+
+##### Squat Jump — variables y unidades (4)
+
+| Variable | Unidad | Valores |
+|---|---|---|
+| JH (imp-mom) | cm | valor único |
+| RSI MOD | m/s | valor único |
+| CON IMPULSE 100ms | N s | valor único |
+| CON RFD 100ms | N/s | valor único |
+
+##### Double-Leg Hop Test — variables y unidades (11)
+
+| Variable | Unidad | Valores |
+|---|---|---|
+| MEAN RSI (FLIGHT TIME / CONTACT TIME) | sin unidad en el PDF | valor único |
+| MEAN JUMP HEIGHT (Flight Time) (cm) | cm | valor único |
+| MEAN CONTACT TIME | ms | valor único |
+| MEAN PEAK FORCE | N | valor único |
+| MEAN PEAK FORCE ASYMMETRY | % | valor único |
+| MEAN IMPULSE | N s | valor único |
+| MEAN IMPULSE ASYMMETRY | % | valor único |
+| MEAN ACTIVE STIFFNESS | N/m | valor único |
+| MEAN ACTIVE STIFFNESS ASYMMETRY | % | valor único |
+| MEAN LANDING RFD | N/s | valor único |
+| MEAN LANDING RFD ASYMMETRY | % | valor único |
+
+##### DL Drop Jump (30 cm y 45 cm) — variables y unidades (12 en cada uno)
+
+| Variable | Unidad | Valores |
+|---|---|---|
+| RSI (FLIGHT TIME / CONTACT TIME) | sin unidad en el PDF | valor único |
+| JUMP HEIGHT (Flight Time - cm) | cm | valor único |
+| CONTACT TIME | s | valor único |
+| ECCENTRIC IMPULSE | N s | valor único |
+| ECCENTRIC IMPULSE ASYMMETRY | % | valor único |
+| PEAK POWER / BM | W/kg | valor único |
+| CONCENTRIC IMPULSE | N s | valor único |
+| CONCENTRIC IMPULSE ASYMMETRY | % | valor único |
+| ACTIVE STIFFNESS | N/m | valor único |
+| ACTIVE STIFFNESS ASYMMETRY | % | valor único |
+| DROP LANDING RFD ASYMMETRY | % | valor único |
+| PEAK DROP LANDING FORCE ASYMMETRY | % | valor único |
+
+##### Run-Specific Iso-Push — variables explosivas
+
+El PDF `ISO PUSH.pdf` (Run-Specific Hip Iso-Push) trae tres variables por lado: Peak Vertical Force [N] (en la app, «Peak Force»), **Force at 100 ms [N]** (variable nueva) y **RFD - 100ms [N/s]** («RFD at 100 ms»). Las dos últimas se asignan a Explosive Strength (confirmado el 7 de noviembre). Se aplican igual a Knee y Ankle, y también a **Supine Isometric 90°/90° Leg Curl Test** y **Single-Leg Seated Calf Raise** con las mismas cinco variables (Peak Force, relativo, asimetría, RFD at 100 ms y Force at 100 ms). Normalización relativa: BW en general; SW (29 % del peso corporal) en Hip, incluido el Leg Curl 90/90; el calf raise sentado usa una **variante de SW al 5 % del peso corporal** indicada por el usuario (sin fuente verificada). Ambos SW (29 % y 5 %) usan la misma regla de peso corporal: el último peso medido anterior o igual a la fecha de la sesión. La fórmula relativa de RFD at 100 ms y la de Force at 100 ms siguen pendientes.
 
 Dentro de cada área se podrán añadir, modificar, archivar y configurar tests y variables sin tener que cambiar el código. El protocolo se asocia al test; cada variable tendrá su nombre, unidad, dirección de interpretación y fórmula relativa propios. En Run-Specific Iso-Push, Peak Force y RFD at 100 ms son los únicos resultados/variables ya identificados por el usuario. Peak Force tiene unidad absoluta N y normalización relativa regional definida en “Relativización”: SW para Hip y BW para Knee y Ankle. La unidad absoluta y la fórmula relativa de RFD at 100 ms siguen pendientes. No inventar variables adicionales para los demás tests.
 
@@ -337,7 +390,7 @@ Ejemplos aportados por el usuario:
 | Knee Iso-Push | 77.0 kg | 755.1 N | BW = 755.1 N | 2762 N | 2974 N | 3.66 BW | 3.94 BW | +7.1% |
 | Hip Iso-Push | 78.0 kg | 764.9 N | SW = 221.8 N | 420 N | 396 N | 1.89 SW | 1.79 SW | −5.7% |
 
-La fórmula relativa de **RFD at 100 ms** sigue pendiente y no debe suponerse a partir de la de Peak Force.
+La fórmula relativa de **RFD at 100 ms** (unidad N/s) sigue pendiente y no debe suponerse a partir de la de Peak Force; lo mismo vale para **Force at 100 ms** (N).
 
 ### Percentiles propios
 
@@ -687,7 +740,7 @@ Preconfigura el catálogo con la lista de manifestaciones, zonas y tests de “C
 
 Mantén **Perímetros** y **NME** como bloques principales configurables aparte de la fuerza. No precargues perímetros, unidades, técnicas, tests ni variables para ellos hasta que el usuario los especifique; conserva la sigla NME sin expandirla.
 
-Configura para CMJ y Reactive Strength exactamente las variables enumeradas en “CMJ — variables aportadas por el usuario” y “Reactive Strength — variables definitivas aportadas por el usuario”. No inventes variables adicionales ni copies las listas de CMJ a SL CMJ o Squat Jump. No infieras unidades no indicadas, significado direccional ni cálculos de asimetrías. Mantén separados el dato absoluto y el relativo y muestra la fórmula aplicada cuando el usuario la haya definido.
+Configura para CMJ, SL CMJ, Squat Jump, Double-Leg Hop Test y DL Drop Jump exactamente las variables y unidades enumeradas en las tablas «… — variables y unidades» (PDF de VALD del 7 de noviembre de 2026). No inventes variables adicionales. No infieras unidades no indicadas, significado direccional ni cálculos de asimetrías. Mantén separados el dato absoluto y el relativo y muestra la fórmula aplicada cuando el usuario la haya definido.
 
 Entrega además una plantilla vacía de Excel y un diccionario de datos que expliquen los campos obligatorios y opcionales.
 

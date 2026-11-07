@@ -5,6 +5,7 @@ import { backupState } from './util.js';
 import { Inicio, Proximamente, Copias, Configuracion } from './pages.js';
 import { Jugadores, PerfilJugador } from './pages-jugadores.js';
 import { Catalogo, TestDetalle, BloqueCatalogo } from './pages-catalogo.js';
+import { Importar } from './pages-importar.js';
 
 export const NAV = [
   { id: 'inicio', label: 'Inicio' },
@@ -43,7 +44,7 @@ function Page({ route }) {
     case 'catalogo':
       return route.param ? html`<${TestDetalle} id=${route.param} />` : html`<${Catalogo} />`;
     case 'importar':
-      return html`<${Proximamente} titulo="Importar" fase="3 y 4" detalle="Importación de Excel propio y de exportaciones de VALD, con confirmación de cada nombre de jugador en cada lote." />`;
+      return html`<${Importar} />`;
     case 'copias':
       return html`<${Copias} />`;
     case 'configuracion':

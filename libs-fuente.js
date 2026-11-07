@@ -3,7 +3,8 @@ import { h, render, Fragment, Component, createContext } from 'preact';
 import { useState, useEffect, useRef, useMemo, useCallback, useContext, useReducer } from 'preact/hooks';
 import htm from 'htm';
 import Dexie from 'dexie';
+import readXlsx from 'read-excel-file/universal';
 
 const html = htm.bind(h);
 
-export { h, render, Fragment, Component, createContext, useState, useEffect, useRef, useMemo, useCallback, useContext, useReducer, html, Dexie };
+export { h, render, Fragment, Component, createContext, useState, useEffect, useRef, useMemo, useCallback, useContext, useReducer, html, Dexie, readXlsx };

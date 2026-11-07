@@ -23,9 +23,9 @@ export const KINDS = { raw: 'Dato de origen', derived: 'Calculada' };
 
 // Operaciones cerradas con definición dada por el usuario. No hay intérprete de fórmulas libres.
 export const OPERATIONS = {
-  ASIMETRIA: { label: 'Asimetría (%)', operands: 1, definition: '(derecha − izquierda) ÷ máx(izquierda, derecha) × 100; positivo si domina la derecha (D25)', params: {} },
-  REL_BW: { label: 'Relativo al peso corporal (BW)', operands: 1, definition: 'fuerza del lado (N) ÷ (masa corporal (kg) × 9,80665)', params: {} },
-  REL_SW: { label: 'Relativo al System Weight (SW)', operands: 1, definition: 'fuerza del lado (N) ÷ (factor × masa corporal (kg) × 9,80665); factor por defecto 0,29 (D27)', params: { factor: SW_FACTOR_DEFAULT } },
+  ASIMETRIA: { label: 'Asimetría (%)', unit: '%', operands: 1, definition: '(derecha − izquierda) ÷ máx(izquierda, derecha) × 100; positivo si domina la derecha (D25)', params: {} },
+  REL_BW: { label: 'Relativo al peso corporal (BW)', unit: 'BW', operands: 1, definition: 'fuerza del lado (N) ÷ (masa corporal (kg) × 9,80665)', params: {} },
+  REL_SW: { label: 'Relativo al System Weight (SW)', unit: 'SW', operands: 1, definition: 'fuerza del lado (N) ÷ (factor × masa corporal (kg) × 9,80665); factor por defecto 0,29 (D27)', params: { factor: SW_FACTOR_DEFAULT } },
 };
 
 // ---------- Cálculo puro (sin base de datos). Devuelve null si falta un dato o es inválido; nunca 0 inventado ----------
@@ -282,7 +282,7 @@ export async function createVariable(db, { testId, name, unit = null, sides = nu
   const f = await validateFormula(db, testId, formula);
   if (kind === 'raw' && f?.op) throw new Error('Un dato de origen no puede tener una operación; márcalo como calculada.');
   const row = {
-    testId, name: n, unit: nullable(unit), sides: oneOf(sides, SIDES, 'El tipo de valor'), direction: oneOf(direction, DIRECTIONS, 'La dirección'),
+    testId, name: n, unit: f?.op ? OPERATIONS[f.op].unit : nullable(unit), sides: oneOf(sides, SIDES, 'El tipo de valor'), direction: oneOf(direction, DIRECTIONS, 'La dirección'),
     manifestationId, kind, formula: f, formulaVersion: f ? 1 : 0, notes: clean(notes), archived: false, order: await nextOrder(db.variables), createdAt: now(), updatedAt: now(), ...extra,
   };
   const id = await db.variables.add(row);
@@ -319,6 +319,9 @@ export async function updateVariable(db, id, patch, reason = '') {
       await db.formulaHistory.add({ variableId: id, version: next.formulaVersion, formula: f, at: now(), reason: clean(reason) });
     }
   }
+  // La unidad de una variable con operación la fija la operación (evita etiqueta, fórmula y unidad incoherentes).
+  const effective = next.formula !== undefined ? next.formula : cur.formula;
+  if (effective?.op) next.unit = OPERATIONS[effective.op].unit;
   await db.variables.update(id, { ...next, updatedAt: now() });
   await logChange(db, 'catalogo-variable-modificada', 'variable', id, cur, next, reason);
 }

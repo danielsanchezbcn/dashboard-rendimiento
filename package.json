@@ -4,13 +4,14 @@
   "description": "Herramientas de desarrollo: compilación única de librerías de terceros y pruebas con datos sintéticos",
   "scripts": {
     "build-vendor": "esbuild libs-fuente.js --bundle --format=esm --minify --legal-comments=none --target=es2022 --outfile=libs.js",
-    "test": "node prueba-copias.test.mjs && node prueba-jugadores.test.mjs && node prueba-interfaz.test.mjs && node prueba-jugadores-ui.test.mjs && node prueba-catalogo.test.mjs && node prueba-catalogo-ui.test.mjs"
+    "test": "node prueba-copias.test.mjs && node prueba-jugadores.test.mjs && node prueba-interfaz.test.mjs && node prueba-jugadores-ui.test.mjs && node prueba-catalogo.test.mjs && node prueba-catalogo-ui.test.mjs && node prueba-importacion.test.mjs && node prueba-importacion-ui.test.mjs && node prueba-vald.test.mjs && node prueba-vald-ui.test.mjs && node prueba-atletas.test.mjs && node prueba-atletas-ui.test.mjs"
   },
   "dependencies": {
     "dexie": "4.4.6",
     "esbuild": "0.28.2",
     "htm": "3.1.1",
-    "preact": "10.29.8"
+    "preact": "10.29.8",
+    "read-excel-file": "9.3.12"
   },
   "devDependencies": {
     "fake-indexeddb": "^6.2.7",

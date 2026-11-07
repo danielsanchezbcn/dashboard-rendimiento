@@ -31,7 +31,7 @@ await tick(600);
 // Navegación
 const links = $$('nav a').map((a) => a.textContent.trim());
 check('menú con 9 entradas y los 3 bloques', links.length === 9 && ['Manifestaciones de la fuerza', 'Perímetros', 'NME'].every((l) => links.includes(l)), links.join(' | '));
-check('versión visible 2-0.1.0', document.querySelector('.ver')?.textContent === 'v2-0.1.0', document.querySelector('.ver')?.textContent);
+check('versión visible 4-0.1.0', document.querySelector('.ver')?.textContent === 'v4-0.1.0', document.querySelector('.ver')?.textContent);
 check('inicio por defecto con aria-current', $('nav a[aria-current="page"]')?.textContent === 'Inicio');
 check('aviso de que no hay copia (sin plazo definido)', /Todavía no has creado ninguna copia/.test(text()));
 check('almacenamiento no persistente explicado', /no garantiza conservar los datos/.test(text()));
@@ -46,7 +46,7 @@ check('NME: etiqueta literal, sin expandir ni contenido', $('h2.page-title').tex
 await go('jugadores');
 check('Jugadores: lista vacía y formulario, sin jugadores inventados', /Todavía no hay jugadores/.test(text()) && /Nuevo jugador/.test(text()));
 await go('importar');
-check('Importar: marcador de fases 3 y 4', /fase 3 y 4/.test(text()));
+check('Importar: asistente en el paso 1', /1\. Elige el fichero/.test(text()) && /Importaciones anteriores/.test(text()));
 
 // Crear copia
 await go('copias');

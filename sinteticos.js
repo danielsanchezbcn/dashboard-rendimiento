@@ -5,7 +5,7 @@
 import { audit } from './db.js';
 
 // Orden de borrado: primero lo que depende de otras tablas.
-export const SYNTHETIC_TABLES = ['playerPositions', 'anthropometry', 'playerAliases', 'players', 'positions'];
+export const SYNTHETIC_TABLES = ['sessions', 'playerPositions', 'anthropometry', 'playerAliases', 'players', 'positions'];
 
 export const countSynthetic = async (db) => {
   const out = {};
@@ -99,8 +99,9 @@ export async function deleteSynthetic(db) {
   const realPositions = (await db.playerPositions.toArray()).filter((r) => !r.synthetic && (synthPositions.has(r.positionId) || synthPlayers.has(r.playerId))).length;
   const realAliases = (await db.playerAliases.toArray()).filter((r) => !r.synthetic && synthPlayers.has(r.playerId)).length;
   const realAnthro = (await db.anthropometry.toArray()).filter((r) => !r.synthetic && synthPlayers.has(r.playerId)).length;
-  if (realPositions + realAliases + realAnthro > 0) {
-    throw new Error(`No se puede eliminar: hay datos reales que dependen de datos sintéticos (${realPositions} registros de posición, ${realAliases} alias, ${realAnthro} mediciones). Reasígnalos o elimínalos antes.`);
+  const realSessions = (await db.sessions.toArray()).filter((r) => !r.synthetic && synthPlayers.has(r.playerId)).length;
+  if (realPositions + realAliases + realAnthro + realSessions > 0) {
+    throw new Error(`No se puede eliminar: hay datos reales que dependen de datos sintéticos (${realPositions} registros de posición, ${realAliases} alias, ${realAnthro} mediciones, ${realSessions} sesiones). Reasígnalos o elimínalos antes.`);
   }
   await db.transaction('rw', SYNTHETIC_TABLES.map((t) => db.table(t)).concat(db.auditLog), async () => {
     for (const t of SYNTHETIC_TABLES) await db.table(t).where('synthetic').equals(1).delete();

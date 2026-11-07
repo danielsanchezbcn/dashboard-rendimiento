@@ -1,6 +1,6 @@
-# Diccionario de datos (fase 2)
+# Diccionario de datos (fase 3)
 
-Base de datos local: `dashboard-rendimiento` (IndexedDB), **esquema versión 3**. Las tablas de sesiones, importaciones, etc. se añadirán en fases posteriores como nuevas versiones del esquema; no se anticipan aquí. Las fechas de calendario se guardan como texto `AAAA-MM-DD` sin zona horaria.
+Base de datos local: `dashboard-rendimiento` (IndexedDB), **esquema versión 4** (fase 3: sesiones, lotes de importación y mapeos). Las tablas de las fases siguientes se añadirán como nuevas versiones del esquema; no se anticipan aquí. Las fechas de calendario se guardan como texto `AAAA-MM-DD` sin zona horaria.
 
 ## Tablas
 
@@ -22,6 +22,9 @@ Base de datos local: `dashboard-rendimiento` (IndexedDB), **esquema versión 3**
 | `protocols` | `id` (autonumérica) | `testId` | Sí | Protocolos de cada test |
 | `variables` | `id` (autonumérica) | `testId`, `manifestationId`, `order` | Sí | Variables de cada test (de origen o calculadas) |
 | `formulaHistory` | `id` (autonumérica) | `variableId` | Sí | Versiones de las fórmulas de las variables calculadas |
+| `sessions` | `id` (autonumérica) | `playerId`, `testId`, `date`, `batchId`, `synthetic` | Sí | Sesiones importadas (una fila por jugador, test, fecha y hora) |
+| `importBatches` | `id` (autonumérica) | `createdAt`, `fileHash` | Sí | Lotes de importación con su resumen e informe |
+| `importMappings` | `id` (autonumérica) | `testId` | Sí | Mapeos de columnas guardados, por texto de encabezado |
 
 `synthetic` vale `1` solo en los registros sintéticos de demostración; en los reales no existe el campo (los booleanos no se pueden indexar). `syntheticBatch` (sin índice) identifica el lote de carga.
 
@@ -112,6 +115,27 @@ Es configuración, no datos de jugadores. El **estado `archived`** (`true`/`fals
 
 **Carga única del catálogo inicial:** se hace una sola vez, al abrir la versión 2 o al restaurar una copia anterior al esquema 3, y se anota en `meta` (`catalogSeeded`). No se repite ni se mezcla con un catálogo ya existente.
 
+### Sesiones e importaciones (esquema 4, fase 3)
+
+**`sessions`** (decisión D8: una fila por sesión, nunca una fila por repetición ni creada a partir de resúmenes):
+
+| Campo | Contenido |
+|---|---|
+| `playerId`, `testId`, `protocolId` | Jugador, test y protocolo (opcional) |
+| `date`, `time` | Fecha `AAAA-MM-DD` y hora `HH:MM` (cadena vacía si no hay); `date` + `time` distinguen sesiones del mismo día |
+| `values` | `{ [variableId]: { L, R, S } }`: media de la sesión por lado (`S` = valor único). Solo variables de origen; las celdas vacías no existen (no son 0) |
+| `reps` | `{ total, L, R, assumed }`; `assumed: true` si el fichero no traía repeticiones y se guardó 1 |
+| `status`, `excludedReason` | `valid` (la exclusión llega en la fase 5a) y motivo |
+| `source`, `batchId`, `createdAt` | Origen (`Excel`), lote y momento de la importación |
+| `mergedRows` | Solo en sesiones de VALD fusionadas (D29): números de fila del fichero de origen |
+| `synthetic` | `1` solo si el jugador es sintético |
+
+**`importBatches`:** fichero (nombre, tamaño, huella SHA-256), hoja, test, mapeo usado, filas leídas y vacías, recuentos (sesiones creadas, duplicadas omitidas, conflictos omitidos o guardados como nuevas, conflictos dentro del fichero, jugadores nuevos, alias guardados, filas sin resolver y con error) e `report` (filas con problema, nombres sin resolver y notas). **No contiene valores de datos.**
+
+**`importMappings`:** nombre, `testId`, `protocolId` y `cols` (encabezado, rol, `variableId`, lado). Se aplica por el **texto del encabezado**, no por posición.
+
+Reglas del importador: nada se vincula en silencio (cada nombre distinto se confirma en cada lote); una sesión idéntica ya guardada se omite; con mismo jugador, test, fecha, hora y valores distintos el usuario elige omitir o guardar como nueva (nunca se sobrescribe); filas contradictorias dentro del fichero no se importan; las asimetrías, relativos y percentiles no se importan.
+
 ### `settings`
 
 | Campo | Descripción |
@@ -157,7 +181,7 @@ Fichero JSON, con compresión gzip y cifrado opcionales.
 |---|---|
 | `formatId` | `dashboard-rendimiento-backup` |
 | `formatVersion` | Versión del formato (actualmente 1) |
-| `schemaVersion` | Versión del esquema de la base que la generó (1, 2 o 3) |
+| `schemaVersion` | Versión del esquema de la base que la generó (1 a 4) |
 | `appVersion` | Versión de la aplicación |
 | `createdAt` | Fecha ISO de creación |
 | `counts` | Registros por tabla |
@@ -192,6 +216,28 @@ Descrito a partir de un fichero de ejemplo aportado el 6 de noviembre de 2026 (1
 
 **Correspondencias propuestas (por confirmar en D32):** «RSAIP» = Run-Specific Ankle Iso-Push; «Peak Vertical Force [N]» = Peak Force (N); «RFD - 100ms [N/s]» = RFD a 100 ms. «Force at 100ms [N]» no está en el catálogo de la guía; no se crea hasta que lo decidas.
 
+## Perfil de importación de VALD para todos los tests (fase 4, D41 a D46)
+
+Códigos: SLSEICR = Single-Leg Seated Calf Raise; SLJ = SL CMJ (por lado); CMJ = CMJ (valor único); SJ = Squat Jump (único); HJ = Double-Leg Hop Test (único); DJ = DL Drop Jump 30 cm o 45 cm según `Drop Height [cm]` (único). Sin perfil, y por tanto omitidos e informados: ABCMJ, LCMJ, LSJ, carga adicional > 0 y alturas de DJ distintas de 30/45. Las columnas de asimetría (`(Asym)(%)`) de Hop y DJ se importan con signo (R → +, L → −, D25). Las tablas columna a columna están en `vald.js` (`VALD_PROFILES`); la unidad del CSV debe coincidir con la del catálogo (se compara sin distinguir mayúsculas; si no, error).
+
+## Perfil de importación de VALD (fase 4, D29 a D32)
+
+| Código de test | Test del catálogo |
+|---|---|
+| RSHIP / RSKIP / RSAIP | Run-Specific Hip / Knee / Ankle Iso-Push |
+| SLHNNI | Supine Isometric 90°/90° Leg Curl Test |
+
+| Columna de VALD | Variable | Uso |
+|---|---|---|
+| `Peak Vertical Force [N] (L)` y `(R)` | Peak Force (N) | Se importa por lado |
+| `Force at 100ms [N] (L)` y `(R)` | Force at 100 ms (N) | Se importa por lado |
+| `RFD - 100ms [N/s] (L)` y `(R)` | RFD at 100 ms (N/s) | Se importa por lado |
+| `Reps (L)`, `Reps (R)` | Repeticiones por lado | Se importan |
+| `Name`, `Date`, `Time` | Jugador (alias de la fuente VALD), fecha y hora | Se importan |
+| `BW [KG]`, `Tags`, `ExternalId`, columnas `(Asym)(%)` y la columna de la variable sin lado | | **No se importan** (D30, D31, D25) |
+
+La importación comprueba que la unidad del catálogo coincide con la del encabezado. Filas del mismo jugador y día (sin tope horario) se fusionan con media ponderada por repeticiones.
+
 ## Datos previstos (no implementados)
 
 Se definirán al implementar las fases correspondientes y no forman parte del esquema actual:
@@ -199,25 +245,20 @@ Se definirán al implementar las fases correspondientes y no forman parte del es
 - **Posición asignada a cada sesión en su fecha** (fases 2 y 3), tomada del historial de posiciones. Corregir el historial no reasigna sesiones existentes sin una acción explícita (guía).
 - **Sesiones y repeticiones** con su estado (válida, pendiente o excluida), para calcular Average y los demás valores (fases 2 a 4). La forma de guardar las repeticiones está pendiente (D8). El Average de sesión, el Personal Average y el Personal Best serán **valores calculados** a partir de las repeticiones o de los resúmenes de sesión, no datos guardados (definiciones en `DECISIONES.md`, D12); la Máxima repetición se obtiene de las repeticiones individuales y no existe para sesiones solo resumen.
 
-## Plantilla de importación de sesiones (provisional, versión 0.1)
+## Plantilla de importación de sesiones (versión 0.2, formato ancho)
 
-Archivo `plantilla_importacion_sesiones.xlsx`. Hojas: «Instrucciones», «Sesiones» (vacía, con listas de validación) y «Catálogo» (nombres exactos del catálogo inicial). Una fila por **valor**: una variable, de un lado o único, en una sesión (D8). El valor es la media de la sesión y las repeticiones su número; no se crean repeticiones individuales.
+Archivo `plantilla_importacion_sesiones.xlsx`. Hojas: «Instrucciones», «Sesiones» (vacía, con las columnas de ejemplo de Run-Specific Hip Iso-Push) y «Catálogo» (nombres exactos del catálogo inicial). **Una fila por jugador (y fecha) y una columna por variable y lado** (decisión del usuario, 7/11/2026). El valor es la media de la sesión. En el asistente se indica qué es cada columna, así que los encabezados no tienen que coincidir con el catálogo; la propuesta inicial solo usa coincidencias exactas.
 
-| Columna | Obligatoria | Contenido |
+| Columna (ejemplo) | Obligatoria | Contenido |
 |---|---|---|
-| `Jugador` | Sí | Nombre tal como aparece en tu Excel (se vincula mediante alias, con confirmación) |
-| `Fecha` | Sí | AAAA-MM-DD |
-| `Hora` | No | HH:MM; distingue dos sesiones del mismo día |
-| `Test` | Sí | Nombre exacto del catálogo |
-| `Protocolo` | No | Nombre del protocolo, si existe |
-| `Variable` | Sí | Nombre exacto del catálogo |
-| `Lado` | Sí en tests por lado | `L` o `R`; vacío = valor único |
-| `Valor` | Sí | Número en la unidad definida de la variable |
-| `Repeticiones` | Sí con medias | Entero mayor que 0 |
-| `Observaciones` | No | Texto libre |
+| `Jugador` | Sí | Nombre tal como aparece en tu Excel (se confirma en cada importación) |
+| `Fecha` | Sí (o una fecha única para todo el fichero) | Fecha de Excel, `DD/MM/AAAA` o `AAAA-MM-DD` |
+| `Hora` | No | `HH:MM`; distingue dos sesiones del mismo día |
+| `Reps` | No | Entero ≥ 1; sin la columna se guarda 1 repetición supuesta |
+| `Peak Force Izq`, `Peak Force Der`, … | Al menos una columna de valor | Número en la unidad definida de la variable; coma o punto decimal, sin separador de miles |
 
-Una celda vacía es «sin dato», nunca 0. Los relativos, asimetrías y percentiles no se importan: se calculan.
+Una celda vacía es «sin dato», nunca 0. Los relativos, asimetrías y percentiles no se importan: se calculan. Un fichero por test. Formatos: `.xlsx` y `.csv` (separador `;`, tabulador o coma); `.xls` no se admite; máximo 25 MB. `ejemplo_importacion_sintetico.xlsx` es un ejemplo con datos ficticios para probar el asistente.
 
 ## Pendiente de definir por el usuario
 
-Variables, unidades y fórmulas de los tests que no son Iso-Push, CMJ ni Reactive Strength (incluidos Iso-Hold, Nordic, RM y el 1RM estimado: sus reglas están en D5 pero no se han precargado); unidad y fórmula relativa de RFD at 100 ms; grupos de posiciones (si se desea agrupar); zonas y técnicas de perímetros; contenido de NME; umbral mínimo de muestra; referencias, umbrales y targets (ver `DECISIONES.md`, D14 a D21).
+Variables, unidades y fórmulas de los tests que no son Iso-Push, CMJ, SL CMJ, Squat Jump, Hop Test ni Drop Jump (incluidos Iso-Hold, Nordic, RM y el 1RM estimado: sus reglas están en D5 pero no se han precargado); fórmulas relativas de RFD at 100 ms y Force at 100 ms; grupos de posiciones (si se desea agrupar); zonas y técnicas de perímetros; contenido de NME; umbral mínimo de muestra; referencias, umbrales y targets (ver `DECISIONES.md`, D14 a D21).

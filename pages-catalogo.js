@@ -194,7 +194,8 @@ function VariableForm({ test, variable, rawVars, data, onDone }) {
   }, v ? 'variable guardada.' : 'variable creada.');
   return html`<form class="fields" onSubmit=${save}>
     <label>Nombre <input type="text" required value=${name} onInput=${(e) => setName(e.target.value)} /></label>
-    <label>Unidad (déjala vacía si no está definida) <input type="text" value=${unit} onInput=${(e) => setUnit(e.target.value)} /></label>
+    <label>Unidad (déjala vacía si no está definida) <input type="text" value=${kind === 'derived' && op ? C.OPERATIONS[op].unit : unit} disabled=${kind === 'derived' && !!op} onInput=${(e) => setUnit(e.target.value)} /></label>
+    ${kind === 'derived' && op ? html`<p class="muted" style="flex-basis:100%">La unidad la fija la operación elegida (${C.OPERATIONS[op].unit}). Si cambias la operación, revisa también el nombre de la variable.</p>` : null}
     <label>Valores <select value=${sides} onChange=${(e) => setSides(e.target.value)}>${optionsOf(C.SIDES, 'No definido')}</select></label>
     <label>Dirección de interpretación <select value=${direction} onChange=${(e) => setDirection(e.target.value)}>${optionsOf(C.DIRECTIONS, 'No definida')}</select></label>
     <label>Manifestación de la variable <select value=${man} onChange=${(e) => setMan(e.target.value)}><option value="">La del test</option>${mans.map((m) => html`<option key=${m.id} value=${m.id}>${m.name}</option>`)}</select></label>

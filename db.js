@@ -7,11 +7,12 @@
 //   local     estado propio de este navegador (última copia, carpeta recordada…)  (NO va en la copia)
 //   players, playerAliases, positions, playerPositions, anthropometry  (van en la copia)
 // Fase 2 (esquema 3): blocks, manifestations, zones, tests, protocols, variables, formulaHistory (catálogo; van en la copia).
-// Las sesiones, importaciones, etc. se añadirán en fases posteriores con nuevas versiones del esquema.
+// Fase 3 (esquema 4): sessions (una fila por sesión, D8), importBatches (lotes de importación), importMappings (mapeos guardados).
+// Las repeticiones sueltas, referencias, etc. se añadirán en fases posteriores con nuevas versiones del esquema.
 
 import { Dexie } from './libs.js';
 
-export const APP_VERSION = '2-0.1.0';
+export const APP_VERSION = '4-0.1.0';
 export const DB_NAME = 'dashboard-rendimiento';
 export const NON_BACKUP_TABLES = ['local'];
 
@@ -41,6 +42,13 @@ export function createDb(name = DB_NAME) {
     protocols: '++id, testId',
     variables: '++id, testId, manifestationId, order',
     formulaHistory: '++id, variableId',
+  });
+  // Esquema 4 (fase 3): sesiones (una fila por jugador, test, fecha y hora; el valor de cada lado y las repeticiones van dentro, D8),
+  // lotes de importación y mapeos de columnas guardados. «synthetic» vale 1 solo en los registros sintéticos.
+  db.version(4).stores({
+    sessions: '++id, playerId, testId, date, batchId, synthetic',
+    importBatches: '++id, createdAt, fileHash',
+    importMappings: '++id, testId',
   });
   return db;
 }

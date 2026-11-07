@@ -44,7 +44,7 @@ const varRow = (name) => $$('section.card tbody tr').find((r) => r.querySelector
 check('navegación: aparece «Catálogo de tests»', $$('nav a').some((a) => a.textContent.trim() === 'Catálogo de tests'));
 await go('fuerza');
 check('Manifestaciones de la fuerza: grupos del catálogo inicial', ['Max Isometric Strength', 'Heavy Dynamic Strength', 'Fast Dynamic Strength', 'Reactive Strength', 'Explosive Strength'].filter((m) => card(m)).length === 4 && !card('Explosive Strength'));
-check('fuerza: aparece Run-Specific Hip Iso-Push con su zona y 4 variables', /Run-Specific Hip Iso-Push\s*·\s*Hip\s*·\s*4 variables/.test(card('Max Isometric Strength').textContent.replace(/\s+/g, ' ')), card('Max Isometric Strength')?.textContent.slice(0, 160));
+check('fuerza: aparece Run-Specific Hip Iso-Push con su zona y 5 variables', /Run-Specific Hip Iso-Push\s*·\s*Hip\s*·\s*5 variables/.test(card('Max Isometric Strength').textContent.replace(/\s+/g, ' ')), card('Max Isometric Strength')?.textContent.slice(0, 160));
 await go('perimetros');
 check('Perímetros: sin nada precargado', /No hay medidas de perímetro definidas/.test(text()) && /No se precarga nada/.test(text()));
 await go('nme');
@@ -54,12 +54,12 @@ check('NME: sin nada precargado y con la etiqueta tal cual', /Bloque sin definir
 await go('catalogo');
 check('título de la pestaña', document.title.startsWith('Catálogo de tests'));
 let tc = card('Tests');
-check('35 tests del catálogo inicial', rowTexts(tc).length === 35, String(rowTexts(tc).length));
+check('34 tests del catálogo inicial', rowTexts(tc).length === 34, String(rowTexts(tc).length));
 await setVal(field(tc, 'Buscar'), 'iso-hold');
-check('búsqueda por nombre', rowTexts(card('Tests')).length === 5, String(rowTexts(card('Tests')).length));
+check('búsqueda por nombre', rowTexts(card('Tests')).length === 4, String(rowTexts(card('Tests')).length));
 await setVal(field(card('Tests'), 'Buscar'), '');
 check('manifestaciones: 5 y zonas: 4', rowTexts(card('Manifestaciones de la fuerza')).length === 5 && rowTexts(card('Zonas anatómicas')).length === 4);
-check('el catálogo inicial no muestra tests de otros bloques', $$('#tests tbody tr').length === 35);
+check('el catálogo inicial no muestra tests de otros bloques', $$('#tests tbody tr').length === 34);
 
 // ---- Alta de un test y duplicado
 tc = card('Tests');
@@ -67,7 +67,7 @@ const nf = $$('form', tc).pop();
 await setVal(field(nf, 'Nombre del test'), 'Test de prueba');
 await setVal(field(nf, 'Manifestación'), $$('option', field(nf, 'Manifestación')).find((o) => o.textContent === 'Max Isometric Strength').value, 'change');
 await click(btn(nf, 'Añadir test'));
-check('test nuevo en la lista', !!testRow('Test de prueba') && rowTexts(card('Tests')).length === 36);
+check('test nuevo en la lista', !!testRow('Test de prueba') && rowTexts(card('Tests')).length === 35);
 const nf2 = $$('form', card('Tests')).pop();
 await setVal(field(nf2, 'Nombre del test'), 'test de prueba');
 await setVal(field(nf2, 'Manifestación'), $$('option', field(nf2, 'Manifestación')).find((o) => o.textContent === 'Max Isometric Strength').value, 'change');
@@ -80,9 +80,9 @@ const hipId = Number(location.hash.match(/catalogo-test-(\d+)/)[1]);
 check('detalle: ruta propia y título', hipId > 0 && document.querySelector('h2.page-title').textContent.trim() === 'Run-Specific Hip Iso-Push');
 let vc = card('Variables');
 const rows = rowTexts(vc);
-check('detalle: 4 variables en el orden definido', rows.length === 4 && /^Peak ForceN/.test(rows[0]) && /^Peak Force relativo \(SW\)/.test(rows[1]) && /^Peak Force asimetría/.test(rows[2]) && /^RFD at 100 ms/.test(rows[3]), rows.map((r) => r.slice(0, 30)).join(' | '));
+check('detalle: 5 variables en el orden definido', rows.length === 5 && /^Peak ForceN/.test(rows[0]) && /^Peak Force relativo \(SW\)/.test(rows[1]) && /^Peak Force asimetría/.test(rows[2]) && /^RFD at 100 ms/.test(rows[3]) && /^Force at 100 ms/.test(rows[4]), rows.map((r) => r.slice(0, 30)).join(' | '));
 check('Peak Force: unidad N y manifestación Max Isometric Strength', /Peak Force\s*N\s*Valor izquierdo y derecho\s*No definido\s*Max Isometric Strength/.test(rows[0]));
-check('RFD at 100 ms: unidad y fórmula «No definido» y manifestación Explosive Strength', /RFD at 100 ms\s*No definido[\s\S]*Explosive Strength/.test(rows[3]));
+check('RFD at 100 ms: unidad N/s y manifestación Explosive Strength; Force at 100 ms: N', /RFD at 100 ms\s*N\/s[\s\S]*Explosive Strength/.test(rows[3]) && /Force at 100 ms\s*N[\s\S]*Explosive Strength/.test(rows[4]));
 check('relativo Hip: SW con factor 0.29 y definición visible', /Relativo al System Weight \(SW\)[\s\S]*factor 0.29/.test(rows[1]) && /9,80665/.test(rows[1]));
 check('asimetría: fórmula del usuario visible', /\(derecha − izquierda\) ÷ máx\(izquierda, derecha\) × 100/.test(rows[2]));
 check('dirección «No definido» en todas (no se infiere)', rowTexts(vc).every((r) => /No definido/.test(r)));
@@ -93,7 +93,7 @@ await click(btn(r3, 'Editar'), 200);
 let form = $$('section.card tbody tr form')[0];
 await setVal(field(form, 'Unidad'), 'N/s');
 await click(btn(form, 'Guardar variable'), 400);
-check('unidad editada y guardada', /RFD at 100 ms\s*N\/s/.test(rowTexts(card('Variables'))[3]), rowTexts(card('Variables'))[3].slice(0, 40));
+check('la unidad de una variable simple se puede guardar', /RFD at 100 ms\s*N\/s/.test(rowTexts(card('Variables'))[3]), rowTexts(card('Variables'))[3].slice(0, 40));
 await click(btn(varRow('Peak Force relativo (SW)'), 'Editar'), 200);
 form = $$('section.card tbody tr form')[0];
 await setVal(field(form, 'Factor SW'), '0.3');
@@ -108,15 +108,15 @@ check('con motivo: factor 0.3 y dos versiones conservadas', /factor 0.3\b/.test(
 // ---- Añadir y eliminar una variable en CMJ; las 19 variables del usuario
 await go('catalogo');
 await go(testRow('CMJ').querySelector('a').getAttribute('href').slice(1));
-check('CMJ: 19 variables sin unidad ni dirección definidas', rowTexts(card('Variables')).length === 19 && rowTexts(card('Variables')).every((r) => (r.match(/No definido/g) || []).length >= 3));
+check('CMJ: 20 variables con unidad; dirección sin definir', rowTexts(card('Variables')).length === 20 && rowTexts(card('Variables')).every((r) => /No definido/.test(r)) && /ECC PEAK VELOCITY\s*m\/s/.test(card('Variables').textContent.replace(/\s+/g, ' ')));
 const addForm = $$('section.card > form.fields').pop();
 await setVal(field(addForm, 'Nombre'), 'VARIABLE DE PRUEBA');
 await click(btn(addForm, 'Añadir variable'), 400);
-check('variable nueva añadida', rowTexts(card('Variables')).length === 20 && !!varRow('VARIABLE DE PRUEBA'));
+check('variable nueva añadida', rowTexts(card('Variables')).length === 21 && !!varRow('VARIABLE DE PRUEBA'));
 await click(btn(varRow('VARIABLE DE PRUEBA'), 'Eliminar'), 400);
-check('variable eliminada con confirmación', rowTexts(card('Variables')).length === 19 && /Eliminar la variable «VARIABLE DE PRUEBA»/.test(confirms.at(-1)));
+check('variable eliminada con confirmación', rowTexts(card('Variables')).length === 20 && /Eliminar la variable «VARIABLE DE PRUEBA»/.test(confirms.at(-1)));
 await click(btn(varRow('RSI MOD'), 'Archivar'), 300);
-check('archivar una variable no la borra', rowTexts(card('Variables')).length === 19 && /ARCHIVADO/.test(varRow('RSI MOD').textContent));
+check('archivar una variable no la borra', rowTexts(card('Variables')).length === 20 && /ARCHIVADO/.test(varRow('RSI MOD').textContent));
 
 // ---- Archivar un test
 await go('catalogo');
@@ -131,7 +131,7 @@ await go('catalogo-test-99999');
 check('test inexistente: mensaje claro y enlace de vuelta', /El test no existe/.test(text()) && /Volver al catálogo/.test(text()));
 
 // ---- Los datos originales no se tocan: no hay sesiones ni tablas de datos
-check('sin tablas de sesiones todavía', !(await (async () => { const { createDb } = await import('./db.js'); const d = createDb(); return d.tables.some((t) => t.name === 'sessions'); })()));
+check('tablas de sesiones, lotes y mapeos creadas (esquema 4)', await (async () => { const { createDb } = await import('./db.js'); const d = createDb(); return ['sessions', 'importBatches', 'importMappings'].every((n) => d.tables.some((t) => t.name === n)); })());
 
 console.log(failed ? `\n${failed} prueba(s) fallan` : '\nTodas las pruebas de interfaz del catálogo pasan');
 process.exit(failed ? 1 : 0);

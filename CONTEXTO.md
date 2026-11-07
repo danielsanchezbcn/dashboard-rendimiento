@@ -1,6 +1,6 @@
 # Contexto del proyecto (documento de traspaso)
 
-**Para qué sirve este archivo:** que cualquier persona, o una sesión nueva de Claude, pueda retomar el proyecto sin haber seguido su historia. Hay que actualizarlo al final de cada fase. Última actualización: 6 de noviembre de 2026.
+**Para qué sirve este archivo:** que cualquier persona, o una sesión nueva de Claude, pueda retomar el proyecto sin haber seguido su historia. Hay que actualizarlo al final de cada fase. Última actualización: 7 de noviembre de 2026.
 
 ## 1. Qué es
 Una aplicación personal de seguimiento del rendimiento físico de futbolistas. Se abre en el navegador desde un enlace (GitHub Pages), no necesita instalación, servidor ni cuenta, y **los datos se guardan solo en el navegador del usuario**. No hay conexión a servicios externos. Durante el desarrollo se usan únicamente datos sintéticos, siempre marcados como tales.
@@ -8,9 +8,9 @@ Una aplicación personal de seguimiento del rendimiento físico de futbolistas. 
 La aplicación no depende de Claude para funcionar. Claude se usa solo para construirla o modificarla.
 
 ## 2. Estado actual
-- **Hecho:** fases 1a, 1b, 1c (comprobada en Chrome real) y **fase 2 construida** (versión 2-0.1.0, esquema 3): catálogo configurable de tests con catálogo inicial, plantilla de Excel provisional y diccionario de datos. La fase 2 está pendiente de comprobación del usuario en Chrome real (lista en `README.md`).
-- **Siguiente:** fase 3 (importador de Excel propio). Antes conviene confirmar D34 (tests de tobillo) y D35 (mover el generador sintético a la fase 3).
-- **Todavía no existen:** sesiones, importadores, gráficos. El orden de las fases y lo que necesita cada una está en `PLAN_DE_FASES.md`.
+- **Hecho:** fases 1a, 1b, 1c (comprobada en Chrome real) y **fase 2 construida** (versión 2-0.1.0, esquema 3): catálogo configurable de tests con catálogo inicial, plantilla de Excel provisional y diccionario de datos. **Fases 3 y 4 construidas** (versión 4-0.1.0, esquema 4): importador de VALD (RSHIP, RSKIP, RSAIP, SLHNNI; D29 a D32 cerradas) además del: importador de Excel propio (una fila por jugador, una columna por variable), con plantilla 0.2 y ejemplo sintético. Las fases 2, 3 y 4 están pendientes de comprobación del usuario en Chrome real (lista en `README.md`).
+- **Siguiente:** punto de control (entrega de las fases 2 a 4 juntas) y fase 5a (perfil del jugador y gráficos). D35 (generador sintético de aceptación) propuesta: mover a la fase 5a.
+- **Todavía no existen:** gráficos, cálculo de relativos y asimetrías sobre sesiones, corrección o reemplazo de sesiones ya guardadas. El orden de las fases y lo que necesita cada una está en `PLAN_DE_FASES.md`.
 
 ## 3. Dónde está cada cosa
 | Archivo | Contenido |
@@ -20,7 +20,8 @@ La aplicación no depende de Claude para funcionar. Claude se usa solo para cons
 | `PLAN_DE_FASES.md` | Orden de fases, requisitos previos y reglas de entrega |
 | `REQUISITOS.md` | Requisitos RF-01 a RF-03 y criterios de aceptación |
 | `CATALOGO_TESTS.md` | Especificación del catálogo de tests (fase 2), con lo decidido y lo pendiente |
-| `plantilla_importacion_sesiones.xlsx` | Plantilla de Excel provisional para el importador de la fase 3 |
+| `plantilla_importacion_sesiones.xlsx` | Plantilla de Excel (versión 0.2, formato ancho) del importador de la fase 3 |
+| `ejemplo_importacion_sintetico.xlsx` | Ejemplo con datos ficticios para probar el asistente |
 | `DICCIONARIO_DE_DATOS.md` | Tablas actuales, formato de copia y formato de exportación de VALD observado |
 | `LIBRERIAS.md` | Librerías usadas, versiones fijadas y comprobaciones |
 | `README.md` / `LEEME.md` | Descripción de la entrega y lista de comprobación |
@@ -41,8 +42,7 @@ La aplicación no depende de Claude para funcionar. Claude se usa solo para cons
 - Gráficos: Chart.js más SVG propio (D20).
 
 ## 6. Pendiente (resumen)
-- Antes de la fase 3: D34 y D35; peso corporal del 1RM estimado.
-- Antes de la fase 4: D29 a D32 (importador de VALD).
+- Antes de la fase 5a: D35 (confirmar) y peso corporal del 1RM estimado. Variables y unidades de CMJ, SL CMJ, Squat Jump, Hop Test, Drop Jump e Iso-Push ya definitivas (D36).
 - Antes de la fase 5c: D14, D16, D21, D24, D28 (dos puntos), tamaño mínimo de muestra y ventana antropométrica.
 - Aplazadas: D15 (objetivos), D17 y D18 (fase 8).
 
