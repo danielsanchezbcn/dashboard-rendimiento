@@ -9,6 +9,7 @@ import * as J from './jugadores.js';
 import * as P from './posiciones.js';
 import * as A from './antropometria.js';
 import * as S from './sinteticos.js';
+import * as I from './catalogo-inicial.js';
 
 let failed = 0;
 const check = (name, cond, extra = '') => { console.log(`${cond ? 'OK  ' : 'FAIL'} ${name} ${extra}`); if (!cond) failed++; };
@@ -27,7 +28,7 @@ check('normalizar: vacío no coincide con nada', J.compareNames('', '').sameKey 
 // ---- Jugadores y alias
 {
   const db = await fresh();
-  check('esquema 2 con 9 tablas', db.verno === 2 && db.tables.length === 9);
+  check('esquema 3 con 16 tablas', db.verno === 3 && db.tables.length === 16);
   check('jugador: nombre obligatorio', (await rejects(() => J.createPlayer(db, { jerseyName: '  ' }))) === 'El nombre en camiseta es obligatorio.');
   const a = await J.createPlayer(db, { jerseyName: ' Jugador  Uno ' });
   check('jugador: nombre limpio y activo', (await db.players.get(a)).jerseyName === 'Jugador Uno' && (await db.players.get(a)).active === true);
@@ -200,15 +201,15 @@ function totalZero(c) { return Object.values(c).every((v) => v === 0); }
   v1.close();
   const db = D.createDb('upg');
   await D.initDb(db);
-  check('migración 1→2: se conservan los datos y aparecen tablas vacías', db.verno === 2 && (await D.getSetting(db, 'backupReminderDays')) === 14 && (await db.auditLog.count()) === 1 && (await D.getLocal(db, 'lastBackup')).at === 'x' && (await db.players.count()) === 0);
+  check('migración 1→3: se conservan los datos y aparecen tablas vacías', db.verno === 3 && (await D.getSetting(db, 'backupReminderDays')) === 14 && (await db.auditLog.count()) === 1 && (await D.getLocal(db, 'lastBackup')).at === 'x' && (await db.players.count()) === 0);
   const v = await B.validateBackup(db, oldCopy);
-  check('copia del esquema 1 en base del esquema 2: válida con un aviso por tabla nueva', v.ok && v.warnings.length === 5 && v.warnings.every((w) => w.includes('versión anterior')));
+  check('copia del esquema 1 en base del esquema 3: válida con un aviso por tabla nueva', v.ok && v.warnings.length === 12 && v.warnings.every((w) => w.includes('versión anterior')));
   const j = await J.createPlayer(db, { jerseyName: 'Se perderá al restaurar' });
   await B.restoreBackup(db, oldCopy);
   check('restaurar copia del esquema 1: tablas nuevas vacías y datos antiguos recuperados', (await db.players.count()) === 0 && (await D.getSetting(db, 'backupReminderDays')) === 14 && j > 0);
   const newCopy = await B.buildBackup(db, D.APP_VERSION);
   const v1again = D.createDb('upg-v1only');
-  check('copia del esquema 2 contiene schemaVersion 2', newCopy.schemaVersion === 2 && v1again.verno === 2);
+  check('copia del esquema 3 contiene schemaVersion 3', newCopy.schemaVersion === 3 && v1again.verno === 3);
 }
 
 // ---- Volumen realista (4 temporadas: ~55 jugadores) y copia/restauración con todas las tablas
@@ -226,6 +227,7 @@ function totalZero(c) { return Object.values(c).every((v) => v === 0); }
     await P.setMainPositionFrom(db, id, pos[(i + 1) % 5], '2025-07-01');
     for (const d of ['2023-09-01', '2024-09-01', '2025-09-01', '2026-02-01']) await A.addAnthropometry(db, { playerId: id, date: d, bodyMass: { value: 70 + (i % 20), unit: 'kg' }, height: { value: 170 + (i % 25), unit: 'cm' }, legLength: { value: 85 + (i % 15), unit: 'cm' } });
   }
+  await I.seedInitialCatalog(db);
   const t1 = performance.now();
   const bk = await B.buildBackup(db, D.APP_VERSION);
   const { blob } = await B.encodeBackup(bk, { gzip: true, password: 'clave-segura-1' });

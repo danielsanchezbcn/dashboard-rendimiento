@@ -1,6 +1,6 @@
 # Especificación del catálogo de tests editable — borrador v0.2
 
-Proyecto: DASHBOARD DE RENDIMIENTO · Fase 2 · Estado: **borrador vivo** (no implementado), actualizado el 6 de noviembre de 2026. Esta copia, la del repositorio, es la vigente.
+Proyecto: DASHBOARD DE RENDIMIENTO · Fase 2 · Estado: **borrador vivo**. La fase 2 (versión 2-0.1.0) implementa el motor del catálogo, el catálogo inicial y las operaciones ASIMETRIA, REL_BW y REL_SW; el resto sigue como propuesta, actualizado el 6 de noviembre de 2026. Esta copia, la del repositorio, es la vigente.
 Fuentes: libros «BASE DE DATOS» y «ELABORACION GRAFICOS» (solo estructura y fórmulas; ningún dato de jugador), ejemplo de exportación VALD RSAIP y las decisiones del usuario.
 
 **Regla de este documento:** la fuente de verdad de las decisiones es `DECISIONES.md`. Aquí se numeran con sus identificadores reales (D4, D5, D25…). La numeración propia de la v0.1 (D25–D30) se ha eliminado porque colisionaba con ella.

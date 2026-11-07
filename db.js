@@ -6,11 +6,12 @@
 //   meta      metadatos de la base                            (va en la copia)
 //   local     estado propio de este navegador (última copia, carpeta recordada…)  (NO va en la copia)
 //   players, playerAliases, positions, playerPositions, anthropometry  (van en la copia)
-// El catálogo, las sesiones, etc. se añadirán en fases posteriores con nuevas versiones del esquema.
+// Fase 2 (esquema 3): blocks, manifestations, zones, tests, protocols, variables, formulaHistory (catálogo; van en la copia).
+// Las sesiones, importaciones, etc. se añadirán en fases posteriores con nuevas versiones del esquema.
 
 import { Dexie } from './libs.js';
 
-export const APP_VERSION = '1c-0.1.0';
+export const APP_VERSION = '2-0.1.0';
 export const DB_NAME = 'dashboard-rendimiento';
 export const NON_BACKUP_TABLES = ['local'];
 
@@ -30,6 +31,16 @@ export function createDb(name = DB_NAME) {
     positions: '++id, name, order, synthetic',
     playerPositions: '++id, playerId, positionId, validFrom, synthetic',
     anthropometry: '++id, playerId, date, synthetic',
+  });
+  // Esquema 3 (fase 2): catálogo configurable. «archived» no se indexa (los booleanos no se pueden indexar).
+  db.version(3).stores({
+    blocks: 'key, order',
+    manifestations: '++id, blockKey, order',
+    zones: '++id, order',
+    tests: '++id, blockKey, manifestationId, zoneId, order',
+    protocols: '++id, testId',
+    variables: '++id, testId, manifestationId, order',
+    formulaHistory: '++id, variableId',
   });
   return db;
 }

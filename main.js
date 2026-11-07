@@ -1,6 +1,7 @@
 import { render, html } from './libs.js';
 import { createDb, initDb, requestPersistence } from './db.js';
 import { App } from './app.js';
+import { seedInitialCatalog } from './catalogo-inicial.js';
 
 const root = document.getElementById('app');
 
@@ -25,6 +26,7 @@ async function boot() {
   try {
     db = createDb();
     await initDb(db);
+    await seedInitialCatalog(db);
   } catch (e) {
     showError('No se pudo abrir la base de datos local', `${e?.message || e}. Comprueba que no estás en una ventana privada y que el navegador permite guardar datos de este sitio.`);
     return;

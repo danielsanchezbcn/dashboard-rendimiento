@@ -11,9 +11,9 @@ const check = (name, cond, extra = '') => { console.log(`${cond ? 'OK  ' : 'FAIL
 // 1. Base y esquema
 const db = D.createDb('test-1b');
 await D.initDb(db);
-check('esquema 2 con 9 tablas', db.verno === 2 && db.tables.map((t) => t.name).sort().join() === 'anthropometry,auditLog,local,meta,playerAliases,playerPositions,players,positions,settings');
+check('esquema 3 con 16 tablas', db.verno === 3 && db.tables.map((t) => t.name).sort().join() === 'anthropometry,auditLog,blocks,formulaHistory,local,manifestations,meta,playerAliases,playerPositions,players,positions,protocols,settings,tests,variables,zones');
 check('meta.createdAt y auditoría inicial', !!(await db.meta.get('createdAt')) && (await db.auditLog.count()) === 1);
-check('la copia excluye la tabla local', B.backupTableNames(db).join() === 'anthropometry,auditLog,meta,playerAliases,playerPositions,players,positions,settings');
+check('la copia excluye la tabla local', B.backupTableNames(db).join() === 'anthropometry,auditLog,blocks,formulaHistory,manifestations,meta,playerAliases,playerPositions,players,positions,protocols,settings,tests,variables,zones');
 
 await D.setSetting(db, 'backupReminderDays', 14);
 await D.setLocal(db, 'lastBackup', { at: 'x' });
@@ -63,7 +63,8 @@ for (const [gzip, pw] of [[false, ''], [true, ''], [false, 'clave-segura-1'], [t
   const last = (await db.auditLog.orderBy('id').last());
   check('auditoría registra la restauración', last.action === 'copia-restaurada' && last.scope.fechaCopia === snap.createdAt && v.ok);
   const again = await B.buildBackup(db, D.APP_VERSION);
-  const sameTables = (await B.checksumTables({ meta: snap.tables.meta, settings: snap.tables.settings })) === (await B.checksumTables({ meta: again.tables.meta, settings: again.tables.settings }));
+  const noCat = (rows) => rows.filter((x) => x.key !== 'catalogSeeded'); // la restauración de una copia anterior al esquema 3 añade el catálogo inicial
+  const sameTables = (await B.checksumTables({ meta: noCat(snap.tables.meta), settings: snap.tables.settings })) === (await B.checksumTables({ meta: noCat(again.tables.meta), settings: again.tables.settings }));
   check('ajustes y meta idénticos a la copia', sameTables);
 }
 
@@ -88,17 +89,17 @@ for (const [gzip, pw] of [[false, ''], [true, ''], [false, 'clave-segura-1'], [t
   const oldSnap = await B.buildBackup(old, '1b-0.1.1');
   check('copia del esquema 1 no incluye las tablas nuevas', oldSnap.schemaVersion === 1 && B.backupTableNames(old).join() === 'auditLog,meta,settings');
   const v = await B.validateBackup(db, oldSnap);
-  check('copia v1 válida en base v2 con un aviso por tabla ausente', v.ok && v.warnings.length === 5 && v.warnings.some((w) => w.includes('players')), `${v.warnings.length} avisos`);
+  check('copia v1 válida en base v2 con un aviso por tabla ausente', v.ok && v.warnings.length === 12 && v.warnings.some((w) => w.includes('players')), `${v.warnings.length} avisos`);
   await D.setSetting(db, 'otroAjuste', true);
   await B.restoreBackup(db, oldSnap);
   check('restaurar copia v1 en v2: recupera lo antiguo y deja vacías las nuevas', (await db.settings.count()) === 1 && (await D.getSetting(db, 'backupReminderDays')) === 14 && (await db.players.count()) === 0);
   const db3 = new Dexie('test-1b-v3');
   db3.version(1).stores({ settings: 'key', auditLog: '++id, timestamp, action', meta: 'key', local: 'key' });
   db3.version(2).stores({ players: '++id, jerseyName, synthetic', playerAliases: '++id, playerId, source, normalizedKey, synthetic', positions: '++id, name, order, synthetic', playerPositions: '++id, playerId, positionId, validFrom, synthetic', anthropometry: '++id, playerId, date, synthetic' });
-  db3.version(3).stores({ extra: '++id' });
+  db3.version(4).stores({ extra: '++id' });
   await db3.open();
   const snap3 = await B.buildBackup(db3, 'futura');
-  check('copia de un esquema posterior (3) rechazada por la base actual (2)', (await B.validateBackup(db, snap3)).errors.some((e) => e.includes('posterior')));
+  check('copia de un esquema posterior (4) rechazada por la base actual (3)', (await B.validateBackup(db, snap3)).errors.some((e) => e.includes('posterior')));
   old.close(); db3.close();
 }
 

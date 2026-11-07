@@ -4,7 +4,7 @@
   "description": "Herramientas de desarrollo: compilación única de librerías de terceros y pruebas con datos sintéticos",
   "scripts": {
     "build-vendor": "esbuild libs-fuente.js --bundle --format=esm --minify --legal-comments=none --target=es2022 --outfile=libs.js",
-    "test": "node prueba-copias.test.mjs && node prueba-jugadores.test.mjs && node prueba-interfaz.test.mjs && node prueba-jugadores-ui.test.mjs"
+    "test": "node prueba-copias.test.mjs && node prueba-jugadores.test.mjs && node prueba-interfaz.test.mjs && node prueba-jugadores-ui.test.mjs && node prueba-catalogo.test.mjs && node prueba-catalogo-ui.test.mjs"
   },
   "dependencies": {
     "dexie": "4.4.6",

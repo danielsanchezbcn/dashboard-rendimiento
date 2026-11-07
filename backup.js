@@ -3,6 +3,7 @@
 // entran automáticamente en la copia (salvo las de NON_BACKUP_TABLES).
 
 import { NON_BACKUP_TABLES, audit } from './db.js';
+import { seedInitialCatalog } from './catalogo-inicial.js';
 
 export const FORMAT_ID = 'dashboard-rendimiento-backup';
 export const ENVELOPE_ID = 'dashboard-rendimiento-backup-envelope';
@@ -124,9 +125,11 @@ export async function restoreBackup(db, inner) {
       if (!sameRows(tables[n] ?? [], written)) throw new Error(`La verificación posterior a la restauración no coincide en «${n}»: se ha revertido y los datos actuales no se han modificado.`);
     }
   });
+  // Una copia anterior al esquema 3 no trae el catálogo: se añade el catálogo inicial (nunca sobre un catálogo ya existente).
+  const catalogo = await seedInitialCatalog(db);
   const after = countTables(await readSnapshot(db));
   await audit(db, 'copia-restaurada', { fechaCopia: inner.createdAt, versionEsquemaCopia: inner.schemaVersion, recuentosAntes: before, recuentosCopia: inner.counts });
-  return { before, after, verificado: true };
+  return { before, after, verificado: true, catalogoInicialAnadido: !!catalogo.sembrado };
 }
 
 // ---------- Codificación (gzip y cifrado opcionales) ----------

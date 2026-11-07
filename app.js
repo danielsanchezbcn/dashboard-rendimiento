@@ -2,8 +2,9 @@ import { html, useState, useEffect, useCallback } from './libs.js';
 import { AppContext } from './context.js';
 import { getLocal, getSetting, APP_VERSION } from './db.js';
 import { backupState } from './util.js';
-import { Inicio, Bloque, Proximamente, Copias, Configuracion } from './pages.js';
+import { Inicio, Proximamente, Copias, Configuracion } from './pages.js';
 import { Jugadores, PerfilJugador } from './pages-jugadores.js';
+import { Catalogo, TestDetalle, BloqueCatalogo } from './pages-catalogo.js';
 
 export const NAV = [
   { id: 'inicio', label: 'Inicio' },
@@ -11,16 +12,19 @@ export const NAV = [
   { id: 'fuerza', label: 'Manifestaciones de la fuerza' },
   { id: 'perimetros', label: 'Perímetros' },
   { id: 'nme', label: 'NME' },
+  { id: 'catalogo', label: 'Catálogo de tests' },
   { id: 'importar', label: 'Importar' },
   { id: 'copias', label: 'Copias de seguridad' },
   { id: 'configuracion', label: 'Configuración' },
 ];
 
-// Rutas por hash: «#copias», «#jugadores» y «#jugador-12» (perfil del jugador con id 12).
+// Rutas por hash: «#copias», «#jugadores», «#jugador-12» (perfil del jugador con id 12) y «#catalogo-test-5» (detalle del test 5).
 const routeFromHash = () => {
   const h = location.hash.replace(/^#\/?/, '');
   const m = /^jugador-(\d+)$/.exec(h);
   if (m) return { id: 'jugadores', param: Number(m[1]) };
+  const t = /^catalogo-test-(\d+)$/.exec(h);
+  if (t) return { id: 'catalogo', param: Number(t[1]) };
   return { id: NAV.some((n) => n.id === h) ? h : 'inicio', param: null };
 };
 
@@ -31,23 +35,13 @@ function Page({ route }) {
     case 'jugadores':
       return route.param ? html`<${PerfilJugador} id=${route.param} />` : html`<${Jugadores} />`;
     case 'fuerza':
-      return html`<${Bloque}
-        titulo="Manifestaciones de la fuerza"
-        vacio="Aún no hay tests configurados."
-        detalle="El catálogo (manifestaciones, zonas anatómicas, tests, protocolos y variables) se carga en la fase 2 a partir de la lista que aportaste, y se podrá editar sin tocar el código. No se añade nada que no hayas definido."
-      />`;
+      return html`<${BloqueCatalogo} blockKey="fuerza" titulo="Manifestaciones de la fuerza" vacio="Aún no hay tests configurados." />`;
     case 'perimetros':
-      return html`<${Bloque}
-        titulo="Perímetros"
-        vacio="No hay medidas de perímetro definidas."
-        detalle="Las zonas, si se mide por lado, las unidades, el procedimiento, el número de mediciones y cómo se resume cada sesión los defines tú. No se precarga ninguna medida."
-      />`;
+      return html`<${BloqueCatalogo} blockKey="perimetros" titulo="Perímetros" vacio="No hay medidas de perímetro definidas." />`;
     case 'nme':
-      return html`<${Bloque}
-        titulo="NME"
-        vacio="Bloque sin definir."
-        detalle="Los tests, protocolos, variables y unidades de este bloque los defines tú. La etiqueta se conserva tal como la aportaste."
-      />`;
+      return html`<${BloqueCatalogo} blockKey="nme" titulo="NME" vacio="Bloque sin definir." />`;
+    case 'catalogo':
+      return route.param ? html`<${TestDetalle} id=${route.param} />` : html`<${Catalogo} />`;
     case 'importar':
       return html`<${Proximamente} titulo="Importar" fase="3 y 4" detalle="Importación de Excel propio y de exportaciones de VALD, con confirmación de cada nombre de jugador en cada lote." />`;
     case 'copias':

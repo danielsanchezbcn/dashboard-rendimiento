@@ -1,6 +1,6 @@
-# Diccionario de datos (fase 1c)
+# Diccionario de datos (fase 2)
 
-Base de datos local: `dashboard-rendimiento` (IndexedDB), **esquema versión 2**. Las tablas de catálogo, sesiones, repeticiones, importaciones, etc. se añadirán en fases posteriores como nuevas versiones del esquema; no se anticipan aquí. Las fechas de calendario se guardan como texto `AAAA-MM-DD` sin zona horaria.
+Base de datos local: `dashboard-rendimiento` (IndexedDB), **esquema versión 3**. Las tablas de sesiones, importaciones, etc. se añadirán en fases posteriores como nuevas versiones del esquema; no se anticipan aquí. Las fechas de calendario se guardan como texto `AAAA-MM-DD` sin zona horaria.
 
 ## Tablas
 
@@ -15,6 +15,13 @@ Base de datos local: `dashboard-rendimiento` (IndexedDB), **esquema versión 2**
 | `positions` | `id` (autonumérica) | `name`, `order`, `synthetic` | Sí | Lista de posiciones definida por el usuario |
 | `playerPositions` | `id` (autonumérica) | `playerId`, `positionId`, `validFrom`, `synthetic` | Sí | Historial de posiciones de cada jugador |
 | `anthropometry` | `id` (autonumérica) | `playerId`, `date`, `synthetic` | Sí | Mediciones antropométricas fechadas |
+| `blocks` | `key` | `order` | Sí | Bloques principales: `fuerza`, `perimetros`, `nme` |
+| `manifestations` | `id` (autonumérica) | `blockKey`, `order` | Sí | Manifestaciones de la fuerza |
+| `zones` | `id` (autonumérica) | `order` | Sí | Zonas anatómicas (Groin, Hip, Knee, Ankle) |
+| `tests` | `id` (autonumérica) | `blockKey`, `manifestationId`, `zoneId`, `order` | Sí | Tests del catálogo |
+| `protocols` | `id` (autonumérica) | `testId` | Sí | Protocolos de cada test |
+| `variables` | `id` (autonumérica) | `testId`, `manifestationId`, `order` | Sí | Variables de cada test (de origen o calculadas) |
+| `formulaHistory` | `id` (autonumérica) | `variableId` | Sí | Versiones de las fórmulas de las variables calculadas |
 
 `synthetic` vale `1` solo en los registros sintéticos de demostración; en los reales no existe el campo (los booleanos no se pueden indexar). `syntheticBatch` (sin índice) identifica el lote de carga.
 
@@ -71,6 +78,40 @@ Reglas: las posiciones principales de un jugador no se solapan. «Cambiar la pos
 
 Cada medición es un registro; no se sustituye un valor único. Para valores relativos se usará la medición más próxima a la fecha del test **dentro de la ventana antropométrica**: si no hay ninguna dentro de la ventana, el valor relativo figura como no disponible y se explica por qué; nunca se usa «la última medición» sin límite. Si dos mediciones están a la misma distancia, la selección es ambigua.
 
+### Catálogo (esquema 3, fase 2)
+
+Es configuración, no datos de jugadores. El **estado `archived`** (`true`/`false`, sin índice) existe en manifestaciones, zonas, tests, protocolos y variables: archivar no borra nada. `source` vale `inicial` en lo que carga el catálogo inicial.
+
+**`blocks`**: `key` (`fuerza`, `perimetros`, `nme`), `name` (la etiqueta NME se conserva sin expandir), `order`, `archived`.
+
+**`manifestations`**: `name`, `blockKey`, `order`, `archived`, `createdAt`, `source`.
+
+**`zones`**: `name`, `order`, `archived`, `createdAt`, `source`. Los tests globales (Fast Dynamic Strength y Reactive Strength) no tienen zona (`zoneId` nulo).
+
+**`tests`**: `name`, `blockKey`, `manifestationId` (la manifestación del listado; ver nota), `zoneId`, `notes`, `archived`, `order`, `createdAt`, `updatedAt`, `source`.
+
+**`protocols`**: `testId`, `name`, `description`, `archived`, `createdAt`. No se cargan protocolos que el usuario no haya definido.
+
+**`variables`**:
+
+| Campo | Descripción |
+|---|---|
+| `testId`, `name` | Test y nombre de la variable (único dentro del test; se conserva el nombre de origen) |
+| `unit` | Unidad; **nulo si no está definida** (no se infiere) |
+| `sides` | `LR` (valor izquierdo y derecho) o `single` (valor único); nulo si no está definido. El lado concreto es atributo de cada valor (D6) |
+| `direction` | `higher`, `lower`, `target` o nulo (no definida). No se infiere |
+| `manifestationId` | Manifestación de la variable (D4); nulo = la del test |
+| `kind` | `raw` (dato de origen) o `derived` (calculada) |
+| `formula` | `{ op, operands, params, text }` o nulo. `op` es una de las operaciones cerradas: `ASIMETRIA`, `REL_BW`, `REL_SW` (parámetro `factor`, 0,29 por defecto). `operands` son ids de variables de origen del mismo test |
+| `formulaVersion` | 0 si no tiene fórmula; sube 1 con cada cambio de fórmula (exige motivo) |
+| `notes`, `archived`, `order`, `createdAt`, `updatedAt`, `source` | |
+
+**`formulaHistory`**: `variableId`, `version`, `formula`, `at`, `reason`. Se conservan todas las versiones.
+
+**Nota sobre la manifestación:** la manifestación de la fuerza es atributo de cada variable (D4). El test guarda además la manifestación de su listado para poder clasificar los tests que aún no tienen variables. Un mismo test puede aportar variables a manifestaciones distintas: Run-Specific Iso-Push es **un** test con Peak Force en Max Isometric Strength y RFD at 100 ms en Explosive Strength, en lugar de dos tests duplicados.
+
+**Carga única del catálogo inicial:** se hace una sola vez, al abrir la versión 2 o al restaurar una copia anterior al esquema 3, y se anota en `meta` (`catalogSeeded`). No se repite ni se mezcla con un catálogo ya existente.
+
 ### `settings`
 
 | Campo | Descripción |
@@ -116,7 +157,7 @@ Fichero JSON, con compresión gzip y cifrado opcionales.
 |---|---|
 | `formatId` | `dashboard-rendimiento-backup` |
 | `formatVersion` | Versión del formato (actualmente 1) |
-| `schemaVersion` | Versión del esquema de la base que la generó (1 o 2) |
+| `schemaVersion` | Versión del esquema de la base que la generó (1, 2 o 3) |
 | `appVersion` | Versión de la aplicación |
 | `createdAt` | Fecha ISO de creación |
 | `counts` | Registros por tabla |
@@ -158,6 +199,25 @@ Se definirán al implementar las fases correspondientes y no forman parte del es
 - **Posición asignada a cada sesión en su fecha** (fases 2 y 3), tomada del historial de posiciones. Corregir el historial no reasigna sesiones existentes sin una acción explícita (guía).
 - **Sesiones y repeticiones** con su estado (válida, pendiente o excluida), para calcular Average y los demás valores (fases 2 a 4). La forma de guardar las repeticiones está pendiente (D8). El Average de sesión, el Personal Average y el Personal Best serán **valores calculados** a partir de las repeticiones o de los resúmenes de sesión, no datos guardados (definiciones en `DECISIONES.md`, D12); la Máxima repetición se obtiene de las repeticiones individuales y no existe para sesiones solo resumen.
 
+## Plantilla de importación de sesiones (provisional, versión 0.1)
+
+Archivo `plantilla_importacion_sesiones.xlsx`. Hojas: «Instrucciones», «Sesiones» (vacía, con listas de validación) y «Catálogo» (nombres exactos del catálogo inicial). Una fila por **valor**: una variable, de un lado o único, en una sesión (D8). El valor es la media de la sesión y las repeticiones su número; no se crean repeticiones individuales.
+
+| Columna | Obligatoria | Contenido |
+|---|---|---|
+| `Jugador` | Sí | Nombre tal como aparece en tu Excel (se vincula mediante alias, con confirmación) |
+| `Fecha` | Sí | AAAA-MM-DD |
+| `Hora` | No | HH:MM; distingue dos sesiones del mismo día |
+| `Test` | Sí | Nombre exacto del catálogo |
+| `Protocolo` | No | Nombre del protocolo, si existe |
+| `Variable` | Sí | Nombre exacto del catálogo |
+| `Lado` | Sí en tests por lado | `L` o `R`; vacío = valor único |
+| `Valor` | Sí | Número en la unidad definida de la variable |
+| `Repeticiones` | Sí con medias | Entero mayor que 0 |
+| `Observaciones` | No | Texto libre |
+
+Una celda vacía es «sin dato», nunca 0. Los relativos, asimetrías y percentiles no se importan: se calculan.
+
 ## Pendiente de definir por el usuario
 
-Catálogo de tests, variables, unidades y fórmulas relativas; grupos de posiciones (si se desea agrupar); zonas y técnicas de perímetros; contenido de NME; umbral mínimo de muestra; referencias, umbrales y targets (ver `DECISIONES.md`, D14 a D21).
+Variables, unidades y fórmulas de los tests que no son Iso-Push, CMJ ni Reactive Strength (incluidos Iso-Hold, Nordic, RM y el 1RM estimado: sus reglas están en D5 pero no se han precargado); unidad y fórmula relativa de RFD at 100 ms; grupos de posiciones (si se desea agrupar); zonas y técnicas de perímetros; contenido de NME; umbral mínimo de muestra; referencias, umbrales y targets (ver `DECISIONES.md`, D14 a D21).

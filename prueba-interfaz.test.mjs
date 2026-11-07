@@ -30,15 +30,15 @@ await tick(600);
 
 // Navegación
 const links = $$('nav a').map((a) => a.textContent.trim());
-check('menú con 8 entradas y los 3 bloques', links.length === 8 && ['Manifestaciones de la fuerza', 'Perímetros', 'NME'].every((l) => links.includes(l)), links.join(' | '));
-check('versión visible 1c-0.1.0', document.querySelector('.ver')?.textContent === 'v1c-0.1.0', document.querySelector('.ver')?.textContent);
+check('menú con 9 entradas y los 3 bloques', links.length === 9 && ['Manifestaciones de la fuerza', 'Perímetros', 'NME'].every((l) => links.includes(l)), links.join(' | '));
+check('versión visible 2-0.1.0', document.querySelector('.ver')?.textContent === 'v2-0.1.0', document.querySelector('.ver')?.textContent);
 check('inicio por defecto con aria-current', $('nav a[aria-current="page"]')?.textContent === 'Inicio');
 check('aviso de que no hay copia (sin plazo definido)', /Todavía no has creado ninguna copia/.test(text()));
 check('almacenamiento no persistente explicado', /no garantiza conservar los datos/.test(text()));
 
 // Bloques sin contenido inventado
 await go('fuerza');
-check('Fuerza: vacío y sin tests ni manifestaciones precargadas', /Aún no hay tests configurados/.test(text()) && !/CMJ|Hip|Knee|Isometric/.test(text()));
+check('Fuerza: muestra el catálogo inicial aportado (fase 2), sin inventar variables', /Max Isometric Strength/.test(text()) && /Run-Specific Hip Iso-Push/.test(text()) && /Sin sesiones|Aún no hay sesiones/.test(text()));
 await go('perimetros');
 check('Perímetros: sin medidas precargadas', /No hay medidas de perímetro definidas/.test(text()) && !/muslo|gemelo|pantorrilla/i.test(text()));
 await go('nme');

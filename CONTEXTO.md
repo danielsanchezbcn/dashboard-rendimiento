@@ -8,10 +8,9 @@ Una aplicación personal de seguimiento del rendimiento físico de futbolistas. 
 La aplicación no depende de Claude para funcionar. Claude se usa solo para construirla o modificarla.
 
 ## 2. Estado actual
-- **Hecho:** fases 1a, 1b y 1c. Versión de la app: 1c-0.1.0 (jugadores, alias por fuente, posiciones con historial, antropometría fechada, datos sintéticos, copias de seguridad).
-- **Pendiente de comprobar por el usuario:** la fase 1c en Chrome real (lista de comprobación en `README.md`).
-- **Siguiente:** fase 2 (catálogo de tests), que no puede empezar hasta cerrar D4, D6 y D8 (y el 1RM estimado, ver `DECISIONES.md`, D5).
-- **Todavía no existen:** tests, sesiones, importadores, gráficos. El orden de las fases y lo que necesita cada una está en `PLAN_DE_FASES.md`.
+- **Hecho:** fases 1a, 1b, 1c (comprobada en Chrome real) y **fase 2 construida** (versión 2-0.1.0, esquema 3): catálogo configurable de tests con catálogo inicial, plantilla de Excel provisional y diccionario de datos. La fase 2 está pendiente de comprobación del usuario en Chrome real (lista en `README.md`).
+- **Siguiente:** fase 3 (importador de Excel propio). Antes conviene confirmar D34 (tests de tobillo) y D35 (mover el generador sintético a la fase 3).
+- **Todavía no existen:** sesiones, importadores, gráficos. El orden de las fases y lo que necesita cada una está en `PLAN_DE_FASES.md`.
 
 ## 3. Dónde está cada cosa
 | Archivo | Contenido |
@@ -20,7 +19,8 @@ La aplicación no depende de Claude para funcionar. Claude se usa solo para cons
 | `DECISIONES.md` | Decisiones tomadas y pendientes (D1…D32) y su registro de cambios. **Manda sobre cualquier otro documento** |
 | `PLAN_DE_FASES.md` | Orden de fases, requisitos previos y reglas de entrega |
 | `REQUISITOS.md` | Requisitos RF-01 a RF-03 y criterios de aceptación |
-| `CATALOGO_TESTS.md` | Borrador del catálogo de tests (fase 2), con lo decidido y lo pendiente |
+| `CATALOGO_TESTS.md` | Especificación del catálogo de tests (fase 2), con lo decidido y lo pendiente |
+| `plantilla_importacion_sesiones.xlsx` | Plantilla de Excel provisional para el importador de la fase 3 |
 | `DICCIONARIO_DE_DATOS.md` | Tablas actuales, formato de copia y formato de exportación de VALD observado |
 | `LIBRERIAS.md` | Librerías usadas, versiones fijadas y comprobaciones |
 | `README.md` / `LEEME.md` | Descripción de la entrega y lista de comprobación |
@@ -41,7 +41,7 @@ La aplicación no depende de Claude para funcionar. Claude se usa solo para cons
 - Gráficos: Chart.js más SVG propio (D20).
 
 ## 6. Pendiente (resumen)
-- Antes de la fase 2: D4, D6, D8 y el 1RM estimado.
+- Antes de la fase 3: D34 y D35; peso corporal del 1RM estimado.
 - Antes de la fase 4: D29 a D32 (importador de VALD).
 - Antes de la fase 5c: D14, D16, D21, D24, D28 (dos puntos), tamaño mínimo de muestra y ventana antropométrica.
 - Aplazadas: D15 (objetivos), D17 y D18 (fase 8).
