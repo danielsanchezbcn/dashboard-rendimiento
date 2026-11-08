@@ -10,8 +10,9 @@
 
 import { audit } from './db.js';
 import { SW_FACTOR_DEFAULT, testUsage } from './catalogo.js';
+import { ISO_PAIRS, RM12_TESTS, RM_EST_FACTOR_DEFAULT, pairFactor } from './isohold.js';
 
-export const CATALOG_SEED_VERSION = 3;
+export const CATALOG_SEED_VERSION = 5;
 
 const BLOCKS = [
   { key: 'fuerza', name: 'Manifestaciones de la fuerza' },
@@ -71,7 +72,23 @@ const DROP_JUMP_VARIABLES = [
   v('ACTIVE STIFFNESS', 'N/m'), asym('ACTIVE STIFFNESS ASYMMETRY'), asym('DROP LANDING RFD ASYMMETRY'), asym('PEAK DROP LANDING FORCE ASYMMETRY'),
 ];
 
+// D5 (6 a 8/11/2026). Nordic: nombres como la tabla Premier para que se enlacen las referencias; la asimetría se guarda CON SIGNO (todas las asimetrías llevan signo).
+// RM e Iso-Hold: la carga la introduce el usuario (no viene de VALD). Las variables calculadas (MVIC, %PIMA, %BW/%SW, 1RM estimado) se crean en ensureDerived.
+const HDS = 'Heavy Dynamic Strength';
+const MAXISO = 'Max Isometric Strength';
+const NORDIC_VARIABLES = [
+  { name: 'Max Force', unit: 'N', sides: 'LR', manifestation: HDS },
+  { name: 'Max Force Asymmetry', unit: '%', sides: 'single', manifestation: HDS, notes: 'Con signo. La referencia Premier del Nordic se compara en valor absoluto. La convención de signo no está verificada frente a la de la app de origen (D25).' },
+  { name: 'Torque', unit: 'Nm', sides: 'LR', manifestation: HDS },
+];
+const RM_TESTS = ['Hamstring Bridge 30 cm 8RM', 'Single-Leg Knee Flexion 8RM', 'Double-Leg Leg Press 45° 8RM', 'Single-Leg Leg Press 45° 8RM', 'RFESS 45° 8RM', 'Single-Leg Standing Calf Raise 12RM', 'Single-Leg Seated Calf Raise 6RM'];
+const LOAD_NOTE = 'Carga que introduces tú, no viene de VALD (D5).';
+const MAX_LOAD = [{ name: 'Carga máxima (kg)', unit: 'kg', sides: 'single', manifestation: HDS, notes: LOAD_NOTE + ' Carga máxima movilizada hasta el momento; sin Personal Average (decidido el 8/11/2026).' }];
+const HOLD_LOAD = [{ name: 'Carga externa (kg)', unit: 'kg', sides: 'single', manifestation: MAXISO, notes: LOAD_NOTE + ' Carga externa añadida con la que se han trabajado 3 series de 20 s; sin Personal Average.' }];
 const VARIABLES_BY_TEST = {
+  'Nordic Hamstring Exercise': NORDIC_VARIABLES,
+  ...Object.fromEntries(RM_TESTS.map((n) => [n, MAX_LOAD])),
+  ...Object.fromEntries(Object.keys(ISO_PAIRS).map((n) => [n, HOLD_LOAD])),
   CMJ: CMJ_VARIABLES,
   'SL CMJ': SL_CMJ_VARIABLES,
   'Squat Jump': SQUAT_JUMP_VARIABLES,
@@ -144,12 +161,59 @@ export async function seedInitialCatalog(db) {
         await addVar(t, { name: 'Peak Force asimetría (%)', unit: '%', sides: 'single', kind: 'derived', manifestationId: manId['Max Isometric Strength'], formula: { op: 'ASIMETRIA', operands: [peak], params: {}, text: '' } });
         for (const e of ISO_EXPLOSIVE) await addVar(t, { name: e.name, unit: e.unit, sides: e.sides, manifestationId: manId[e.manifestation], notes: e.notes });
       }
-      for (const [test, vars] of Object.entries(VARIABLES_BY_TEST)) for (const x of vars) await addVar(testIds[test], x);
+      for (const [test, vars] of Object.entries(VARIABLES_BY_TEST)) for (const x of vars) await addVar(testIds[test], { ...x, manifestationId: x.manifestation ? manId[x.manifestation] : x.manifestationId });
+      await ensureDerived(db, ts, counts);
     }
+    counts.direccionesAsignadas = await defaultDirections(db, ts);
     await db.meta.put({ key: 'catalogSeeded', value: { version: CATALOG_SEED_VERSION, at: ts, vacioAlSembrar: empty } });
     await audit(db, 'catalogo-inicial-cargado', { version: CATALOG_SEED_VERSION, ...counts });
   });
   return { sembrado: true, ...counts };
+}
+
+
+// 7 de noviembre de 2026 (D50): el usuario indica «Personal Best: más alto es mejor». Las variables SIN dirección pasan a «Más alto es mejor»,
+// salvo las asimetrías (unidad %, con signo: un «mejor» no tiene sentido). Nunca se toca una dirección ya definida. Cada ejecución queda en el registro.
+async function defaultDirections(db, ts) {
+  const all = await db.variables.toArray();
+  const todo = all.filter((v) => (v.direction ?? null) === null && v.unit !== '%');
+  for (const v of todo) await db.variables.update(v.id, { direction: /contact time/i.test(v.name) ? 'lower' : 'higher', updatedAt: ts }); // tiempo de contacto: más bajo es mejor (D50)
+  if (todo.length) await audit(db, 'catalogo-direccion-por-defecto', { cantidad: todo.length, direccion: 'higher', excepciones: 'contact time = lower', excluye: 'asimetrias (%)' });
+  return todo.length;
+}
+
+// Variables calculadas del Iso-Hold y del 1RM estimado (D5). Idempotente: crea solo las que falten, por nombre, a partir de la variable de carga del test.
+// El factor del «peso del sistema» sale de la variable relativa del Iso-Push emparejado (Hip 0,29 SW; Knee y Ankle BW; talones sentado SW con su factor).
+async function ensureDerived(db, ts, counts) {
+  const lc = (x) => String(x ?? '').trim().toLowerCase();
+  const tests = await db.tests.toArray();
+  const mans = await db.manifestations.toArray();
+  const tByName = (n) => tests.find((t) => lc(t.name) === lc(n));
+  const manId = (n) => mans.find((m) => lc(m.name) === lc(n))?.id ?? null;
+  let order = (await db.variables.orderBy('order').last())?.order ?? 0;
+  const make = async (test, loadName, name, op, manifestation, params = {}, notes = '') => {
+    const vars = await db.variables.where('testId').equals(test.id).toArray();
+    const load = vars.find((x) => lc(x.name) === lc(loadName));
+    if (!load || vars.some((x) => lc(x.name) === lc(name))) return;
+    const formula = { op, operands: [load.id], params, text: '' };
+    const unit = op === 'RM_EST' || op === 'ISO_MVIC' ? 'kg' : '%';
+    const id = await db.variables.add({ testId: test.id, name, unit, sides: 'single', direction: 'higher', manifestationId: manId(manifestation), kind: 'derived', formula, formulaVersion: 1, notes, archived: false, order: ++order, createdAt: ts, updatedAt: ts, source: 'inicial' });
+    await db.formulaHistory.add({ variableId: id, version: 1, formula, at: ts, reason: 'Catálogo inicial (D5)' });
+    counts.variablesAnadidas = (counts.variablesAnadidas ?? 0) + 1;
+    counts.variables = (counts.variables ?? 0) + (counts.tests !== undefined ? 1 : 0);
+    return id;
+  };
+  for (const [holdName, pushName] of Object.entries(ISO_PAIRS)) {
+    const hold = tByName(holdName), push = tByName(pushName);
+    if (!hold) continue;
+    const pairVars = push ? await db.variables.where('testId').equals(push.id).toArray() : [];
+    const { factor, unitName } = pairFactor(pairVars);
+    await make(hold, 'Carga externa (kg)', 'MVIC iso-push (kg)', 'ISO_MVIC', MAXISO, {}, `Calculada con el Personal Average de «${pushName}» y la masa de cada sesión de Iso-Push (D5).`);
+    await make(hold, 'Carga externa (kg)', '%PIMA', 'ISO_PIMA', MAXISO, {}, 'Carga externa ÷ MVIC iso-push (kg). La sigla se conserva como la escribe el usuario.');
+    if (unitName === 'SW') await make(hold, 'Carga externa (kg)', '%SW', 'ISO_LOAD_SW', MAXISO, { factor }, `Carga externa ÷ (${factor} × masa corporal); masa medida más cercana a hoy.`);
+    else await make(hold, 'Carga externa (kg)', '%BW', 'ISO_LOAD_BW', MAXISO, {}, 'Carga externa ÷ masa corporal; masa medida más cercana a hoy.');
+  }
+  for (const n of RM12_TESTS) { const t = tByName(n); if (t) await make(t, 'Carga máxima (kg)', '1RM estimado (kg)', 'RM_EST', HDS, { factor: RM_EST_FACTOR_DEFAULT }, '(carga + masa corporal) × 1,4, solo en 12RM. Estimado, no medido. 1,4 coincide con Epley a 12 repeticiones (inferencia no verificada con fuente).'); }
 }
 
 // Actualiza un catálogo ya cargado con una versión anterior de la semilla, sin pisar nada que el usuario haya editado:
@@ -158,7 +222,7 @@ export async function seedInitialCatalog(db) {
 // si no tiene variables, protocolos ni datos. Se ejecuta una sola vez (versión de la semilla en la tabla meta).
 async function migrateCatalog(db, prev) {
   if ((prev.value?.version ?? 1) >= CATALOG_SEED_VERSION) return { migrado: false };
-  const res = { migrado: true, variablesAnadidas: 0, unidadesRellenadas: 0, unidadesAlineadas: 0, isoHoldMovidos: 0, duplicadoEliminado: false, duplicadoConservado: false };
+  const res = { migrado: true, variablesAnadidas: 0, unidadesRellenadas: 0, unidadesAlineadas: 0, direccionesAsignadas: 0, isoHoldMovidos: 0, duplicadoEliminado: false, duplicadoConservado: false };
   const dataTables = db.tables.filter((t) => ['sessions'].includes(t.name)); // testUsage consulta las sesiones
   await db.transaction('rw', [...CATALOG_TABLES.map((n) => db.table(n)), db.meta, db.auditLog, ...dataTables], async () => {
     const cur = await db.meta.get('catalogSeeded');
@@ -234,6 +298,8 @@ async function migrateCatalog(db, prev) {
         for (const e of ISO_EXPLOSIVE) await mk({ name: e.name, unit: e.unit, sides: e.sides, manifestationId: manByName(e.manifestation)?.id ?? null, notes: e.notes });
       } else await apply(name, ISO_EXPLOSIVE);
     }
+    await ensureDerived(db, ts, res);
+    res.direccionesAsignadas = await defaultDirections(db, ts);
     await db.meta.put({ key: 'catalogSeeded', value: { ...(cur?.value ?? {}), version: CATALOG_SEED_VERSION, actualizadoEn: ts } });
     await audit(db, 'catalogo-inicial-actualizado', { version: CATALOG_SEED_VERSION, ...res });
   });

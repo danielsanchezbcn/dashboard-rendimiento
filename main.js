@@ -2,6 +2,7 @@ import { render, html } from './libs.js';
 import { createDb, initDb, requestPersistence } from './db.js';
 import { App } from './app.js';
 import { seedInitialCatalog } from './catalogo-inicial.js';
+import { collapsePositions } from './posiciones.js';
 
 const root = document.getElementById('app');
 
@@ -27,6 +28,7 @@ async function boot() {
     db = createDb();
     await initDb(db);
     await seedInitialCatalog(db);
+    await collapsePositions(db);
   } catch (e) {
     showError('No se pudo abrir la base de datos local', `${e?.message || e}. Comprueba que no estás en una ventana privada y que el navegador permite guardar datos de este sitio.`);
     return;
@@ -36,6 +38,7 @@ async function boot() {
   } catch {
     /* no es crítico */
   }
+  root.textContent = ''; // quita el «Cargando…» inicial antes de pintar la aplicación
   render(html`<${App} db=${db} />`, root);
 }
 

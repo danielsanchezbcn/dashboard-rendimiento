@@ -13,6 +13,7 @@ Base de datos local: `dashboard-rendimiento` (IndexedDB), **esquema versión 4**
 | `players` | `id` (autonumérica) | `jerseyName`, `synthetic` | Sí | Jugadores |
 | `playerAliases` | `id` (autonumérica) | `playerId`, `source`, `normalizedKey`, `synthetic` | Sí | Alias de cada jugador por fuente |
 | `positions` | `id` (autonumérica) | `name`, `order`, `synthetic` | Sí | Lista de posiciones definida por el usuario |
+| `targets` | `id` (autonumérica) | `variableId`, `playerId`, `positionId`, `synthetic` | Sí | Targets (D15): individual (jugador + variable) o por defecto de una posición (posición + variable); `values` = `{L,R,S}`, `note`, `source`, `definedAt`, `updatedAt` (esquema 5) |
 | `playerPositions` | `id` (autonumérica) | `playerId`, `positionId`, `validFrom`, `synthetic` | Sí | Historial de posiciones de cada jugador |
 | `anthropometry` | `id` (autonumérica) | `playerId`, `date`, `synthetic` | Sí | Mediciones antropométricas fechadas |
 | `blocks` | `key` | `order` | Sí | Bloques principales: `fuerza`, `perimetros`, `nme` |
@@ -43,7 +44,7 @@ Base de datos local: `dashboard-rendimiento` (IndexedDB), **esquema versión 4**
 | Campo | Descripción |
 |---|---|
 | `playerId` | Jugador al que pertenece |
-| `source` | `VALD`, `Excel` u `Otra` |
+| `source` | `VALD`, `Excel`, `Otra` o `manual` (alta manual de carga) |
 | `rawText` | Texto original tal como aparece en la fuente (no se modifica) |
 | `normalizedKey` | Texto sin mayúsculas, espacios redundantes ni acentos. **Solo sirve para proponer candidatos; nunca vincula por sí solo** |
 | `confirmedAt` | Fecha ISO de la confirmación |
@@ -60,6 +61,18 @@ Reglas: el mismo texto exacto de una fuente no puede estar en dos jugadores. Un 
 
 No hay posiciones precargadas. Una posición usada en algún historial no se elimina: se archiva.
 
+### Peso de referencia del jugador (8/11/2026)
+
+Campo opcional `referenceWeight: {value, unit}` del registro del jugador (unidad kg, g o lb). Se usa en todos los cálculos con masa solo si el jugador no tiene ninguna medición de masa corporal. No es una medición: no tiene fecha y cualquier medición lo sustituye. Va en la copia con el resto de jugadores.
+
+### Variables calculadas del Iso-Hold y del 1RM (D5)
+
+Operaciones de sistema (no se ofrecen al crear variables a mano): `ISO_MVIC` (kg), `ISO_PIMA` (%), `ISO_LOAD_BW` (%), `ISO_LOAD_SW` (%, con `factor`) y `RM_EST` (kg, con `factor` 1,4). El origen es la variable de carga del mismo test («Carga externa (kg)» en Iso-Hold, «Carga máxima (kg)» en el 12RM). Se calculan al vuelo y no se guardan; el Iso-Push emparejado sale de una tabla fija (`isohold.js`). Las variables de carga (RM e Iso-Hold) y las del Nordic son datos de origen; la carga la introduce el usuario.
+
+### `targets`
+
+Valor objetivo definido por el usuario (D15). `scope` = `player` o `position`; `playerId` o `positionId` según el ámbito (el otro es null); `variableId`; `values` con los lados de la variable (`L`, `R` o `S`, al menos uno); `note` y `source` opcionales; `definedAt`, `updatedAt`; `synthetic` = 1 si el jugador o la posición son sintéticos. Un único target por ámbito + dueño + variable. En variables I/D se guarda el mismo valor en `L` y `R`. El individual manda sobre el de la posición. Al eliminar una posición se eliminan sus targets.
+
 ### `playerPositions`
 
 | Campo | Descripción |
@@ -69,7 +82,7 @@ No hay posiciones precargadas. Una posición usada en algún historial no se eli
 | `validFrom` | Primer día de vigencia (obligatorio) |
 | `validTo` | Último día de vigencia; vacío si sigue vigente |
 
-Reglas: las posiciones principales de un jugador no se solapan. «Cambiar la posición principal desde una fecha» cierra la vigente el día anterior y abre la nueva. Si no hay registro vigente en una fecha, el jugador figura **sin posición** en esa fecha. Las secundarias no se usan para agrupar ni comparar (D11); solo podrían usarse como filtro si se define expresamente. La **posición de una sesión es la principal vigente en la fecha de esa sesión**, no la actual.
+**Desde el 2026-11-07 no hay fechas:** `validFrom` y `validTo` valen siempre `null` (se conservan por compatibilidad con copias antiguas, que se normalizan al abrir y al restaurar). Un jugador tiene como máximo UNA posición principal y una secundaria por posición; cambiar la principal modifica el registro (vale para todo el histórico). Texto histórico a continuación (modelo con fechas, sustituido): las posiciones principales de un jugador no se solapan. «Cambiar la posición principal desde una fecha» cierra la vigente el día anterior y abre la nueva. Si no hay registro vigente en una fecha, el jugador figura **sin posición** en esa fecha. Las secundarias no se usan para agrupar ni comparar (D11); solo podrían usarse como filtro si se define expresamente. La **posición de una sesión es la principal vigente en la fecha de esa sesión**, no la actual.
 
 ### `anthropometry`
 
@@ -145,7 +158,7 @@ Reglas del importador: nada se vincula en silencio (cada nombre distinto se conf
 | `definedByUser` | Siempre `true`: un ajuste solo existe si el usuario lo ha definido |
 | `updatedAt` | Fecha ISO de la última modificación |
 
-Ajustes conocidos: `backupReminderDays` (entero de 1 a 365; plazo máximo en días desde la última copia antes de mostrar un aviso) y `anthropometryWindowDays` (entero de 0 a 3650; ventana antropométrica). Ninguno tiene valor por defecto.
+Ajustes conocidos: `percentileMinN` (entero de 1 a 1000; muestra mínima de jugadores para clasificar un percentil; por defecto 10, D52), `backupReminderDays` (entero de 1 a 365; plazo máximo en días desde la última copia antes de mostrar un aviso) y `anthropometryWindowDays` (entero de 0 a 3650; ventana antropométrica). Ninguno tiene valor por defecto.
 
 ### `auditLog`
 
@@ -262,3 +275,6 @@ Una celda vacía es «sin dato», nunca 0. Los relativos, asimetrías y percenti
 ## Pendiente de definir por el usuario
 
 Variables, unidades y fórmulas de los tests que no son Iso-Push, CMJ, SL CMJ, Squat Jump, Hop Test ni Drop Jump (incluidos Iso-Hold, Nordic, RM y el 1RM estimado: sus reglas están en D5 pero no se han precargado); fórmulas relativas de RFD at 100 ms y Force at 100 ms; grupos de posiciones (si se desea agrupar); zonas y técnicas de perímetros; contenido de NME; umbral mínimo de muestra; referencias, umbrales y targets (ver `DECISIONES.md`, D14 a D21).
+
+
+**Añadidos de la versión 7d (sin cambio de esquema):** las sesiones corregidas llevan `correctedAt` (fecha ISO de la última corrección); las sesiones de alta manual llevan `source: 'manual'`, `reps: {}` y `protocolId: null`; el ajuste `radarConfig` (tabla `settings`) guarda `{ test, variables: [nombres en orden] }`.

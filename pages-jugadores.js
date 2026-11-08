@@ -3,9 +3,12 @@ import { useApp } from './context.js';
 import { Card, Msg, Sintetico, useLoad, useRunner } from './componentes.js';
 import { fmtDay, todayIso, isIsoDay } from './fechas.js';
 import { normalizeName, SOURCES, createPlayer, updatePlayer, setPlayerActive, addAlias, removeAlias, duplicateNameWarning } from './jugadores.js';
-import { listPositions, playerHistory, positionOnDate, setMainPositionFrom, endMainPosition, addSecondaryPosition, updateHistoryRecord, deleteHistoryRecord } from './posiciones.js';
-import { METRICS, playerAnthropometry, addAnthropometry, updateAnthropometry, deleteAnthropometry } from './antropometria.js';
+import { listPositions, playerHistory, positionOnDate, setMainPosition, clearMainPosition, addSecondaryPosition, deleteHistoryRecord } from './posiciones.js';
+import { METRICS, playerAnthropometry, addAnthropometry, updateAnthropometry, deleteAnthropometry, setReferenceWeight, clearReferenceWeight } from './antropometria.js';
 import { totalOf, countSynthetic } from './sinteticos.js';
+import { ResultadosJugador } from './pages-evolucion.js';
+import { RelacionesPanel } from './pages-relaciones.js';
+import { RadarPanel } from './pages-radar.js';
 
 const posName = (positions, id) => positions.find((p) => p.id === id)?.name ?? '(posición eliminada)';
 
@@ -18,7 +21,6 @@ export function Jugadores() {
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
   const [posId, setPosId] = useState('');
-  const [from, setFrom] = useState('');
   const { msg, run, busy } = useRunner();
   const { data, error } = useLoad(async () => {
     const [players, aliases, positions, history, synth] = await Promise.all([db.players.toArray(), db.playerAliases.toArray(), listPositions(db), db.playerPositions.toArray(), countSynthetic(db)]);
@@ -33,16 +35,15 @@ export function Jugadores() {
     .filter((p) => !key || normalizeName(p.jerseyName).key.includes(key) || data.aliases.some((a) => a.playerId === p.id && a.normalizedKey.includes(key)))
     .sort((a, b) => a.jerseyName.localeCompare(b.jerseyName, 'es'));
   const current = (id) => {
-    const x = positionOnDate(data.history.filter((r) => r.playerId === id), today).principal;
-    return x ? posName(data.positions, x.positionId) : 'Sin posición hoy';
+    const x = positionOnDate(data.history.filter((r) => r.playerId === id)).principal;
+    return x ? posName(data.positions, x.positionId) : 'Sin posición';
   };
   const create = run(async () => {
-    if (posId && !isIsoDay(from)) throw new Error('Indica la fecha desde la que rige la posición.');
     const warn = await duplicateNameWarning(db, name);
     if (warn && !confirm(`${warn}\n\n¿Crear el jugador de todos modos?`)) throw new Error('Creación cancelada.');
     const id = await createPlayer(db, { jerseyName: name, notes });
-    if (posId) await setMainPositionFrom(db, id, Number(posId), from);
-    setName(''); setNotes(''); setPosId(''); setFrom('');
+    if (posId) await setMainPosition(db, id, Number(posId));
+    setName(''); setNotes(''); setPosId('');
     bump();
     return id;
   }, 'jugador creado.');
@@ -59,7 +60,6 @@ export function Jugadores() {
             ${data.positions.filter((p) => p.active).map((p) => html`<option value=${p.id} key=${p.id}>${p.name}</option>`)}
           </select>
         </label>
-        <label>Rige desde <input type="date" value=${from} disabled=${!posId} onInput=${(e) => setFrom(e.target.value)} /></label>
         <div class="actions"><button type="submit" disabled=${busy}>Crear jugador</button></div>
       </form>
       ${data.positions.length === 0 ? html`<p class="muted">Todavía no hay posiciones definidas. Defínelas en <a href="#configuracion">Configuración</a>; no se precarga ninguna.</p>` : null}
@@ -135,66 +135,28 @@ function Alias({ player, aliases }) {
     <//>`;
 }
 
-function HistoryRow({ rec, positions }) {
-  const { db, bump } = useApp();
-  const [edit, setEdit] = useState(false);
-  const [pos, setPos] = useState(String(rec.positionId));
-  const [from, setFrom] = useState(rec.validFrom);
-  const [to, setTo] = useState(rec.validTo ?? '');
-  const { msg, run, busy } = useRunner();
-  if (!edit) {
-    return html`<tr><td>${rec.role === 'principal' ? 'Principal' : 'Secundaria'}</td><td>${posName(positions, rec.positionId)} ${rec.synthetic ? html`<${Sintetico} />` : null}</td><td>${fmtDay(rec.validFrom)}</td><td>${rec.validTo ? fmtDay(rec.validTo) : 'vigente'}</td>
-      <td class="acts"><button type="button" class="secondary" onClick=${() => setEdit(true)}>Editar</button>
-      <button type="button" class="secondary" onClick=${run(async () => { if (confirm('¿Eliminar este registro del historial de posiciones?')) { await deleteHistoryRecord(db, rec.id); bump(); } })}>Eliminar</button></td></tr>`;
-  }
-  return html`<tr><td>${rec.role === 'principal' ? 'Principal' : 'Secundaria'}</td>
-    <td><select value=${pos} onChange=${(e) => setPos(e.target.value)}>${positions.map((p) => html`<option value=${p.id} key=${p.id}>${p.name}</option>`)}</select></td>
-    <td><input type="date" value=${from} onInput=${(e) => setFrom(e.target.value)} /></td>
-    <td><input type="date" value=${to} onInput=${(e) => setTo(e.target.value)} /></td>
-    <td class="acts"><button type="button" disabled=${busy} onClick=${run(async () => { await updateHistoryRecord(db, rec.id, { positionId: Number(pos), validFrom: from, validTo: to || null }); setEdit(false); bump(); })}>Guardar</button>
-      <button type="button" class="secondary" onClick=${() => setEdit(false)}>Cancelar</button><${Msg} msg=${msg} /></td></tr>`;
-}
-
 function Posiciones({ player, history, positions }) {
   const { db, bump } = useApp();
   const active = positions.filter((p) => p.active);
   const [mainPos, setMainPos] = useState('');
-  const [mainFrom, setMainFrom] = useState('');
-  const [endFrom, setEndFrom] = useState('');
   const [secPos, setSecPos] = useState('');
-  const [secFrom, setSecFrom] = useState('');
-  const [secTo, setSecTo] = useState('');
-  const [qDate, setQDate] = useState(todayIso());
-  const a = useRunner(); const b = useRunner(); const c = useRunner();
-  const onDate = isIsoDay(qDate) ? positionOnDate(history, qDate) : null;
+  const a = useRunner(); const c = useRunner(); const d = useRunner();
+  const main = positionOnDate(history).principal;
+  const secs = history.filter((r) => r.role === 'secundaria');
   return html`
-    <${Card} titulo="Posiciones con historial">
-      <p>Cada sesión se compara según la <strong>posición principal que tenía el jugador en la fecha de esa sesión</strong>, no la actual. Las posiciones secundarias no lo incluyen automáticamente en varios grupos.</p>
-      ${history.length === 0 ? html`<p class="muted">Sin posiciones registradas: el jugador figura «sin posición» en cualquier fecha.</p>` : html`<div class="table-wrap"><table>
-        <thead><tr><th scope="col">Tipo</th><th scope="col">Posición</th><th scope="col">Desde</th><th scope="col">Hasta</th><th scope="col"><span class="sr">Acciones</span></th></tr></thead>
-        <tbody>${history.map((r) => html`<${HistoryRow} key=${r.id} rec=${r} positions=${positions} />`)}</tbody></table></div>`}
-      <h3>Consultar la posición en una fecha</h3>
-      <div class="fields"><label>Fecha <input type="date" value=${qDate} onInput=${(e) => setQDate(e.target.value)} /></label></div>
-      <p class="status" role="status">${onDate ? (onDate.principal ? `Posición principal el ${fmtDay(qDate)}: ${posName(positions, onDate.principal.positionId)}.` : `Sin posición principal el ${fmtDay(qDate)}.`) : 'Indica una fecha válida.'}${onDate && onDate.secundarias.length ? ` Secundarias: ${onDate.secundarias.map((r) => posName(positions, r.positionId)).join(', ')} (no se usan para agrupar).` : ''}</p>
-      <h3>Cambiar la posición principal desde una fecha</h3>
-      <form class="fields" onSubmit=${a.run(async () => { await setMainPositionFrom(db, player.id, Number(mainPos), mainFrom); setMainPos(''); setMainFrom(''); bump(); }, 'posición principal registrada.')}>
-        <label>Posición <select required value=${mainPos} onChange=${(e) => setMainPos(e.target.value)}><option value="">Elige…</option>${active.map((p) => html`<option value=${p.id} key=${p.id}>${p.name}</option>`)}</select></label>
-        <label>Desde <input type="date" required value=${mainFrom} onInput=${(e) => setMainFrom(e.target.value)} /></label>
-        <div class="actions"><button type="submit" disabled=${a.busy}>Registrar cambio</button></div>
+    <${Card} titulo="Posición">
+      <p>Cada jugador tiene <strong>una posición principal, sin fechas</strong>: si la cambias, el cambio vale para todo su histórico. Las comparaciones agrupan por esta posición. Las posiciones secundarias son solo informativas.</p>
+      <p class="status" role="status">${main ? html`Posición principal: <strong>${posName(positions, main.positionId)}</strong> ${main.synthetic ? html`<${Sintetico} />` : null}` : 'Sin posición principal: el jugador figura «Sin posición».'}</p>
+      <form class="fields" onSubmit=${a.run(async () => { await setMainPosition(db, player.id, Number(mainPos)); setMainPos(''); bump(); }, 'posición principal guardada (vale para todo el histórico).')}>
+        <label>${main ? 'Cambiar a' : 'Posición'} <select required value=${mainPos} onChange=${(e) => setMainPos(e.target.value)}><option value="">Elige…</option>${active.map((p) => html`<option value=${p.id} key=${p.id}>${p.name}</option>`)}</select></label>
+        <div class="actions"><button type="submit" disabled=${a.busy}>${main ? 'Cambiar posición' : 'Asignar posición'}</button>
+          ${main ? html`<button type="button" class="secondary" disabled=${d.busy} onClick=${d.run(async () => { if (confirm('El jugador quedará «Sin posición» en todo su histórico. ¿Continuar?')) { await clearMainPosition(db, player.id); bump(); } })}>Quitar posición</button>` : null}</div>
       </form>
-      <p class="muted">Cierra la posición vigente el día anterior y abre la nueva. No reasigna sesiones ya registradas.</p>
-      <${Msg} msg=${a.msg} />
-      <h3>Terminar la posición principal (dejar «sin posición»)</h3>
-      <form class="fields" onSubmit=${b.run(async () => { await endMainPosition(db, player.id, endFrom); setEndFrom(''); bump(); }, 'posición principal terminada.')}>
-        <label>Sin posición desde <input type="date" required value=${endFrom} onInput=${(e) => setEndFrom(e.target.value)} /></label>
-        <div class="actions"><button type="submit" class="secondary" disabled=${b.busy}>Terminar</button></div>
-      </form>
-      <${Msg} msg=${b.msg} />
-      <h3>Añadir una posición secundaria</h3>
-      <form class="fields" onSubmit=${c.run(async () => { await addSecondaryPosition(db, player.id, Number(secPos), secFrom, secTo || null); setSecPos(''); setSecFrom(''); setSecTo(''); bump(); }, 'posición secundaria registrada.')}>
+      <${Msg} msg=${a.msg} /><${Msg} msg=${d.msg} />
+      <h3>Posiciones secundarias (informativas)</h3>
+      ${secs.length ? html`<ul>${secs.map((r) => html`<li key=${r.id}>${posName(positions, r.positionId)} <button type="button" class="secondary" onClick=${d.run(async () => { await deleteHistoryRecord(db, r.id); bump(); })}>Quitar</button></li>`)}</ul>` : html`<p class="muted">Ninguna.</p>`}
+      <form class="fields" onSubmit=${c.run(async () => { await addSecondaryPosition(db, player.id, Number(secPos)); setSecPos(''); bump(); }, 'posición secundaria añadida.')}>
         <label>Posición <select required value=${secPos} onChange=${(e) => setSecPos(e.target.value)}><option value="">Elige…</option>${active.map((p) => html`<option value=${p.id} key=${p.id}>${p.name}</option>`)}</select></label>
-        <label>Desde <input type="date" required value=${secFrom} onInput=${(e) => setSecFrom(e.target.value)} /></label>
-        <label>Hasta (opcional) <input type="date" value=${secTo} onInput=${(e) => setSecTo(e.target.value)} /></label>
         <div class="actions"><button type="submit" class="secondary" disabled=${c.busy}>Añadir secundaria</button></div>
       </form>
       <${Msg} msg=${c.msg} />
@@ -205,6 +167,21 @@ const emptyForm = (last) => ({
   id: null, date: '', source: '', notes: '',
   ...Object.fromEntries(METRICS.flatMap((m) => [[m.key + 'V', ''], [m.key + 'U', last?.[m.key]?.unit ?? '']])),
 });
+
+function PesoReferencia({ player }) {
+  const { db, bump } = useApp();
+  const { msg, run, busy } = useRunner();
+  const [v, setV] = useState(player.referenceWeight?.value ?? '');
+  const [u, setU] = useState(player.referenceWeight?.unit ?? 'kg');
+  const cur = player.referenceWeight;
+  return html`<fieldset><legend>Peso de referencia del jugador</legend>
+    <p class="muted">Se usa en todos los cálculos con masa solo si el jugador no tiene ninguna medición de masa corporal. Cualquier medición lo sustituye.${cur ? '' : ' Ahora no hay peso de referencia.'}</p>
+    <div class="fields"><label>Peso de referencia <input type="text" inputmode="decimal" value=${v} onInput=${(e) => setV(e.target.value)} /></label>
+      <label>Medida del peso (kg, g o lb) <input type="text" value=${u} onInput=${(e) => setU(e.target.value)} /></label></div>
+    <div class="actions"><button type="button" disabled=${busy} onClick=${run(async () => { await setReferenceWeight(db, player.id, v, u); bump(); }, 'peso de referencia guardado.')}>Guardar peso de referencia</button>
+      ${cur ? html`<button type="button" class="secondary" disabled=${busy} onClick=${run(async () => { await clearReferenceWeight(db, player.id); setV(''); bump(); }, 'peso de referencia eliminado.')}>Eliminar</button>` : null}</div>
+    <${Msg} msg=${msg} /></fieldset>`;
+}
 
 function Antropometria({ player, records }) {
   const { db, bump } = useApp();
@@ -227,7 +204,7 @@ function Antropometria({ player, records }) {
   const cell = (r, k) => (r[k] ? `${String(r[k].value).replace('.', ',')} ${r[k].unit}` : '—');
   return html`
     <${Card} titulo="Antropometría con historial">
-      <p>Cada medición es un registro fechado; no se sustituye un valor único. Las métricas relativas usarán la medición más próxima a la fecha de cada test dentro de una ventana configurable, nunca «la última» sin límite. La unidad la indicas tú.</p>
+      <p>Cada medición es un registro fechado; no se sustituye un valor único. Los cálculos con masa corporal (relativos BW/SW, DSI, MVIC, %BW/%SW, 1RM estimado…) usan la medición de masa <strong>más cercana a la fecha</strong>, anterior o posterior, y si no hay ninguna, el peso de referencia de abajo. La unidad la indicas tú.</p>
       ${records.length === 0 ? html`<p class="muted">Sin mediciones.</p>` : html`<div class="table-wrap"><table>
         <thead><tr><th scope="col">Fecha</th>${METRICS.map((m) => html`<th scope="col" key=${m.key}>${m.label}</th>`)}<th scope="col">Fuente</th><th scope="col">Observaciones</th><th scope="col"><span class="sr">Acciones</span></th></tr></thead>
         <tbody>${records.map((r) => html`<tr key=${r.id}><td>${fmtDay(r.date)} ${r.synthetic ? html`<${Sintetico} />` : null}</td>${METRICS.map((m) => html`<td key=${m.key}>${cell(r, m.key)}</td>`)}<td>${r.source || '—'}</td><td>${r.notes || '—'}</td>
@@ -250,10 +227,11 @@ function Antropometria({ player, records }) {
       </form>
       <p class="muted">Rellena solo las medidas que tengas; al menos una. La unidad es obligatoria cuando hay valor.</p>
       <${Msg} msg=${msg} />
+      <${PesoReferencia} player=${player} />
     <//>`;
 }
 
-export function PerfilJugador({ id }) {
+export function PerfilJugador({ id, query = {} }) {
   const { db, version } = useApp();
   const { data, error } = useLoad(async () => {
     const player = await db.players.get(id);
@@ -272,12 +250,8 @@ export function PerfilJugador({ id }) {
     <${Alias} player=${player} aliases=${data.aliases} />
     <${Posiciones} player=${player} history=${data.history} positions=${data.positions} />
     <${Antropometria} key=${'a' + player.id} player=${player} records=${data.records} />
-    <${Card} titulo="Resultados por bloque">
-      <div class="grid">
-        <div><h3>Manifestaciones de la fuerza</h3><p class="muted">Sin tests configurados. Los resultados aparecerán aquí cuando existan sesiones (fases 2 a 5).</p></div>
-        <div><h3>Perímetros</h3><p class="muted">Sin medidas definidas.</p></div>
-        <div><h3>NME</h3><p class="muted">Bloque sin definir.</p></div>
-      </div>
-    <//>
+    <${ResultadosJugador} key=${'r' + player.id} player=${player} query=${query} />
+    <${RadarPanel} key=${'radar' + player.id} player=${player} />
+    <${RelacionesPanel} key=${'rel' + player.id} player=${player} />
   `;
 }

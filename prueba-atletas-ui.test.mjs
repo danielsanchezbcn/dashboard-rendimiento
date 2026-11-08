@@ -57,8 +57,7 @@ check('revisión: 3 atletas y 2 posiciones de VALD', /3 atletas leídos/.test(te
 check('todos propuestos como jugador nuevo y sin acciones pendientes', !/Faltan \d+ atleta/.test(text()) && !!btn(document, 'Guardar atletas') && !btn(document, 'Guardar atletas').disabled);
 const sel = $$('select').find((s) => s.getAttribute('aria-label') === 'Posición para Goalkeeper');
 await setVal(sel, 'create', 'change');
-check('al asignar posición se exige la fecha', !!btn(document, 'Guardar atletas').disabled && /Vigente desde/.test(text()));
-await setVal($$('input[type=date]')[0], '2026-07-01');
+check('al asignar posición NO se pide fecha (la posición no lleva fechas)', !btn(document, 'Guardar atletas').disabled && !/Vigente desde/.test(text()) && /no lleva fecha/.test(text()));
 await click(btn(document, 'Guardar atletas'), 700);
 check('resultado: 3 nuevos, 3 alias, 1 posición creada y asignada', /3 jugador\(es\) nuevo\(s\)/.test(text()) && /3 alias de VALD/.test(text()) && /1 asignada/.test(text()) && /1 creada/.test(text()), text().slice(0, 400));
 await click(btn(document, 'Terminar'), 400);

@@ -81,11 +81,11 @@ check('detalle: ruta propia y título', hipId > 0 && document.querySelector('h2.
 let vc = card('Variables');
 const rows = rowTexts(vc);
 check('detalle: 5 variables en el orden definido', rows.length === 5 && /^Peak ForceN/.test(rows[0]) && /^Peak Force relativo \(SW\)/.test(rows[1]) && /^Peak Force asimetría/.test(rows[2]) && /^RFD at 100 ms/.test(rows[3]) && /^Force at 100 ms/.test(rows[4]), rows.map((r) => r.slice(0, 30)).join(' | '));
-check('Peak Force: unidad N y manifestación Max Isometric Strength', /Peak Force\s*N\s*Valor izquierdo y derecho\s*No definido\s*Max Isometric Strength/.test(rows[0]));
+check('Peak Force: unidad N y manifestación Max Isometric Strength', /Peak Force\s*N\s*Valor izquierdo y derecho\s*Más alto es mejor\s*Max Isometric Strength/.test(rows[0]));
 check('RFD at 100 ms: unidad N/s y manifestación Explosive Strength; Force at 100 ms: N', /RFD at 100 ms\s*N\/s[\s\S]*Explosive Strength/.test(rows[3]) && /Force at 100 ms\s*N[\s\S]*Explosive Strength/.test(rows[4]));
 check('relativo Hip: SW con factor 0.29 y definición visible', /Relativo al System Weight \(SW\)[\s\S]*factor 0.29/.test(rows[1]) && /9,80665/.test(rows[1]));
 check('asimetría: fórmula del usuario visible', /\(derecha − izquierda\) ÷ máx\(izquierda, derecha\) × 100/.test(rows[2]));
-check('dirección «No definido» en todas (no se infiere)', rowTexts(vc).every((r) => /No definido/.test(r)));
+check('dirección «Más alto es mejor» por defecto (D50); solo queda «No definido» en las asimetrías (%)', rowTexts(vc).some((r) => /Más alto es mejor/.test(r)) && rowTexts(vc).filter((r) => /No definido/.test(r)).every((r) => /%/.test(r)));
 
 // ---- Editar una variable: unidad de RFD (acción del usuario) y cambio de fórmula con motivo
 let r3 = varRow('RFD at 100 ms');
@@ -108,7 +108,7 @@ check('con motivo: factor 0.3 y dos versiones conservadas', /factor 0.3\b/.test(
 // ---- Añadir y eliminar una variable en CMJ; las 19 variables del usuario
 await go('catalogo');
 await go(testRow('CMJ').querySelector('a').getAttribute('href').slice(1));
-check('CMJ: 20 variables con unidad; dirección sin definir', rowTexts(card('Variables')).length === 20 && rowTexts(card('Variables')).every((r) => /No definido/.test(r)) && /ECC PEAK VELOCITY\s*m\/s/.test(card('Variables').textContent.replace(/\s+/g, ' ')));
+check('CMJ: 20 variables con unidad y dirección por defecto', rowTexts(card('Variables')).length === 20 && rowTexts(card('Variables')).some((r) => /Más alto es mejor/.test(r)) && /ECC PEAK VELOCITY\s*m\/s/.test(card('Variables').textContent.replace(/\s+/g, ' ')));
 const addForm = $$('section.card > form.fields').pop();
 await setVal(field(addForm, 'Nombre'), 'VARIABLE DE PRUEBA');
 await click(btn(addForm, 'Añadir variable'), 400);

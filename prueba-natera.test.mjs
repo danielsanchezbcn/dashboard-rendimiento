@@ -1,0 +1,14 @@
+import { findNatera, classifyNatera, NATERA } from './natera.js';
+let fail = 0; const check = (n, ok) => { console.log((ok ? 'OK   ' : 'FAIL ') + n); if (!ok) fail = 1; };
+const t = (name) => ({ name }); const v = (name) => ({ name });
+const A = findNatera(t('Run-Specific Ankle Iso-Push'), v('Peak Force relativo (BW)'));
+const K = findNatera(t('Run-Specific Knee Iso-Push'), v('Peak Force relativo (BW)'));
+const H = findNatera(t('Run-Specific Hip Iso-Push'), v('Peak Force relativo (SW)'));
+check('los tres tests tienen umbrales', A && K && H && NATERA.length === 3);
+check('no se aplica a Peak Force absoluto, ni a Hip en BW, ni a otros tests', findNatera(t('Run-Specific Knee Iso-Push'), v('Peak Force')) === null && findNatera(t('Run-Specific Hip Iso-Push'), v('Peak Force relativo (BW)')) === null && findNatera(t('CMJ'), v('Peak Force relativo (BW)')) === null);
+const k = (r, x) => classifyNatera(r, x).key;
+check('Ankle: 2,74 below · 2,75 normal · 3,0 good · 3,25 excellent', k(A, 2.74) === 'below' && k(A, 2.75) === 'normal' && k(A, 2.995) === 'normal' && k(A, 3.0) === 'good' && k(A, 3.249) === 'good' && k(A, 3.25) === 'excellent');
+check('Knee: 3,74 below · 3,75 normal · 4,2 good · 4,5 excellent', k(K, 3.74) === 'below' && k(K, 3.75) === 'normal' && k(K, 4.2) === 'good' && k(K, 4.5) === 'excellent');
+check('Hip (SW): 1,99 below · 2,0 normal · 2,2 good · 2,5 excellent', k(H, 1.99) === 'below' && k(H, 2.0) === 'normal' && k(H, 2.2) === 'good' && k(H, 2.5) === 'excellent');
+check('todas las clases con color (below en rojo); valor no numérico → null', classifyNatera(A, 1).band === 'rojo' && classifyNatera(A, 3.1).band === 'verde-suave' && classifyNatera(A, NaN) === null && classifyNatera(null, 3) === null);
+process.exit(fail);

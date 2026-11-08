@@ -1,0 +1,22 @@
+import * as E from './estadistica.js';
+let failed = 0;
+const check = (n, ok, d = '') => { console.log(`${ok ? 'OK  ' : 'FAIL'} ${n} ${ok ? '' : d}`); if (!ok) failed++; };
+const close = (a, b, t = 1e-4) => Math.abs(a - b) < t;
+check('rangos con empates (promedio)', E.ranks([2, 4, 5, 4, 5]).join() === '1,2.5,4.5,2.5,4.5');
+check('Pearson clásico: r = 6/√60', close(E.pearson([1, 2, 3, 4, 5], [2, 4, 5, 4, 5]), 6 / Math.sqrt(60)));
+check('Spearman con empates: ρ = 7/√90', close(E.spearman([1, 2, 3, 4, 5], [2, 4, 5, 4, 5]), 7 / Math.sqrt(90)));
+check('monótona no lineal: Spearman 1 y Pearson < 1', E.spearman([1, 2, 3, 4, 5], [1, 4, 9, 16, 100]) === 1 && E.pearson([1, 2, 3, 4, 5], [1, 4, 9, 16, 100]) < 0.95);
+check('variable constante → sin correlación', E.pearson([1, 2, 3], [5, 5, 5]) === null && !E.spearmanResult([1, 2, 3, 4], [5, 5, 5, 5]).defined);
+check('n < 4 → no definida', !E.pearsonResult([1, 2, 3], [1, 2, 4]).defined && !E.spearmanResult([1, 2, 3], [1, 2, 4]).defined);
+const p = E.pearsonResult([1, 2, 3, 4, 5], [2, 4, 5, 4, 5]); const z = Math.atanh(6 / Math.sqrt(60)), se = 1 / Math.sqrt(2);
+check('IC de Fisher de Pearson', close(p.ci[0], Math.tanh(z - 1.959964 * se)) && close(p.ci[1], Math.tanh(z + 1.959964 * se)));
+const s = E.spearmanResult([1, 2, 3, 4, 5], [2, 4, 5, 4, 5]); const rs = 7 / Math.sqrt(90);
+check('IC de Spearman con el error típico de Bonett y Wright', close(s.ci[0], Math.tanh(Math.atanh(rs) - 1.959964 * Math.sqrt((1 + rs * rs / 2) / 2))));
+// rmcorr: A y B con tendencias internas opuestas pero niveles muy distintos
+const obs = [1, 2, 3].map((x, i) => ({ id: 'A', x, y: [2, 4, 6][i] })).concat([10, 11, 12].map((x, i) => ({ id: 'B', x, y: [-1, -2, -3][i] })));
+const rm = E.rmcorr(obs);
+check('rmcorr: r intra = 2/√40, gl = 6 − 2 − 1 = 3', rm.defined && close(rm.r, 2 / Math.sqrt(40)) && rm.df === 3 && rm.N === 6 && rm.k === 2, JSON.stringify(rm));
+check('rmcorr: IC de Fisher con n = gl + 2 (error típico 1/√(gl − 1))', close(rm.ci[0], Math.tanh(Math.atanh(2 / Math.sqrt(40)) - 1.959964 / Math.sqrt(2))) && close(rm.ci[1], Math.tanh(Math.atanh(2 / Math.sqrt(40)) + 1.959964 / Math.sqrt(2))));
+check('la correlación agrupada difiere de la intra-jugador (paradoja de Simpson)', E.pearson(obs.map((o) => o.x), obs.map((o) => o.y)) < 0 && rm.r > 0);
+check('rmcorr: jugadores con 1 solo par no cuentan; datos insuficientes → no definida', E.rmcorr(obs.concat([{ id: 'C', x: 5, y: 5 }])).k === 2 && !E.rmcorr([{ id: 'A', x: 1, y: 1 }, { id: 'B', x: 2, y: 2 }]).defined);
+process.exit(failed ? 1 : 0);

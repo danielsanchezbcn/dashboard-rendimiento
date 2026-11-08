@@ -46,10 +46,7 @@ await click(btn(pc, 'Subir Beta')); pc = card('Posiciones');
 check('posiciones: el orden se puede cambiar', cellsOf(pc).map((r) => r[0]).join() === 'Beta,Alfa');
 await click(btn(pc, 'Bajar Beta')); pc = card('Posiciones');
 check('posiciones: y volver a cambiar', cellsOf(pc).map((r) => r[0]).join() === 'Alfa,Beta');
-let vc = card('Ventana antropométrica');
-check('ventana: sin definir y explicado', /Sin definir/.test(vc.textContent) && /no disponibles/.test(vc.textContent));
-await setVal(field(vc, 'Días'), '30'); await click(btn(vc, 'Guardar'));
-check('ventana: guardada', /ventana de 30 días guardada/.test(card('Ventana antropométrica').textContent));
+check('ventana antropométrica: ya no existe como ajuste (regla de masa más cercana, 8/11)', !$$('h2').some((h) => /Ventana antropométrica/.test(h.textContent)));
 let sc = card('Datos sintéticos');
 check('sintéticos: ninguno al empezar y botón de eliminar desactivado', /No hay datos sintéticos cargados/.test(sc.textContent) && btn(sc, 'Eliminar todos los datos sintéticos').disabled);
 await click(btn(sc, 'Cargar datos sintéticos'), 700);
@@ -72,7 +69,6 @@ let nc = card('Nuevo jugador');
 await setVal(field(nc, 'Nombre en camiseta'), 'Real Uno');
 const alfaId = $$('option', field(nc, 'Posición principal inicial')).find((o) => o.textContent === 'Alfa').value;
 await setVal(field(nc, 'Posición principal inicial'), alfaId, 'change');
-await setVal(field(nc, 'Rige desde'), '2026-01-01');
 await click(btn(nc, 'Crear jugador'), 500);
 check('jugador real creado con su posición', /jugador creado/.test(text()) && cellsOf(card('Lista')).some((r) => r.join('|') === 'Real Uno|Alfa|Activo'), cellsOf(card('Lista')).find((r) => /Real Uno/.test(r[0]))?.join('|'));
 // nombre equivalente → aviso con confirmación
@@ -82,21 +78,18 @@ await setVal(field(nc, 'Nombre en camiseta'), 'real  UNO');
 await click(btn(nc, 'Crear jugador'), 400);
 check('nombre equivalente: avisa y se puede cancelar', /Creación cancelada/.test(text()) && confirms.at(-1).includes('Real Uno') && cellsOf(card('Lista')).filter((r) => /real uno/i.test(r[0])).length === 1);
 confirmAnswer = true;
-// sin fecha con posición → error
+// sin posición
 nc = card('Nuevo jugador');
 await setVal(field(nc, 'Nombre en camiseta'), 'Real Dos');
-await setVal(field(nc, 'Posición principal inicial'), alfaId, 'change');
-await click(btn(nc, 'Crear jugador'), 300);
-check('posición inicial sin fecha: error claro', /fecha desde la que rige/.test(text()));
-await setVal(field(card('Nuevo jugador'), 'Posición principal inicial'), '', 'change');
+check('el formulario de jugador no pide fecha de posición', !/Rige desde/.test(card('Nuevo jugador').textContent));
 await click(btn(card('Nuevo jugador'), 'Crear jugador'), 500);
-check('jugador sin posición: figura «Sin posición hoy»', cellsOf(card('Lista')).some((r) => r.join('|') === 'Real Dos|Sin posición hoy|Activo'));
+check('jugador sin posición: figura «Sin posición»', cellsOf(card('Lista')).some((r) => r.join('|') === 'Real Dos|Sin posición|Activo'));
 
 // ---- Perfil del jugador real
 const link = $$('tbody a', card('Lista')).find((a) => a.textContent === 'Real Uno');
 const realHash = link.getAttribute('href').slice(1);
 await go(realHash);
-check('perfil: tres bloques vacíos y secciones', /Manifestaciones de la fuerza/.test(text()) && /Sin tests configurados/.test(text()) && /Bloque sin definir/.test(text()) && ['Datos básicos', 'Alias por fuente', 'Posiciones con historial', 'Antropometría con historial'].every((t) => card(t)));
+check('perfil: tres bloques (pestañas) sin sesiones y secciones', /Manifestaciones de la fuerza/.test(text()) && /aún no tiene sesiones de fuerza/.test(text()) && /Perímetros/.test(text()) && /NME/.test(text()) && ['Datos básicos', 'Alias por fuente', 'Posición', 'Antropometría con historial'].every((t) => card(t)));
 // alias
 let ac = card('Alias por fuente');
 await setVal(field(ac, 'Texto original'), 'REAL UNO NOMBRE COMPLETO');
@@ -106,25 +99,20 @@ await setVal(field(card('Alias por fuente'), 'Texto original'), 'REAL UNO NOMBRE
 await click(btn(card('Alias por fuente'), 'Añadir alias'), 300);
 check('alias duplicado: error', /ya existe/.test(card('Alias por fuente').textContent));
 // posiciones
-let pp = card('Posiciones con historial');
+let pp = card('Posición');
 const betaId = $$('option', field(pp, 'Posición'))[2].value;
-const selects = $$('form', pp)[0];
-await setVal($$('select', selects)[0], betaId, 'change');
-await setVal($$('input[type=date]', selects)[0], '2026-03-01');
-await click($$('button', selects)[0], 500);
-pp = card('Posiciones con historial');
-check('cambio de posición: cierra la anterior el día antes', cellsOf(pp).some((r) => r.slice(0, 4).join('|') === 'Principal|Alfa|01/01/2026|28/02/2026') && cellsOf(pp).some((r) => r.slice(0, 4).join('|') === 'Principal|Beta|01/03/2026|vigente'), cellsOf(pp).map((r) => r.slice(0, 4).join('|')).join(' ; '));
-const q = $$('input[type=date]', pp)[0];
-const ask = async (d) => { await setVal(card('Posiciones con historial').querySelector('input[type=date]'), d); return card('Posiciones con historial').querySelector('p.status[role=status]').textContent; };
-check('consulta por fecha: 15/02 → Alfa, 01/03 → Beta, antes del inicio → sin posición', (await ask('2026-02-15')).includes('Alfa') && (await ask('2026-03-01')).includes('Beta') && /Sin posición principal/.test(await ask('2025-12-31')));
+const mainForm = $$('form', pp)[0];
+await setVal($$('select', mainForm)[0], betaId, 'change');
+await click($$('button', mainForm)[0], 500);
+pp = card('Posición');
+const stat = () => card('Posición').querySelector('p.status[role=status]').textContent;
+check('cambio de posición: sustituye la anterior para todo el histórico (sin fechas)', stat().includes('Beta') && !/Alfa/.test(stat()) && !/\d{2}\/\d{2}\/\d{4}/.test(card('Posición').textContent));
 // secundaria
-pp = card('Posiciones con historial');
-const secForm = $$('form', pp)[2];
+pp = card('Posición');
+const secForm = $$('form', pp)[1];
 await setVal($$('select', secForm)[0], alfaId, 'change');
-await setVal($$('input[type=date]', secForm)[0], '2026-01-01');
 await click($$('button', secForm)[0], 500);
-const r2 = await ask('2026-03-15');
-check('secundaria: aparece aparte y no cambia la principal', r2.includes('Beta') && r2.includes('Secundarias: Alfa') && r2.includes('no se usan para agrupar'), r2);
+check('secundaria: aparece aparte y no cambia la principal', stat().includes('Beta') && /Alfa/.test(card('Posición').querySelector('ul')?.textContent ?? ''), card('Posición').textContent.slice(0, 400));
 // antropometría
 let an = card('Antropometría con historial');
 await setVal(field(an, 'Fecha de medición'), '2026-03-01');
@@ -154,19 +142,19 @@ await click(btn(card('Antropometría con historial'), 'Eliminar'), 400);
 check('antropometría: eliminada con confirmación', /Sin mediciones/.test(card('Antropometría con historial').textContent) && /¿Eliminar esta medición\?/.test(confirms.at(-1)));
 // desactivar
 await click(btn(card('Datos básicos'), 'Desactivar'), 400);
-check('desactivar: se conserva el historial', /INACTIVO/.test(text()) && cellsOf(card('Posiciones con historial')).length >= 2);
+check('desactivar: se conserva el historial', /INACTIVO/.test(text()) && /Beta/.test(card('Posición').textContent));
 
 // ---- Perfil sintético: conjunto de aceptación
 await go('jugadores');
 await setVal(field(card('Lista'), 'Buscar'), 'sintetico a');
 await go($$('tbody a', card('Lista'))[0].getAttribute('href').slice(1));
-const askA = async (d) => { await setVal(card('Posiciones con historial').querySelector('input[type=date]'), d); return card('Posiciones con historial').querySelector('p.status[role=status]').textContent; };
-check('sintético A: posición 1 el 10/02 y posición 2 el 10/03', (await askA('2026-02-10')).includes('Posición sintética 1') && (await askA('2026-03-10')).includes('Posición sintética 2'));
+const askA = async () => card('Posición').querySelector('p.status[role=status]').textContent;
+check('sintético A: una sola posición (la 2), sin fechas', (await askA()).includes('Posición sintética 2'));
 check('sintético A: dos alias de fuentes distintas y etiqueta', cellsOf(card('Alias por fuente')).length === 2 && /SINTÉTICO/.test(card('Alias por fuente').textContent) && /VALD/.test(card('Alias por fuente').textContent) && /Excel/.test(card('Alias por fuente').textContent));
 await go('jugadores');
 await setVal(field(card('Lista'), 'Buscar'), 'sintetico d');
 await go($$('tbody a', card('Lista'))[0].getAttribute('href').slice(1));
-check('sintético D: sin posición el 12/03 y con posición desde abril', /Sin posición principal/.test(await askA('2026-03-12')) && (await askA('2026-04-01')).includes('Posición sintética 1'));
+check('sintético D: posición 1', (await askA()).includes('Posición sintética 1'));
 
 // ---- Copia con todas las tablas, eliminación de sintéticos y restauración
 await go('copias');

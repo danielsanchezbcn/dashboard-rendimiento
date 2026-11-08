@@ -5,7 +5,7 @@
 import { audit } from './db.js';
 
 // Orden de borrado: primero lo que depende de otras tablas.
-export const SYNTHETIC_TABLES = ['sessions', 'playerPositions', 'anthropometry', 'playerAliases', 'players', 'positions'];
+export const SYNTHETIC_TABLES = ['sessions', 'playerPositions', 'anthropometry', 'playerAliases', 'players', 'positions', 'targets'];
 
 export const countSynthetic = async (db) => {
   const out = {};
@@ -25,13 +25,8 @@ function rng(seed) {
 }
 
 const FIXTURE = [
-  // letra, historial [posición, desde, hasta]
-  ['A', [[1, '2026-01-01', '2026-02-28'], [2, '2026-03-01', null]]],
-  ['B', [[1, '2026-01-01', null]]],
-  ['C', [[2, '2026-01-01', null]]],
-  ['D', [[1, '2026-04-01', null]]], // sin posición hasta el 31/03/2026
-  ['E', [[2, '2026-01-01', null]]],
-  ['F', [[1, '2026-01-01', null]]],
+  // letra, [[posición]] (una sola posición, sin fechas)
+  ['A', [[2]]], ['B', [[1]]], ['C', [[2]]], ['D', [[1]]], ['E', [[2]]], ['F', [[1]]],
 ];
 
 export async function loadSyntheticDemo(db, { extraPlayers = 6, now = new Date() } = {}) {
@@ -55,7 +50,7 @@ export async function loadSyntheticDemo(db, { extraPlayers = 6, now = new Date()
       if (i === 0) name = 'Jugador sintético Muñoz';
       if (i === 1) name = 'Jugador sintético Munoz';
       const p1 = 1 + (i % 2);
-      const hist = i % 2 === 0 ? [[p1, '2026-01-01', '2026-02-28'], [3 - p1, '2026-03-01', null]] : [[p1, '2026-01-01', null]];
+      const hist = [[i % 2 === 0 ? 3 - p1 : p1]]; // una sola posición, sin fechas
       people.push({ name, letter: num, hist });
     }
     let counts = { players: 0, playerAliases: 0, playerPositions: 0, anthropometry: 0 };
@@ -69,8 +64,8 @@ export async function loadSyntheticDemo(db, { extraPlayers = 6, now = new Date()
         await db.playerAliases.add({ playerId: pid, source: 'Excel', rawText: sport, normalizedKey: sport.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim(), confirmedAt: t0, ...mark });
         counts.playerAliases += 2;
       }
-      for (const [p, from, to] of person.hist) {
-        await db.playerPositions.add({ playerId: pid, positionId: pos[p], role: 'principal', validFrom: from, validTo: to, ...mark });
+      for (const [p] of person.hist) {
+        await db.playerPositions.add({ playerId: pid, positionId: pos[p], role: 'principal', validFrom: null, validTo: null, ...mark });
         counts.playerPositions++;
       }
       for (const date of ['2026-01-15', '2026-03-15', '2026-05-15']) {

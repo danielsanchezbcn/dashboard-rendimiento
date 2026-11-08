@@ -282,13 +282,11 @@ function PasoAtletas({ atl, back, done }) {
   const { data: positions } = useLoad(() => listPositions(db), [db]);
   const [dec, setDec] = useState(() => Object.fromEntries(atl.plan.map((x) => [x.name, x.suggested ? x.suggested : { action: 'pending' }])));
   const [pmap, setPmap] = useState({});
-  const [fromDate, setFromDate] = useState('');
   const [result, setResult] = useState(null);
   const { msg, busy, run } = useRunner();
   const pending = atl.plan.filter((x) => dec[x.name]?.action === 'pending').length;
   const assigning = atl.positions.some((p) => pmap[p.name]);
-  const dateOk = !assigning || /^\d{4}-\d{2}-\d{2}$/.test(fromDate);
-  const save = run(async () => setResult(await A.commitAthletes(db, { rows: atl.rows, decisions: dec, positionMap: pmap, fromDate: assigning ? fromDate : null })));
+  const save = run(async () => setResult(await A.commitAthletes(db, { rows: atl.rows, decisions: dec, positionMap: pmap })));
   const setD = (name, v) => setDec((d) => ({ ...d, [name]: v }));
   if (result) {
     const c = result.counts;
@@ -317,11 +315,11 @@ function PasoAtletas({ atl, back, done }) {
           ${(positions ?? []).filter((q) => q.active !== false).map((q) => html`<option key=${q.id} value=${q.id}>${q.name}</option>`)}
           <option value="create">Crear posición «${p.name}»</option>
         </select></label>`)}
-      ${assigning ? html`<label class="fields"><span>Vigente desde (obligatorio)</span><input type="date" value=${fromDate} onInput=${(e) => setFromDate(e.target.value)} /></label>` : null}
+      ${assigning ? html`<p class="muted">La posición no lleva fecha: se aplica a todo el histórico del jugador, y nunca sustituye una posición que ya tenga.</p>` : null}
     <//>` : null}
     <${Msg} msg=${msg} />
     <div class="actions"><button type="button" class="secondary" onClick=${back}>Atrás</button>
-      <button type="button" disabled=${busy || pending > 0 || !dateOk} onClick=${save}>Guardar atletas</button></div>
+      <button type="button" disabled=${busy || pending > 0} onClick=${save}>Guardar atletas</button></div>
     ${pending ? html`<p class="muted">Faltan ${pending} atleta(s) por elegir acción (los que coinciden con más de un jugador).</p>` : null}
   <//>`;
 }

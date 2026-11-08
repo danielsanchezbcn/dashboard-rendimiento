@@ -6,7 +6,7 @@ import {
   buildBackup, encodeBackup, backupFileName, parseBackupText, decodeBackupObject, validateBackup, restoreBackup, readSnapshot, countTables,
 } from './backup.js';
 import { saveBackup, saveToRememberedDir, pickDirectory, rememberedDirStatus, canPickFile, canPickDir } from './io.js';
-import { PosicionesCard, VentanaCard, SinteticosCard } from './pages-ajustes.js';
+import { PosicionesCard, PercentilCard, SinteticosCard } from './pages-ajustes.js';
 
 // ---------- Piezas comunes ----------
 
@@ -294,7 +294,7 @@ export function Configuracion() {
   return html`
     <h2 class="page-title">Configuración</h2>
     <${PosicionesCard} />
-    <${VentanaCard} />
+    <${PercentilCard} />
     <${SinteticosCard} />
     <${Card} titulo="Recordatorio de copia de seguridad">
       <p>Plazo máximo, en días, desde la última copia antes de mostrar un aviso. ${days ? `Ahora: ${days} días.` : 'Sin definir: solo se avisa si nunca has creado una copia.'}</p>

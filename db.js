@@ -12,7 +12,7 @@
 
 import { Dexie } from './libs.js';
 
-export const APP_VERSION = '4-0.1.0';
+export const APP_VERSION = '7d-0.1.0';
 export const DB_NAME = 'dashboard-rendimiento';
 export const NON_BACKUP_TABLES = ['local'];
 
@@ -49,6 +49,10 @@ export function createDb(name = DB_NAME) {
     sessions: '++id, playerId, testId, date, batchId, synthetic',
     importBatches: '++id, createdAt, fileHash',
     importMappings: '++id, testId',
+  });
+  // Esquema 5 (fase 6g, D15): targets individuales (jugador + variable) y por defecto de posición (posición + variable). «synthetic» vale 1 solo en los sintéticos.
+  db.version(5).stores({
+    targets: '++id, variableId, playerId, positionId, synthetic',
   });
   return db;
 }

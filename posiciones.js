@@ -4,7 +4,6 @@
 
 import { audit } from './db.js';
 import { normalizeName, syntheticFields } from './jugadores.js';
-import { isIsoDay, addDays } from './fechas.js';
 
 export const ROLES = ['principal', 'secundaria'];
 
@@ -74,97 +73,58 @@ export async function deletePosition(db, id) {
   const used = await positionUsage(db, id);
   if (used > 0) throw new Error(`No se puede eliminar: la usan ${used} registros del historial de posiciones. Archívala en su lugar.`);
   if (!(await db.positions.get(id))) throw new Error('La posición no existe.');
+  const tg = await db.targets.where('positionId').equals(id).primaryKeys();
+  if (tg.length) await db.targets.bulkDelete(tg);
   await db.positions.delete(id);
   await audit(db, 'posicion-eliminada', { posicionId: id });
 }
 
-// ---------- Historial de posiciones de un jugador ----------
+// ---------- Posición de un jugador (sin fechas: decisión del 7/11/2026) ----------
+// Cada jugador tiene UNA posición principal (opcional) y, si se quiere, posiciones secundarias. Cambiarla se aplica a todo
+// el histórico. Los registros conservan los campos validFrom/validTo (siempre null) por compatibilidad con copias antiguas.
 
-const overlaps = (a, b) => a.validFrom <= (b.validTo ?? '9999-12-31') && b.validFrom <= (a.validTo ?? '9999-12-31');
+export const playerHistory = async (db, playerId) => (await db.playerPositions.where('playerId').equals(playerId).toArray()).sort((a, b) => a.id - b.id);
 
-// Devuelve la lista de errores de un registro frente a los demás del mismo jugador.
-export function validateHistoryRecord(rec, others) {
-  const errors = [];
-  if (!ROLES.includes(rec.role)) errors.push('El tipo de posición no es válido.');
-  if (!isIsoDay(rec.validFrom)) errors.push('La fecha de inicio no es válida.');
-  if (rec.validTo != null && !isIsoDay(rec.validTo)) errors.push('La fecha de fin no es válida.');
-  if (isIsoDay(rec.validFrom) && rec.validTo != null && isIsoDay(rec.validTo) && rec.validTo < rec.validFrom) errors.push('La fecha de fin es anterior a la de inicio.');
-  if (errors.length) return errors;
-  for (const o of others) {
-    if (o.id === rec.id || !overlaps(rec, o)) continue;
-    if (rec.role === 'principal' && o.role === 'principal') errors.push('Se solapa con otro registro de posición principal del jugador.');
-    if (rec.role === 'secundaria' && o.role === 'secundaria' && o.positionId === rec.positionId) errors.push('Esa posición secundaria ya está registrada en esas fechas.');
-  }
-  return errors;
-}
-
-export const playerHistory = async (db, playerId) => (await db.playerPositions.where('playerId').equals(playerId).toArray()).sort((a, b) => a.validFrom.localeCompare(b.validFrom) || a.id - b.id);
-
-// Posición vigente en una fecha: la principal (única) y las secundarias, que NO se usan para agrupar (D11).
-export function positionOnDate(records, date) {
-  const live = records.filter((r) => r.validFrom <= date && (r.validTo == null || date <= r.validTo));
-  const principals = live.filter((r) => r.role === 'principal');
-  return { principal: principals[0] ?? null, secundarias: live.filter((r) => r.role === 'secundaria'), solapadas: principals.length > 1 };
+// Posición del jugador. El segundo parámetro (fecha) se ignora: se mantiene solo para no romper llamadas antiguas.
+export function positionOnDate(records, _date) {
+  const principals = records.filter((r) => r.role === 'principal');
+  return { principal: principals[0] ?? null, secundarias: records.filter((r) => r.role === 'secundaria'), solapadas: principals.length > 1 };
 }
 
 async function assertPosition(db, positionId) {
   if (!(await db.positions.get(positionId))) throw new Error('La posición no existe.');
 }
 
-async function writeRecord(db, rec, others, opts) {
-  const errors = validateHistoryRecord(rec, others);
-  if (errors.length) throw new Error(errors.join(' '));
-  return db.playerPositions.add({ ...rec, ...syntheticFields(opts) });
-}
-
-// «Cambiar la posición principal desde una fecha»: cierra la vigente el día anterior y abre la nueva.
-export async function setMainPositionFrom(db, playerId, positionId, fromDate, opts) {
-  if (!isIsoDay(fromDate)) throw new Error('La fecha no es válida.');
+// Fija la posición principal. Si ya tenía una, la sustituye: el cambio vale para todo el histórico.
+export async function setMainPosition(db, playerId, positionId, opts) {
   if (!(await db.players.get(playerId))) throw new Error('El jugador no existe.');
   await assertPosition(db, positionId);
-  const history = await playerHistory(db, playerId);
-  const mains = history.filter((r) => r.role === 'principal');
-  if (mains.some((r) => r.validFrom >= fromDate)) throw new Error('Ya hay un registro de posición principal desde esa fecha o posterior: edítalo o elimínalo primero.');
-  const covering = mains.find((r) => r.validFrom < fromDate && (r.validTo == null || r.validTo >= fromDate));
-  if (covering && covering.positionId === positionId) throw new Error('Esa ya es su posición principal en esa fecha.');
+  const main = (await playerHistory(db, playerId)).find((r) => r.role === 'principal');
+  if (main && main.positionId === positionId) throw new Error('Esa ya es su posición principal.');
   let id;
   await db.transaction('rw', db.playerPositions, db.auditLog, async () => {
-    if (covering) await db.playerPositions.update(covering.id, { validTo: addDays(fromDate, -1) });
-    id = await db.playerPositions.add({ playerId, positionId, role: 'principal', validFrom: fromDate, validTo: null, ...syntheticFields(opts) });
-    await audit(db, 'posicion-jugador-asignada', { jugadorId: playerId, registroId: id, rol: 'principal', desde: fromDate });
+    if (main) { await db.playerPositions.update(main.id, { positionId }); id = main.id; }
+    else id = await db.playerPositions.add({ playerId, positionId, role: 'principal', validFrom: null, validTo: null, ...syntheticFields(opts) });
+    await audit(db, main ? 'posicion-jugador-modificada' : 'posicion-jugador-asignada', { jugadorId: playerId, registroId: id, rol: 'principal' });
   });
   return id;
 }
 
-// Termina la posición principal vigente en una fecha, dejando al jugador «sin posición» desde esa fecha.
-export async function endMainPosition(db, playerId, fromDate) {
-  if (!isIsoDay(fromDate)) throw new Error('La fecha no es válida.');
-  const mains = (await playerHistory(db, playerId)).filter((r) => r.role === 'principal');
-  const covering = mains.find((r) => r.validFrom < fromDate && (r.validTo == null || r.validTo >= fromDate));
-  if (!covering) throw new Error('No hay una posición principal vigente en esa fecha que terminar (o empieza ese mismo día).');
-  await db.playerPositions.update(covering.id, { validTo: addDays(fromDate, -1) });
-  await audit(db, 'posicion-jugador-modificada', { jugadorId: playerId, registroId: covering.id, fin: addDays(fromDate, -1) });
+// Deja al jugador «sin posición» (en todo el histórico).
+export async function clearMainPosition(db, playerId) {
+  const main = (await playerHistory(db, playerId)).find((r) => r.role === 'principal');
+  if (!main) throw new Error('El jugador no tiene posición principal.');
+  await db.playerPositions.delete(main.id);
+  await audit(db, 'posicion-jugador-eliminada', { jugadorId: playerId, registroId: main.id, rol: 'principal' });
 }
 
-export async function addSecondaryPosition(db, playerId, positionId, validFrom, validTo = null, opts) {
+export async function addSecondaryPosition(db, playerId, positionId, opts) {
   if (!(await db.players.get(playerId))) throw new Error('El jugador no existe.');
   await assertPosition(db, positionId);
-  const others = await playerHistory(db, playerId);
-  const id = await writeRecord(db, { playerId, positionId, role: 'secundaria', validFrom, validTo }, others, opts);
-  await audit(db, 'posicion-jugador-asignada', { jugadorId: playerId, registroId: id, rol: 'secundaria', desde: validFrom });
+  if ((await playerHistory(db, playerId)).some((r) => r.role === 'secundaria' && r.positionId === positionId)) throw new Error('Esa posición secundaria ya está registrada.');
+  const id = await db.playerPositions.add({ playerId, positionId, role: 'secundaria', validFrom: null, validTo: null, ...syntheticFields(opts) });
+  await audit(db, 'posicion-jugador-asignada', { jugadorId: playerId, registroId: id, rol: 'secundaria' });
   return id;
-}
-
-export async function updateHistoryRecord(db, id, patch) {
-  const rec = await db.playerPositions.get(id);
-  if (!rec) throw new Error('El registro no existe.');
-  const next = { ...rec, ...patch };
-  if (patch.positionId !== undefined) await assertPosition(db, patch.positionId);
-  const others = await playerHistory(db, rec.playerId);
-  const errors = validateHistoryRecord(next, others);
-  if (errors.length) throw new Error(errors.join(' '));
-  await db.playerPositions.put(next);
-  await audit(db, 'posicion-jugador-modificada', { jugadorId: rec.playerId, registroId: id });
 }
 
 export async function deleteHistoryRecord(db, id) {
@@ -172,4 +132,28 @@ export async function deleteHistoryRecord(db, id) {
   if (!rec) throw new Error('El registro no existe.');
   await db.playerPositions.delete(id);
   await audit(db, 'posicion-jugador-eliminada', { jugadorId: rec.playerId, registroId: id });
+}
+
+// Migración idempotente del modelo con fechas al modelo sin fechas: por jugador se conserva UNA principal (la vigente, sin
+// fecha de fin; si no hay, la de inicio más reciente), se quitan fechas y se eliminan duplicados. Solo audita recuentos.
+export async function collapsePositions(db) {
+  const all = await db.playerPositions.toArray();
+  const byPlayer = new Map();
+  for (const r of all) (byPlayer.get(r.playerId) ?? byPlayer.set(r.playerId, []).get(r.playerId)).push(r);
+  const del = [], upd = [];
+  for (const recs of byPlayer.values()) {
+    const mains = recs.filter((r) => r.role === 'principal').sort((a, b) => ((a.validTo == null ? 1 : 0) - (b.validTo == null ? 1 : 0)) || String(a.validFrom ?? '').localeCompare(String(b.validFrom ?? '')) || a.id - b.id);
+    const keep = mains.at(-1);
+    for (const m of mains) if (m !== keep) del.push(m.id);
+    const seen = new Set();
+    for (const r of recs.filter((x) => x.role === 'secundaria').sort((a, b) => a.id - b.id)) { if (seen.has(r.positionId)) del.push(r.id); else seen.add(r.positionId); }
+    for (const r of recs) if (!del.includes(r.id) && (r.validFrom != null || r.validTo != null)) upd.push(r.id);
+  }
+  if (!del.length && !upd.length) return { eliminados: 0, actualizados: 0 };
+  await db.transaction('rw', db.playerPositions, db.auditLog, async () => {
+    await db.playerPositions.bulkDelete(del);
+    for (const id of upd) await db.playerPositions.update(id, { validFrom: null, validTo: null });
+    await audit(db, 'posiciones-sin-fechas', { registrosEliminados: del.length, registrosActualizados: upd.length });
+  });
+  return { eliminados: del.length, actualizados: upd.length };
 }

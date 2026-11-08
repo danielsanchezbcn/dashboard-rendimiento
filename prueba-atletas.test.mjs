@@ -30,13 +30,13 @@ const pa = plan.find((x) => x.name === 'Ana Sintética Uno');
 check('plan: coincidencia propuesta (link) y resto nuevos', pa.suggested?.action === 'link' && pa.suggested.playerId === existing && plan.filter((x) => x.suggested?.action === 'new').length === 2);
 const decisions = Object.fromEntries(plan.map((x) => [x.name, x.suggested]));
 const pos = await P.createPosition(db, { name: 'Portero sintético' });
-const out = await A.commitAthletes(db, { rows: r.rows, decisions, positionMap: { 'Central Midfielder': { create: true }, Goalkeeper: { positionId: pos } }, fromDate: '2026-07-01' });
+const out = await A.commitAthletes(db, { rows: r.rows, decisions, positionMap: { 'Central Midfielder': { create: true }, Goalkeeper: { positionId: pos } } });
 check('commit: 2 nuevos, 1 vinculado, 3 alias, 1 posición creada y 2 asignadas', out.counts.jugadoresNuevos === 2 && out.counts.vinculados === 1 && out.counts.aliasAnadidos === 3 && out.counts.posicionesCreadas === 1 && out.counts.posicionesAsignadas === 2, JSON.stringify(out.counts));
 const al = await db.playerAliases.where('source').equals('VALD').toArray();
 check('alias de la fuente VALD con el nombre exacto del CSV', al.some((a) => a.rawText === 'Ñoño Sintético Tres'));
 // reimportar: idempotente y no pisa posiciones
 const plan2 = await A.planAthletes(db, r.rows);
-const out2 = await A.commitAthletes(db, { rows: r.rows, decisions: Object.fromEntries(plan2.map((x) => [x.name, x.suggested])), positionMap: { Goalkeeper: { positionId: pos } }, fromDate: '2026-08-01' });
+const out2 = await A.commitAthletes(db, { rows: r.rows, decisions: Object.fromEntries(plan2.map((x) => [x.name, x.suggested])), positionMap: { Goalkeeper: { positionId: pos } } });
 check('reimportar: sin jugadores nuevos, alias ya existentes y posiciones no pisadas', out2.counts.jugadoresNuevos === 0 && out2.counts.aliasYaExistian === 3 && out2.counts.posicionesAsignadas === 0 && out2.counts.posicionesYaTenian >= 1, JSON.stringify(out2.counts));
 check('sin jugadores duplicados tras reimportar', (await db.players.count()) === 3);
 process.exit(failed ? 1 : 0);

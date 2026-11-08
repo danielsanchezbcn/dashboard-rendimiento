@@ -117,6 +117,8 @@ check('F (conflicto del fichero) sin sesiones', (await db.sessions.where('player
 check('lote registrado con huella', (await M.findBatchByHash(db, grid.hash))?.id === res.batchId && (await M.listBatches(db)).length === 1);
 const csv = M.reportCsv(await db.importBatches.get(res.batchId));
 check('informe CSV sin valores de datos', !/410|398\.5|380[.,]5/.test(csv) && /Resumen/.test(csv));
+const inj = M.reportCsv({ fileName: '=HYPERLINK("http://x")', sheet: '+cmd', createdAt: 'x', report: { pendingNames: [{ rows: [2], name: '@SUM(A1)' }, { rows: [3], name: '-2+3' }], rowIssues: [], sessionNotes: [] } });
+check('informe CSV: neutraliza fórmulas en nombres y ficheros (=, +, -, @)', !/"[=+\-@]/.test(inj.split('\r\n').slice(1).map((l) => l.split(',').slice(2).join(',')).join('\n')) && inj.includes('\'=HYPERLINK') && inj.includes('\'@SUM') && inj.includes('\'-2+3'), inj);
 
 // ---- Idempotencia y conflictos
 {

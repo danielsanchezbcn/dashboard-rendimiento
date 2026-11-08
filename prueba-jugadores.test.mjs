@@ -28,7 +28,7 @@ check('normalizar: vacío no coincide con nada', J.compareNames('', '').sameKey 
 // ---- Jugadores y alias
 {
   const db = await fresh();
-  check('esquema 4 con 19 tablas', db.verno === 4 && db.tables.length === 19);
+  check('esquema 5 con 20 tablas', db.verno === 5 && db.tables.length === 20);
   check('jugador: nombre obligatorio', (await rejects(() => J.createPlayer(db, { jerseyName: '  ' }))) === 'El nombre en camiseta es obligatorio.');
   const a = await J.createPlayer(db, { jerseyName: ' Jugador  Uno ' });
   check('jugador: nombre limpio y activo', (await db.players.get(a)).jerseyName === 'Jugador Uno' && (await db.players.get(a)).active === true);
@@ -82,41 +82,41 @@ check('normalizar: vacío no coincide con nada', J.compareNames('', '').sameKey 
   await P.renamePosition(db, p2, 'Beta bis');
   check('posiciones: renombrar y archivar', (await db.positions.get(p2)).name === 'Beta bis' && (await P.setPositionActive(db, p2, false), (await db.positions.get(p2)).active === false));
   const pl = await J.createPlayer(db, { jerseyName: 'X' });
-  await P.setMainPositionFrom(db, pl, p1, '2026-01-01');
+  await P.setMainPosition(db, pl, p1);
   check('posiciones: no se elimina una usada, sí una libre', (await rejects(() => P.deletePosition(db, p1)))?.includes('Archívala') && (await P.deletePosition(db, p3), (await db.positions.get(p3)) === undefined));
 }
 
-// ---- Historial de posiciones y posición en una fecha (D11)
+// ---- Posición sin fechas (decisión del 7/11/2026): un cambio vale para todo el histórico
 {
   const db = await fresh();
-  const p1 = await P.createPosition(db, { name: 'P1' }); const p2 = await P.createPosition(db, { name: 'P2' }); const p3 = await P.createPosition(db, { name: 'P3' });
+  const p1 = await P.createPosition(db, { name: 'P1' }); const p2 = await P.createPosition(db, { name: 'P2' });
   const j = await J.createPlayer(db, { jerseyName: 'J' });
-  await P.setMainPositionFrom(db, j, p1, '2026-01-01');
-  await P.setMainPositionFrom(db, j, p2, '2026-03-01');
-  let h = await P.playerHistory(db, j);
-  check('historial: el cambio cierra la anterior el día antes', h.length === 2 && h[0].validTo === '2026-02-28' && h[1].validFrom === '2026-03-01' && h[1].validTo === null);
-  const on = (d) => P.positionOnDate(h, d).principal?.positionId ?? null;
-  check('posición en fecha: antes, límites y después', on('2025-12-31') === null && on('2026-01-01') === p1 && on('2026-02-28') === p1 && on('2026-03-01') === p2 && on('2027-01-01') === p2);
-  check('historial: misma posición y fecha anterior rechazadas', (await rejects(() => P.setMainPositionFrom(db, j, p2, '2026-04-01')))?.includes('ya es su posición') || (await rejects(() => P.setMainPositionFrom(db, j, p2, '2026-04-01')))?.includes('Esa ya es'));
-  check('historial: cambio anterior a uno existente rechazado', (await rejects(() => P.setMainPositionFrom(db, j, p3, '2026-02-01')))?.includes('desde esa fecha o posterior'));
-  await P.endMainPosition(db, j, '2026-06-01');
-  h = await P.playerHistory(db, j);
-  check('historial: terminar deja «sin posición»', on('2026-05-31') === p2 && on('2026-06-01') === null);
-  await P.setMainPositionFrom(db, j, p3, '2026-09-01');
-  h = await P.playerHistory(db, j);
-  check('historial: hueco y nueva posición', on('2026-07-01') === null && on('2026-09-01') === p3 && h.filter((r) => r.role === 'principal').length === 3);
-  // secundarias (D11): no cambian la principal ni agrupan
-  const s = await P.addSecondaryPosition(db, j, p1, '2026-01-01', null);
-  h = await P.playerHistory(db, j);
-  const x = P.positionOnDate(h, '2026-03-15');
+  const main = async () => P.positionOnDate(await P.playerHistory(db, j)).principal?.positionId ?? null;
+  check('posición: sin asignar → ninguna', (await main()) === null);
+  await P.setMainPosition(db, j, p1);
+  check('posición: asignar crea un registro sin fechas', (await main()) === p1 && (await P.playerHistory(db, j)).length === 1 && (await P.playerHistory(db, j))[0].validFrom === null && (await P.playerHistory(db, j))[0].validTo === null);
+  await P.setMainPosition(db, j, p2);
+  check('posición: cambiar sustituye (no añade historial) y vale para todas las fechas', (await main()) === p2 && (await P.playerHistory(db, j)).length === 1 && P.positionOnDate(await P.playerHistory(db, j), '2020-01-01').principal.positionId === p2);
+  check('posición: la misma posición se rechaza', (await rejects(() => P.setMainPosition(db, j, p2)))?.includes('ya es su posición'));
+  const s = await P.addSecondaryPosition(db, j, p1);
+  const x = P.positionOnDate(await P.playerHistory(db, j));
   check('secundarias: aparecen aparte y no alteran la principal', x.principal.positionId === p2 && x.secundarias.length === 1 && x.secundarias[0].positionId === p1);
-  check('secundarias: duplicada solapada rechazada', (await rejects(() => P.addSecondaryPosition(db, j, p1, '2026-02-01', null)))?.includes('ya está registrada'));
-  check('validación: solape de principales y fechas', P.validateHistoryRecord({ id: 99, role: 'principal', validFrom: '2026-01-15', validTo: null }, h).some((e) => e.includes('solapa')) && P.validateHistoryRecord({ role: 'principal', validFrom: '2026-02-01', validTo: '2026-01-01' }, []).some((e) => e.includes('anterior')) && P.validateHistoryRecord({ role: 'x', validFrom: 'mal' }, []).length >= 2);
-  const first = h.find((r) => r.role === 'principal');
-  await P.updateHistoryRecord(db, first.id, { validTo: '2026-02-27' });
-  check('historial: editar un registro con validación', (await db.playerPositions.get(first.id)).validTo === '2026-02-27' && (await rejects(() => P.updateHistoryRecord(db, first.id, { validTo: '2026-03-15' })))?.includes('solapa'));
+  check('secundarias: duplicada rechazada', (await rejects(() => P.addSecondaryPosition(db, j, p1)))?.includes('ya está registrada'));
   await P.deleteHistoryRecord(db, s);
-  check('historial: eliminar un registro', (await db.playerPositions.get(s)) === undefined);
+  check('secundarias: eliminar', (await db.playerPositions.get(s)) === undefined);
+  await P.clearMainPosition(db, j);
+  check('posición: quitar deja «sin posición»', (await main()) === null && (await rejects(() => P.clearMainPosition(db, j)))?.includes('no tiene'));
+  // Migración desde el modelo con fechas
+  await db.playerPositions.bulkAdd([
+    { playerId: j, positionId: p1, role: 'principal', validFrom: '2026-01-01', validTo: '2026-02-28' },
+    { playerId: j, positionId: p2, role: 'principal', validFrom: '2026-03-01', validTo: null },
+    { playerId: j, positionId: p1, role: 'secundaria', validFrom: '2026-01-01', validTo: null },
+    { playerId: j, positionId: p1, role: 'secundaria', validFrom: '2026-02-01', validTo: null },
+  ]);
+  const mig = await P.collapsePositions(db);
+  const after = await P.playerHistory(db, j);
+  check('migración: queda la principal vigente, una secundaria y sin fechas', mig.eliminados === 2 && after.length === 2 && after.find((r) => r.role === 'principal').positionId === p2 && after.every((r) => r.validFrom === null && r.validTo === null));
+  check('migración: idempotente y auditada sin nombres', (await P.collapsePositions(db)).eliminados === 0 && (await db.auditLog.toArray()).some((a) => a.action === 'posiciones-sin-fechas'));
   check('audit: sin nombres de jugador', !JSON.stringify(await db.auditLog.toArray()).includes('"J"'));
 }
 
@@ -150,7 +150,7 @@ check('normalizar: vacío no coincide con nada', J.compareNames('', '').sameKey 
   const db = await fresh();
   const real = await J.createPlayer(db, { jerseyName: 'Jugador real de prueba' });
   const rp = await P.createPosition(db, { name: 'Posición real' });
-  await P.setMainPositionFrom(db, real, rp, '2026-01-01');
+  await P.setMainPosition(db, real, rp);
   await A.addAnthropometry(db, { playerId: real, date: '2026-03-01', bodyMass: { value: 80, unit: 'kg' } });
   const before = { players: await db.players.count(), positions: await db.positions.count() };
   const r = await S.loadSyntheticDemo(db);
@@ -162,9 +162,9 @@ check('normalizar: vacío no coincide con nada', J.compareNames('', '').sameKey 
   // Conjunto de aceptación (REQUISITOS.md, sección 5)
   const byName = async (l) => (await db.players.toArray()).find((p) => p.jerseyName === `Jugador sintético ${l}`);
   const posName = async (l, date) => { const pl = await byName(l); const x = P.positionOnDate(await P.playerHistory(db, pl.id), date).principal; return x ? (await db.positions.get(x.positionId)).name : null; };
-  check('fixture: A cambia de posición el 01/03', (await posName('A', '2026-02-10')) === 'Posición sintética 1' && (await posName('A', '2026-03-10')) === 'Posición sintética 2');
+  check('fixture: A tiene una sola posición para todo el histórico', (await posName('A', '2026-02-10')) === 'Posición sintética 2' && (await posName('A', '2026-03-10')) === 'Posición sintética 2');
   check('fixture: B, C y F', (await posName('B', '2026-03-10')) === 'Posición sintética 1' && (await posName('C', '2026-03-12')) === 'Posición sintética 2' && (await posName('F', '2026-03-12')) === 'Posición sintética 1');
-  check('fixture: D sin posición el 12/03 y con posición desde abril', (await posName('D', '2026-03-12')) === null && (await posName('D', '2026-04-01')) === 'Posición sintética 1');
+  check('fixture: D tiene posición en cualquier fecha', (await posName('D', '2026-03-12')) === 'Posición sintética 1' && (await posName('D', '2026-04-01')) === 'Posición sintética 1');
   const cand = await J.findCandidates(db, 'jugador sintetico munoz');
   check('fixture: Muñoz/Munoz generan candidatos con confirmación manual', cand.candidates.length === 2 && cand.requiresManual);
   const cand2 = await J.findCandidates(db, 'JUGADOR SINTÉTICO A, nombre completo VALD ficticio', { source: 'VALD' });
@@ -174,7 +174,7 @@ check('normalizar: vacío no coincide con nada', J.compareNames('', '').sameKey 
   check('copia: incluye las tablas nuevas con sus recuentos', bk.counts.players === 13 && bk.counts.anthropometry === 37 && bk.counts.positions === 3 && !('local' in bk.tables));
   // Dato real que depende de uno sintético → no se elimina
   const synthPos = (await db.positions.where('synthetic').equals(1).first()).id;
-  const dep = await P.addSecondaryPosition(db, real, synthPos, '2026-01-01', null);
+  const dep = await P.addSecondaryPosition(db, real, synthPos);
   check('eliminar sintéticos: se niega si un dato real los usa', (await rejects(() => S.deleteSynthetic(db)))?.includes('datos reales que dependen') && (await db.players.where('synthetic').equals(1).count()) === 12);
   await P.deleteHistoryRecord(db, dep);
   const del = await S.deleteSynthetic(db);
@@ -201,15 +201,15 @@ function totalZero(c) { return Object.values(c).every((v) => v === 0); }
   v1.close();
   const db = D.createDb('upg');
   await D.initDb(db);
-  check('migración 1→4: se conservan los datos y aparecen tablas vacías', db.verno === 4 && (await D.getSetting(db, 'backupReminderDays')) === 14 && (await db.auditLog.count()) === 1 && (await D.getLocal(db, 'lastBackup')).at === 'x' && (await db.players.count()) === 0);
+  check('migración 1→5: se conservan los datos y aparecen tablas vacías', db.verno === 5 && (await D.getSetting(db, 'backupReminderDays')) === 14 && (await db.auditLog.count()) === 1 && (await D.getLocal(db, 'lastBackup')).at === 'x' && (await db.players.count()) === 0);
   const v = await B.validateBackup(db, oldCopy);
-  check('copia del esquema 1 en base del esquema 4: válida con un aviso por tabla nueva', v.ok && v.warnings.length === 15 && v.warnings.every((w) => w.includes('versión anterior')));
+  check('copia del esquema 1 en base del esquema 4: válida con un aviso por tabla nueva', v.ok && v.warnings.length === 16 && v.warnings.every((w) => w.includes('versión anterior')));
   const j = await J.createPlayer(db, { jerseyName: 'Se perderá al restaurar' });
   await B.restoreBackup(db, oldCopy);
   check('restaurar copia del esquema 1: tablas nuevas vacías y datos antiguos recuperados', (await db.players.count()) === 0 && (await D.getSetting(db, 'backupReminderDays')) === 14 && j > 0);
   const newCopy = await B.buildBackup(db, D.APP_VERSION);
   const v1again = D.createDb('upg-v1only');
-  check('copia del esquema 4 contiene schemaVersion 4', newCopy.schemaVersion === 4 && v1again.verno === 4);
+  check('copia del esquema 5 contiene schemaVersion 5', newCopy.schemaVersion === 5 && v1again.verno === 5);
 }
 
 // ---- Volumen realista (4 temporadas: ~55 jugadores) y copia/restauración con todas las tablas
@@ -223,8 +223,8 @@ function totalZero(c) { return Object.values(c).every((v) => v === 0); }
     ids.push(id);
     await J.addAlias(db, id, 'VALD', 'Nombre completo VALD ' + i);
     await J.addAlias(db, id, 'Excel', 'Nombre Excel ' + i);
-    await P.setMainPositionFrom(db, id, pos[i % 5], '2023-07-01');
-    await P.setMainPositionFrom(db, id, pos[(i + 1) % 5], '2025-07-01');
+    await P.setMainPosition(db, id, pos[i % 5]);
+    await P.setMainPosition(db, id, pos[(i + 1) % 5]);
     for (const d of ['2023-09-01', '2024-09-01', '2025-09-01', '2026-02-01']) await A.addAnthropometry(db, { playerId: id, date: d, bodyMass: { value: 70 + (i % 20), unit: 'kg' }, height: { value: 170 + (i % 25), unit: 'cm' }, legLength: { value: 85 + (i % 15), unit: 'cm' } });
   }
   await I.seedInitialCatalog(db);

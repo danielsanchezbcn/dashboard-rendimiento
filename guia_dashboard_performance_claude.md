@@ -27,7 +27,7 @@ El dashboard debe seguir acumulando los datos que se importen a lo largo del tie
 7. La posición debe conservarse asociada a la fecha de valoración. El usuario debe poder definir qué posición principal se usa para cada clasificación por posición; no se deben reasignar automáticamente datos históricos al cambiar la posición actual del jugador.
 8. Claude no debe inventar pruebas, variables, unidades, fórmulas de relativización, grupos de posición ni referencias bibliográficas. El sistema debe permitir configurarlos desde la aplicación.
 9. El sistema debe preservar trazabilidad: fecha de prueba, procedencia del dato, fichero o lote de importación, cambios de configuración, exclusiones y eliminaciones solicitadas.
-10. **Posición en las comparaciones (D11).** Cada sesión se compara según la posición principal registrada para el jugador en la fecha de esa sesión. Las posiciones secundarias no incluyen automáticamente al jugador en varios grupos; solo podrán usarse como filtro o grupo de comparación si el usuario lo define expresamente.
+10. **Posición en las comparaciones (D11, revisada el 2026-11-07: la posición NO lleva fechas; cada jugador tiene una única posición y un cambio vale para todo el histórico; el texto siguiente es el original y queda sustituido por esto).** Cada sesión se compara según la posición principal registrada para el jugador en la fecha de esa sesión. Las posiciones secundarias no incluyen automáticamente al jugador en varios grupos; solo podrán usarse como filtro o grupo de comparación si el usuario lo define expresamente.
 11. **Orden de las posiciones (D9).** El orden de las posiciones debe ser configurable por el usuario. No se fija ningún orden definitivo.
 
 ## Bloques de evaluación
@@ -246,7 +246,7 @@ Guardar cada medición como un registro fechado, no como un valor único que se 
 - Fecha de medición.
 - Unidad, fuente y observaciones opcionales.
 
-Las métricas relativas deben utilizar el dato antropométrico más próximo a la fecha de la prueba dentro de una ventana temporal configurable. Si no existe una medición válida, mostrar la métrica relativa como no disponible y explicar por qué. No usar automáticamente el último peso o medida aunque sea antiguo.
+**Revisado el 8 de noviembre de 2026 (decisión del usuario):** todos los cálculos con masa corporal usan la masa corporal **medida más cercana a la fecha** de la prueba, anterior o posterior, sin ventana ni límite de días (se informa de la fecha usada y de la distancia). A igual distancia se toma la anterior. Si el jugador no tiene ninguna medición, se usa su **peso de referencia** (campo del jugador, en la sección de antropometría); si tampoco lo tiene, la métrica relativa no está disponible y se explica por qué.
 
 ### Perímetros
 
@@ -375,13 +375,13 @@ Para **Run-Specific Iso-Push — Peak Force**, primero calcular la media de las 
 - **Knee y Ankle:** Peak Force relativo (BW) = media de Peak Force del lado (N) ÷ peso corporal (N).
 - **Hip:** SW (N) = 0.29 × peso corporal (N); Peak Force relativo (SW) = media de Peak Force del lado (N) ÷ SW (N). Esto equivale a 29% del peso corporal en N. Se interpreta la notación “0,29%” del mensaje a partir del ejemplo numérico: 0.29 × 764.9 N = 221.8 N; no usar 0.29% literal.
 
-Usar la medición de masa corporal válida para la fecha del test, siguiendo la ventana temporal antropométrica definida. No restar el peso corporal al Peak Force: se divide la media de Peak Force por el denominador correspondiente (BW o SW). Conservar los valores absolutos en N y los relativos en BW o SW; mostrar los relativos a dos decimales y utilizar los valores sin redondear para cálculos posteriores.
+Usar la masa corporal medida más cercana a la fecha del test (o el peso de referencia del jugador si no tiene mediciones), según la regla revisada el 8 de noviembre de 2026. No restar el peso corporal al Peak Force: se divide la media de Peak Force por el denominador correspondiente (BW o SW). Conservar los valores absolutos en N y los relativos en BW o SW; mostrar los relativos a dos decimales y utilizar los valores sin redondear para cálculos posteriores.
 
 Calcular la asimetría de Peak Force con la fórmula indicada por el usuario, usando las medias de sesión izquierda y derecha:
 
-**Asimetría (%) = (Derecha − Izquierda) ÷ MAX(Izquierda, Derecha) × 100** *(cambio del 6 de noviembre de 2026, D25; la fórmula original era (Izquierda − Derecha) ÷ MAX × 100, con el signo contrario).*
+**Asimetría (%) = |Derecha − Izquierda| ÷ MAX(Izquierda, Derecha) × 100, acompañada de la letra del lado con el valor más alto (L o R), exactamente como la muestra VALD** *(decisión del usuario del 8 de noviembre de 2026, que sustituye a D25 y a todas las instrucciones previas sobre la asimetría y sobre el Excel; comprobada con 135 filas de SL CMJ exportadas por VALD).*
 
-En Excel, si I4 contiene Izquierda y J4 Derecha: `=(J4-I4)/MAX(I4:J4)*100`. Un valor positivo indica mayor Peak Force derecha; un valor negativo, mayor Peak Force izquierda. Aplicar la fórmula al Peak Force de la misma sesión; al usar la misma normalización a ambos lados, el porcentaje de asimetría también coincide con el calculado con los valores relativos.
+En pantalla y exportaciones se escribe «magnitud % + letra» (p. ej. «11 % L»), sin signo; internamente se guarda con signo (R positivo, L negativo) solo por compatibilidad. No se sigue la fórmula ni el signo del Excel del usuario. Aplicar la fórmula al Peak Force de la misma sesión; al usar la misma normalización a ambos lados, el porcentaje de asimetría también coincide con el calculado con los valores relativos.
 
 Ejemplos aportados por el usuario:
 
@@ -576,8 +576,8 @@ Esta sección especifica los gráficos. Los dos informes de ejemplo mencionados 
 
 #### G5. Asimetría (familia A y B)
 
-- **Contenido:** el porcentaje de asimetría con la fórmula acordada **(derecha − izquierda) ÷ máx(izquierda, derecha) × 100**, **conservando el signo** (positivo: domina la derecha; negativo: domina la izquierda; «dominante» es el lado con el valor más alto). *Cambio del 6 de noviembre de 2026: la fórmula anterior era (izquierda − derecha) ÷ máx × 100, con el signo contrario (D25).* Junto al gráfico se muestran los valores de ambos lados (medias de sesión) y su unidad. Puede mostrarse como serie por sesión y como valor de la sesión actual.
-- **Alcance:** solo para variables con la fórmula acordada (Run-Specific Iso-Push). Las columnas de asimetría que entrega VALD (magnitud con lado) se muestran tal cual, sin convertirlas a signo ni aplicarles esta fórmula.
+- **Contenido:** el porcentaje de asimetría **como en VALD**: |derecha − izquierda| ÷ máx(izquierda, derecha) × 100 y la letra del lado con el valor más alto (L o R); sin signo en pantalla. *Cambio del 8 de noviembre de 2026: sustituye a la fórmula con signo de D25.* Junto al gráfico se muestran los valores de ambos lados (medias de sesión) y su unidad. Puede mostrarse como serie por sesión y como valor de la sesión actual.
+- **Alcance (cambio del 7 de noviembre de 2026, D50):** todas las variables de **todos los tests que se evalúan por lado (izquierda y derecha)**, con la fórmula acordada. Las columnas de asimetría que entrega VALD (magnitud con lado) se muestran tal cual; las calculadas por la aplicación usan la misma convención.
 - **Datos necesarios:** medias de sesión izquierda y derecha de la misma sesión, unidad y, si se desea, una referencia o umbral con su fuente.
 
 #### G6. Perfil fuerza-velocidad (familia A y B; condicionado)

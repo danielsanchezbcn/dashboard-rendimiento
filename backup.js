@@ -4,6 +4,7 @@
 
 import { NON_BACKUP_TABLES, audit } from './db.js';
 import { seedInitialCatalog } from './catalogo-inicial.js';
+import { collapsePositions } from './posiciones.js';
 
 export const FORMAT_ID = 'dashboard-rendimiento-backup';
 export const ENVELOPE_ID = 'dashboard-rendimiento-backup-envelope';
@@ -127,6 +128,7 @@ export async function restoreBackup(db, inner) {
   });
   // Una copia anterior al esquema 3 no trae el catálogo: se añade el catálogo inicial (nunca sobre un catálogo ya existente).
   const catalogo = await seedInitialCatalog(db);
+  await collapsePositions(db); // copias con posiciones fechadas: se pasan al modelo sin fechas
   const after = countTables(await readSnapshot(db));
   await audit(db, 'copia-restaurada', { fechaCopia: inner.createdAt, versionEsquemaCopia: inner.schemaVersion, recuentosAntes: before, recuentosCopia: inner.counts });
   return { before, after, verificado: true, catalogoInicialAnadido: !!catalogo.sembrado };

@@ -96,3 +96,51 @@ form.fields { align-items: flex-end; }
 tr.hdr th, tr.hdr td { background: var(--nav-active); font-weight: 600; }
 fieldset.player-choice { margin: .6rem 0; flex-direction: column; align-items: flex-start; }
 fieldset.player-choice label { color: var(--text); }
+
+/* Fase 5a: evolución del jugador */
+.tabs { display: flex; flex-wrap: wrap; gap: .25rem; border-bottom: 1px solid var(--line); margin-bottom: .75rem; }
+.tab { background: transparent; color: var(--text); border: 1px solid transparent; border-bottom: 0; border-radius: 6px 6px 0 0; padding: .45rem .8rem; cursor: pointer; font: inherit; }
+.tab.on { background: var(--nav-active); border-color: var(--line); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+.chip { background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 999px; padding: .3rem .8rem; cursor: pointer; font: inherit; }
+.chip.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.filters { display: flex; flex-wrap: wrap; gap: .75rem 1rem; margin: .5rem 0 1rem; }
+.filters label { display: flex; flex-direction: column; font-size: .85rem; color: var(--muted); }
+.sides { display: grid; grid-template-columns: repeat(2, minmax(16rem, 1fr)); gap: 1rem; overflow-x: auto; }
+.sides > * { min-width: 0; }
+@media (max-width: 40rem) { .sides { grid-template-columns: minmax(0, 1fr); } }
+.side h4, .evo h4 { margin: .25rem 0; font-size: .95rem; }
+.chart-box { position: relative; height: 16rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .5rem 1rem; margin: .5rem 0; }
+.stats dt { color: var(--muted); font-size: .8rem; } .stats dd { margin: 0; font-weight: 600; }
+.stats .muted { font-weight: 400; }
+tr.excluded td { color: var(--muted); text-decoration: line-through; } tr.excluded td:last-child, tr.excluded td:nth-last-child(2) { text-decoration: none; }
+.row-actions { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
+.inline-form { display: flex; flex-direction: column; gap: .4rem; max-width: 28rem; }
+
+/* Fase 5b: vista de test */
+:root { --side-l: #2b6cb0; --side-r: #c05621; --side-text: #fff; }
+@media (prefers-color-scheme: dark) { :root { --side-l: #63b3ed; --side-r: #f6ad55; --side-text: #1a202c; } }
+.crumbs { display: flex; flex-wrap: wrap; gap: .25rem; list-style: none; padding: 0; margin: 0 0 .75rem; font-size: .9rem; }
+.crumbs li + li::before { content: '›'; margin-right: .25rem; color: var(--muted); }
+.modes { display: flex; flex-wrap: wrap; gap: .25rem 1rem; border: 0; padding: 0; margin: 0 0 .75rem; }
+tr.origin td { background: var(--nav-active); font-weight: 600; }
+td small, .cell-date { color: var(--muted); display: block; font-size: .78rem; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.scale text { fill: var(--text); font-size: 11px; } .scale .axis { stroke: var(--line); } .scale .gname { font-weight: 600; fill: var(--muted); }
+a.button { display: inline-block; padding: .4rem .8rem; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); text-decoration: none; }
+a.button:hover, a.button:focus-visible { border-color: var(--accent); }
+td a small, td a .cell-date { text-decoration: none; }
+
+/* Fase 5c: bandas de percentil de rendimiento (seis bandas de la guía; el número siempre acompaña al color) */
+:root { --b1: #c53030; --b1t: #fff; --b2: #ed8936; --b2t: #1a202c; --b3: #faf089; --b3t: #1a202c; --b4: #ecc94b; --b4t: #1a202c; --b5: #9ae6b4; --b5t: #1a202c; --b6: #2f855a; --b6t: #fff; }
+.band { display: inline-block; padding: .1rem .5rem; border-radius: 999px; font-weight: 600; white-space: nowrap; border: 1px solid rgba(0,0,0,.25); }
+.band-rojo { background: var(--b1); color: var(--b1t); } .band-naranja { background: var(--b2); color: var(--b2t); } .band-amarillo-suave { background: var(--b3); color: var(--b3t); }
+.band-amarillo { background: var(--b4); color: var(--b4t); } .band-verde-suave { background: var(--b5); color: var(--b5t); } .band-verde { background: var(--b6); color: var(--b6t); }
+.refs { margin-top: 1rem; border-top: 1px solid var(--line); padding-top: .5rem; }
+.fields label, .filters label { max-width: 100%; min-width: 0; }
+.fields select, .filters select { max-width: 100%; }
+/* Fase 6c: dispersión de relaciones */
+.scatter { max-width: 760px; } .scatter text { fill: var(--text); font-size: 11px; } .scatter .axlabel { fill: var(--muted); font-size: 12px; }
+.scatter .axis { stroke: var(--muted); } .scatter .gridline { stroke: var(--line); stroke-width: 1; }
+.badge { display: inline-block; border: 1px solid var(--line); border-radius: .4rem; padding: .15rem .6rem; font-weight: 600; }

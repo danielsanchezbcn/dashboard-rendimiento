@@ -25,11 +25,29 @@ export const KINDS = { raw: 'Dato de origen', derived: 'Calculada' };
 export const OPERATIONS = {
   ASIMETRIA: { label: 'Asimetría (%)', unit: '%', operands: 1, definition: '(derecha − izquierda) ÷ máx(izquierda, derecha) × 100; positivo si domina la derecha (D25)', params: {} },
   REL_BW: { label: 'Relativo al peso corporal (BW)', unit: 'BW', operands: 1, definition: 'fuerza del lado (N) ÷ (masa corporal (kg) × 9,80665)', params: {} },
+  // Operaciones de sistema (D5): las crea el catálogo inicial; no se ofrecen al crear variables a mano. El origen es la variable «carga» del mismo test.
+  ISO_MVIC: { label: 'MVIC iso-push (kg)', unit: 'kg', operands: 1, system: true, definition: 'media, ponderada por repeticiones y de ambos lados, de (Peak Force del Iso-Push emparejado ÷ 9,80665 − factor × masa de cada sesión de Iso-Push), con todas las sesiones válidas; factor 1 en BW y el de la fórmula en SW', params: {} },
+  ISO_PIMA: { label: '%PIMA', unit: '%', operands: 1, system: true, definition: 'carga externa ÷ MVIC iso-push (kg) × 100; la etiqueta se conserva como la escribe el usuario', params: {} },
+  ISO_LOAD_BW: { label: '%BW', unit: '%', operands: 1, system: true, definition: 'carga externa ÷ masa corporal (kg) × 100; masa medida más cercana a hoy', params: {} },
+  ISO_LOAD_SW: { label: '%SW', unit: '%', operands: 1, system: true, definition: 'carga externa ÷ (factor × masa corporal (kg)) × 100; masa medida más cercana a hoy', params: { factor: SW_FACTOR_DEFAULT } },
+  RM_EST: { label: '1RM estimado (kg)', unit: 'kg', operands: 1, system: true, definition: '(carga movilizada + masa corporal) × factor; factor 1,4 para 12RM (coincide con Epley a 12 repeticiones; inferencia no verificada con fuente)', params: { factor: 1.4 } },
   REL_SW: { label: 'Relativo al System Weight (SW)', unit: 'SW', operands: 1, definition: 'fuerza del lado (N) ÷ (factor × masa corporal (kg) × 9,80665); factor por defecto 0,29 (D27)', params: { factor: SW_FACTOR_DEFAULT } },
 };
 
 // ---------- Cálculo puro (sin base de datos). Devuelve null si falta un dato o es inválido; nunca 0 inventado ----------
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+// Asimetría al estilo VALD (decidido el 8/11/2026): magnitud = |D − I| ÷ máx(I, D) × 100 y la letra del lado con el valor MÁS ALTO («11 % L»).
+// Comprobado con 135 filas de SL CMJ exportadas por VALD (diferencias solo por el redondeo de los valores I/D del CSV). Internamente se guarda con signo
+// (D → +, I → −) por compatibilidad; en pantalla y exportaciones solo se ve magnitud y letra.
+export const isAsymVariable = (v) => v?.formula?.op === 'ASIMETRIA' || /asym|asimetr/i.test(v?.name ?? '');
+export function asymText(pct, d = 1) {
+  if (typeof pct !== 'number' || !Number.isFinite(pct)) return '—';
+  const a = Math.abs(pct);
+  if (a < 0.05) return '0 %';
+  return `${a.toLocaleString('es-ES', { maximumFractionDigits: d })} % ${pct > 0 ? 'R' : 'L'}`;
+}
+export const asymSideLetter = (pct) => (typeof pct !== 'number' || !Number.isFinite(pct) || Math.abs(pct) < 0.05 ? '' : pct > 0 ? 'R' : 'L');
 
 export function asymmetryPct(left, right) {
   const l = num(left);

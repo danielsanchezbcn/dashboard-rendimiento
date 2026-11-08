@@ -1,7 +1,7 @@
 // antropometria.js — mediciones fechadas (cada medición es un registro; no se sustituye un valor único).
 // Las unidades no se inventan: cada valor lleva la unidad que indique el usuario.
-// Para métricas relativas se usa la medición más próxima a la fecha del test dentro de una ventana configurable;
-// no hay valor por defecto de la ventana.
+// Para los cálculos con masa corporal se usa la medición de masa más cercana a la fecha (antes o después), sin ventana (8/11/2026);
+// si el jugador no tiene ninguna, su peso de referencia. «nearestAnthropometry» (con ventana) queda sin uso en pantalla.
 
 import { audit } from './db.js';
 import { syntheticFields } from './jugadores.js';
@@ -60,6 +60,26 @@ export async function deleteAnthropometry(db, id) {
   if (!old) throw new Error('El registro no existe.');
   await db.anthropometry.delete(id);
   await audit(db, 'antropometria-eliminada', { jugadorId: old.playerId, registroId: id });
+}
+
+// Peso de referencia del jugador (decidido el 8/11/2026): se usa en todos los cálculos con masa SOLO si el jugador no tiene ninguna medición de masa corporal.
+// Es un campo del jugador (va en la copia con el resto de jugadores); la unidad la indica el usuario y debe ser kg, g o lb.
+export async function setReferenceWeight(db, playerId, value, unit) {
+  const p = await db.players.get(playerId);
+  if (!p) throw new Error('El jugador no existe.');
+  const v = Number(String(value).replace(',', '.'));
+  const u = String(unit ?? '').trim();
+  if (!Number.isFinite(v) || !(v > 0)) throw new Error('El peso de referencia debe ser un número mayor que 0.');
+  if (!['kg', 'g', 'lb', 'lbs'].includes(u.toLowerCase())) throw new Error('La unidad del peso de referencia debe ser kg, g o lb.');
+  await db.players.update(playerId, { referenceWeight: { value: v, unit: u }, updatedAt: new Date().toISOString() });
+  await audit(db, 'peso-referencia-guardado', { jugadorId: playerId });
+}
+export async function clearReferenceWeight(db, playerId) {
+  const p = await db.players.get(playerId);
+  if (!p) throw new Error('El jugador no existe.');
+  const { referenceWeight, ...rest } = p;
+  await db.players.put({ ...rest, updatedAt: new Date().toISOString() });
+  await audit(db, 'peso-referencia-eliminado', { jugadorId: playerId });
 }
 
 export const playerAnthropometry = async (db, playerId) => (await db.anthropometry.where('playerId').equals(playerId).toArray()).sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);

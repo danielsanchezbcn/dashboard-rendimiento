@@ -49,7 +49,7 @@ Como la bruta, más `operación` (§5) y `operandos`.
 **[Decidido, D27]** Mediciones **fechadas** por jugador: altura (cm), peso (kg) y longitud de la extremidad inferior (cm). Cada sesión usa la medición **más próxima a su fecha dentro de la ventana antropométrica**; sin medición en la ventana, la variable derivada **no se calcula** y se muestra el motivo (nunca 0).
 - **[Pendiente]** valor de la ventana.
 - **[Pendiente D30]** si la columna BW [KG] de VALD se usa como medición fechada de origen VALD.
-- Para %BW y %SW sobre cargas de Iso-Hold (sin fecha propia): medición más reciente dentro de la ventana contada hacia atrás desde hoy; si no hay, «no disponible» **[Decidido, D5]**.
+- Para %BW y %SW sobre cargas de Iso-Hold (sin fecha propia): masa corporal medida más cercana a hoy (o peso de referencia del jugador); si no hay ninguna, «no disponible» **[Decidido, D5; regla de masa revisada el 8/11/2026]**.
 
 ### 2.5 Perfil de importación
 Jugador (alias de la fase 1c), fecha, lado, repetición o «fila = sesión», mapa de columnas con conversión de unidad, filas a ignorar; vista previa antes de guardar y lista de columnas sin mapear.
@@ -77,7 +77,7 @@ El **usuario introduce la carga externa del Iso-Hold** (máxima carga trabajada 
 ## 4. Constantes y cálculos del sistema
 
 - **Average de sesión, Personal Average** (todas las repeticiones válidas del periodo; ponderado por `Reps` en resúmenes), **Personal Best** (mejor Average según la dirección; **no definido** con rango objetivo, D23; **empate → la sesión más reciente**, D22), **Máxima repetición** (dato aparte, solo si hay repeticiones) **[Decidido, D12/D12b/D22/D23]**.
-- **SW (System Weight)** = 29 % del **último peso corporal medido anterior o igual a la fecha de la sesión** (100 kg → 29 kg). **Solo Hip** (Iso-Push, Iso-Hold y Supine Isometric 90°/90° Leg Curl). Knee y Ankle usan BW **[Decidido, D27]**. El 29 % no se ha verificado con fuente. **Variante al 5 %** del peso corporal para Single-Leg Seated Calf Raise (indicada por el usuario el 7/11; sin fuente verificada); misma regla de peso corporal que el SW de Hip **[Decidido, D36]**.
+- **SW (System Weight)** = 29 % del **masa corporal medida más cercana a la fecha de la sesión (antes o después; peso de referencia del jugador si no hay mediciones; regla del 8/11/2026)** (100 kg → 29 kg). **Solo Hip** (Iso-Push, Iso-Hold y Supine Isometric 90°/90° Leg Curl). Knee y Ankle usan BW **[Decidido, D27]**. El 29 % no se ha verificado con fuente. **Variante al 5 %** del peso corporal para Single-Leg Seated Calf Raise (indicada por el usuario el 7/11; sin fuente verificada); misma regla de peso corporal que el SW de Hip **[Decidido, D36]**.
 - **Referencia «La Liga»** **[Decidido, D19/D28]**: se calcula desde la base propia, con **un valor por jugador** (media de todos sus tests válidos de todas las temporadas, sin sesiones excluidas), por test, protocolo y variable; los datos sintéticos se excluyen. Tests unilaterales: dos referencias, una por extremidad, y percentil por extremidad. Con una sola sesión el jugador ya cuenta. Pendiente: si el jugador evaluado se incluye en su propia referencia (se recomienda excluirlo), el caso de cambio de posición y el mínimo de jugadores.
 - **Premier League** (rangos de percentil por test, a aportar por el usuario) y **SCIENCE** (valor bibliográfico con cita) son referencias introducidas a mano, con fuente y población **[Decidido, D14/D21; rangos pendientes]**.
 

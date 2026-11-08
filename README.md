@@ -5,9 +5,9 @@ Aplicación web de uso personal para guardar y revisar datos de rendimiento. Se 
 **Esta entrega (fase 4, versión 4-0.1.0)** añade el **importador de VALD** al asistente «Importar» (elige el origen «Exportación CSV de VALD ForceDecks»):
 
 - Reconoce cada fila por su código de test y un mismo fichero puede traer varios: **RSHIP/RSKIP/RSAIP** (Hip/Knee/Ankle Iso-Push), **SLHNNI** (Supine 90°/90°), **SLSEICR** (Seated Calf Raise), **SLJ** (SL CMJ), **CMJ**, **SJ** (Squat Jump), **HJ** (Hop Test) y **DJ** (Drop Jump, separado en 30 cm y 45 cm por su altura). Cada test se guarda en su propio lote. **No importa** el peso corporal (BW), las etiquetas (Tags), la media sin lado ni las asimetrías de los tests por lado (se recalcularán desde izquierda y derecha). **No se importan y se listan en el informe:** los códigos ABCMJ, LCMJ y LSJ, las filas con carga adicional > 0 y los Drop Jump de alturas distintas de 30 y 45 cm.
-- **Asimetrías de Hop y Drop Jump (D43):** VALD las da como «11 L» o «3.8 R»; la letra es el lado con el valor más alto. Se guardan con signo como D25 (R → positivo, L → negativo; «0» = 0). La magnitud viene redondeada por VALD, y al fusionar filas del mismo día la asimetría fusionada es una media ponderada aproximada.
+- **Asimetrías de Hop y Drop Jump (D43):** VALD las da como «11 L» o «3.8 R»; la letra es el lado con el valor más alto. Se guardan con signo interno (R → positivo, L → negativo; en pantalla se ven como en VALD, «11 % L»; «0» = 0). La magnitud viene redondeada por VALD, y al fusionar filas del mismo día la asimetría fusionada es una media ponderada aproximada.
 - **Lista de atletas de VALD (origen «Lista de atletas…»):** da de alta los jugadores con el nombre completo y el alias de la fuente VALD, para que luego los tests se vinculen solos (siempre con tu confirmación). No guarda fecha de nacimiento, altura, peso, sexo, correo ni vald-id. Las posiciones (columnas Category/Group con «Position») se asignan solo si eliges la equivalencia y una fecha de inicio, y nunca pisan una posición ya registrada. Con tu fichero real: 88 atletas, 0 avisos, 6 posiciones de VALD (2 atletas sin posición).
-- **Catálogo (semilla v3):** en SL CMJ las variables de fuerza de despegue y de aterrizaje pasan a «/ BM» en N/kg (así vienen en el CSV). Al actualizar, las unidades de variables del catálogo inicial escritas a mano que difieran de la definitiva se alinean y cada cambio queda en el registro de auditoría.
+- **Catálogo (semilla v4):** en SL CMJ las variables de fuerza de despegue y de aterrizaje pasan a «/ BM» en N/kg (así vienen en el CSV). Al actualizar, las unidades de variables del catálogo inicial escritas a mano que difieran de la definitiva se alinean y cada cambio queda en el registro de auditoría.
 - **Filas del mismo jugador y día:** se fusionan en una sola sesión (media de cada lado ponderada por sus repeticiones), sin límite de horas entre ellas (por indicación tuya). Cada fusión aparece en la vista previa y en el informe. Los valores de VALD vienen redondeados, así que la media fusionada es aproximada.
 - Los nombres de VALD se confirman con los **alias de la fuente VALD** (nada se vincula en silencio); duplicados, conflictos, informe e historial funcionan como en el Excel propio. Con `ejemplo_vald_sintetico.csv` (datos ficticios) puedes probarlo con los datos sintéticos.
 - Esquema 4 sin cambios: las sesiones fusionadas guardan además las filas de origen (`mergedRows`).
@@ -32,7 +32,7 @@ Aplicación web de uso personal para guardar y revisar datos de rendimiento. Se 
 
 Los gráficos y el importador de VALD llegarán en las fases 4 y 5. No contiene datos de jugadores reales. No hay analítica, telemetría ni conexiones a servicios externos: la página lleva una política de seguridad que bloquea cualquier conexión de red.
 
-**Qué no se ha precargado a propósito:** las variables de Iso-Hold, Nordic, RM y 1RM estimado, y las del resto de tests. Sus reglas están decididas (D5), pero aún no has definido sus variables (hasta ahora los tests de tobillo tenían nombres duplicados; el 7 de noviembre confirmaste que «Ankle Iso-Hold 20 s» y «Run-Specific Ankle Iso-Hold 20 s» son el mismo test y queda solo el primero). Se configuran desde la pantalla del catálogo o se precargan cuando lo confirmes.
+**Qué no se ha precargado a propósito:** las variables de los demás tests que no están en la lista. Las de Iso-Hold, Nordic, RM y 1RM estimado se añadieron el 8/11 (ver la fase 7a). Sus reglas están decididas (D5), pero aún no has definido sus variables (hasta ahora los tests de tobillo tenían nombres duplicados; el 7 de noviembre confirmaste que «Ankle Iso-Hold 20 s» y «Run-Specific Ankle Iso-Hold 20 s» son el mismo test y queda solo el primero). Se configuran desde la pantalla del catálogo o se precargan cuando lo confirmes.
 
 ## Documentación del proyecto
 
@@ -48,7 +48,7 @@ Los gráficos y el importador de VALD llegarán en las fases 4 y 5. No contiene 
 
 Este repositorio no usa carpetas, para poder publicarlo con la subida web de GitHub, que sube los archivos sueltos. Todos los archivos están en la raíz y se importan entre sí con rutas del tipo `./db.js`.
 
-**Archivos necesarios para ejecutar la aplicación (27):**
+**Archivos necesarios para ejecutar la aplicación (47):**
 
 | Archivo | Contenido |
 |---|---|
@@ -58,7 +58,27 @@ Este repositorio no usa carpetas, para poder publicarlo con la subida web de Git
 | `app.js` | Navegación y rutas |
 | `pages.js` | Páginas: inicio, bloques, copias de seguridad, configuración |
 | `pages-jugadores.js` | Lista de jugadores y perfil (alias, posiciones, antropometría) |
-| `pages-ajustes.js` | Configuración de posiciones, ventana antropométrica y datos sintéticos |
+| `pages-evolucion.js` | Fase 5a: resultados del jugador por bloque, gráfico de evolución, asimetría y gestión de sesiones |
+| `pages-percentiles.js` | Fase 5c: panel de percentiles, bandas de color, gráfico G2 y escala G4 completa |
+| `percentiles.js` | Lógica de la fase 5c: referencia «La Liga», percentil exacto por rango medio, mediana y bandas |
+| `pages-relaciones.js` | Fase 6: tarjeta «Relaciones: DSI, EUR y ORZ» en la ficha del jugador |
+| `relaciones.js` | Lógica de la fase 6: DSI, EUR, ORZ y sus percentiles |
+| `exportar.js` | Fase 6: construcción del CSV (UTF-8 con BOM, «;» y coma decimal, anti-inyección de fórmulas) |
+| `relativos.js` | Fase 6b: valores relativos (BW/SW) calculados al vuelo con la masa corporal de cada sesión |
+| `estadistica.js` | Fase 6c: Spearman, Pearson, correlación de medidas repetidas e intervalos de confianza |
+| `asociaciones.js` | Fase 6c: observaciones para la vista de relaciones (transversal e intra-jugador) |
+| `pages-asociaciones.js` | Fase 6c: pantalla «Relaciones entre variables» con dispersión y tabla |
+| `isohold.js` | Fase 7a: MVIC, %PIMA, %BW/%SW del Iso-Hold y 1RM estimado de 12RM (D5) |
+| `radar.js` | Fase 5d: datos del perfil radial (normalización, referencias, variables omitidas) |
+| `pages-radar.js` | Fase 5d: tarjeta y dibujo SVG del perfil radial, descarga en PNG |
+| `targets.js` | Fase 6g: targets individuales y por defecto de posición (D15) |
+| `natera.js` | Fase 6e: clasificación bibliográfica de Natera para el Iso-Push relativo (Below Normal / Normal / Good / Excellent) |
+| `premier.js` | Fase 6d: referencias de la Premier League 2025-26 (columna In Season), enlace con el catálogo y zona entre cortes |
+| `pages-test.js` | Fase 5b: vista de un test para toda la plantilla, migas de pan y escala básica (G4) |
+| `comparativa.js` | Lógica de la fase 5b: agrupación por posición vigente, modos de valor, asimetría por fila |
+| `rutas.js` | Rutas por hash con parámetros (test, variable, protocolo, fechas, modo) |
+| `evolucion.js` | Lógica de la fase 5a: serie por sesión, Personal Best, Personal Average, asimetría, exclusión y eliminación de sesiones |
+| `pages-ajustes.js` | Configuración de posiciones, muestra mínima de percentiles y datos sintéticos |
 | `componentes.js`, `context.js`, `util.js` | Piezas de interfaz, contexto compartido y funciones auxiliares |
 | `pages-catalogo.js` | Pantallas del catálogo: lista de tests, manifestaciones, zonas y detalle de un test |
 | `catalogo.js` | Lógica del catálogo: altas, ediciones, archivado, fórmulas cerradas y cálculos (asimetría, BW, SW) |
@@ -79,7 +99,7 @@ Este repositorio no usa carpetas, para poder publicarlo con la subida web de Git
 
 **Archivos opcionales** (la aplicación funciona sin ellos): `README.md`, `LEEME.md`, `guia_dashboard_performance_claude.md`, `REQUISITOS.md`, `PLAN_DE_FASES.md`, `DECISIONES.md`, `DICCIONARIO_DE_DATOS.md`, `LIBRERIAS.md`, y las herramientas de desarrollo `libs-fuente.js`, `package.json`, `package-lock.json`, `prueba-copias.test.mjs`, `prueba-jugadores.test.mjs`, `prueba-interfaz.test.mjs` y `prueba-jugadores-ui.test.mjs`, `prueba-catalogo.test.mjs`, `prueba-catalogo-ui.test.mjs`, `prueba-importacion.test.mjs`, `prueba-importacion-ui.test.mjs`, `prueba-vald.test.mjs` y `prueba-vald-ui.test.mjs`; y las plantillas `plantilla_importacion_sesiones.xlsx`, `ejemplo_importacion_sintetico.xlsx` y `ejemplo_vald_sintetico.csv`.
 
-**Atención: `libs.js` y `libs-fuente.js` son archivos distintos.** `libs.js` (unos 166 KB, ilegible: está compilado) es el que necesita la aplicación. `libs-fuente.js` (unas 10 líneas) es solo el origen para recompilarlo. Si en el repositorio `libs.js` pesa unos 500 bytes, contiene el origen por error y la aplicación no arranca: sube de nuevo `libs.js`.
+**Atención: `libs.js` y `libs-fuente.js` son archivos distintos.** `libs.js` (unos 340 KB, ilegible: está compilado) es el que necesita la aplicación. `libs-fuente.js` (unas 10 líneas) es solo el origen para recompilarlo. Si en el repositorio `libs.js` pesa unos 500 bytes, contiene el origen por error y la aplicación no arranca: sube de nuevo `libs.js`.
 
 ## Publicar la aplicación (GitHub Pages, subida web)
 
@@ -87,9 +107,9 @@ Este repositorio no usa carpetas, para poder publicarlo con la subida web de Git
 2. **Antes de actualizar una versión anterior, crea una copia de seguridad** desde la aplicación publicada («Copias de seguridad»). La base de datos pasa sola del esquema 1, 2 o 3 al 4 al abrir la nueva versión y conserva lo que tuvieras, pero una copia previa es la red de seguridad.
 3. Pulsa «Add file → Upload files» y selecciona o arrastra **todos los archivos a la vez**, sueltos, sin carpetas. Si un archivo ya existe con el mismo nombre, GitHub lo sustituye. Confirma con «Commit changes».
 4. En «Settings → Pages», comprueba «Deploy from a branch», rama `main` y carpeta `/ (root)`. Tras uno o dos minutos la aplicación estará en `https://TU-USUARIO.github.io/dashboard-rendimiento/`.
-5. Ábrela y pulsa Ctrl+F5 para evitar versiones guardadas en caché. En la parte superior debe verse la versión `v4-0.1.0`. **Usa siempre exactamente esa dirección**: otra variante (otro dominio, `http` en lugar de `https`) es otro origen y mostraría la aplicación vacía.
+5. Ábrela y pulsa Ctrl+F5 para evitar versiones guardadas en caché. En la parte superior debe verse la versión que figura en el título de la última fase de este documento. **Usa siempre exactamente esa dirección**: otra variante (otro dominio, `http` en lugar de `https`) es otro origen y mostraría la aplicación vacía.
 
-Si la página se queda en «Cargando…», revisa que `libs.js` es el compilado y que están los 27 archivos necesarios. En Chrome, F12 → pestaña «Consola» muestra qué archivo no se encuentra.
+Si la página se queda en «Cargando…», revisa que `libs.js` es el compilado y que están todos los archivos de la lista anterior. En Chrome, F12 → pestaña «Consola» muestra qué archivo no se encuentra.
 
 ### Origen compartido (decisión D3)
 
@@ -112,6 +132,142 @@ En «Configuración → Datos sintéticos de demostración»:
 - **Cargar datos sintéticos** crea 2 posiciones («Posición sintética 1» y «2»), 12 jugadores (los jugadores A a F del conjunto de aceptación de `REQUISITOS.md`, otros seis, y una pareja «Muñoz»/«Munoz» para probar la propuesta de candidatos con confirmación manual), alias de VALD y de Excel, historial de posiciones con cambios de posición y mediciones antropométricas. Todo con la etiqueta SINTÉTICO. Los nombres y valores no representan a nadie ni nada real; las unidades kg y cm son solo rótulos de demostración.
 - **Eliminar todos los datos sintéticos** los borra todos juntos y solo ellos, tras confirmar. Si algún dato tuyo (real) depende de uno sintético (por ejemplo, una posición secundaria sintética en un jugador real), no se elimina nada hasta que lo reasignes.
 - **Elimínalos antes de empezar a cargar datos reales.**
+
+## Fase 5a: ficha del jugador y evolución (versión 5a-0.1.0)
+
+En la ficha de un jugador, «Resultados por bloque» tiene ahora tres pestañas (fuerza, perímetros y NME; solo la de fuerza tiene datos). Para cada test con sesiones:
+- **Gráfico de evolución:** un punto por sesión (su Average), con el **Personal Best** y el **Personal Average** como líneas separadas, el resultado actual, y las sesiones excluidas marcadas con una cruz. En tests por lado, izquierda a la izquierda y derecha a la derecha, con el mismo eje. Filtros por variable, protocolo y fechas.
+- **Personal Average:** media de las sesiones ponderada por repeticiones (D12a). **Personal Best:** según la dirección de la variable (D12b). **Dirección por defecto (D50):** «más alto es mejor» para todas las variables sin dirección, salvo las asimetrías (%), que quedan sin dirección porque llevan signo. Al actualizar la base se asigna solo a las que no tenían dirección (75 en el catálogo inicial), sin tocar ninguna que ya hayas definido, y queda en el registro de auditoría. **Revísalas:** en tiempos de contacto, duraciones o profundidades un valor más bajo puede ser mejor; cámbialo en el catálogo. Con rango objetivo no se define (D23).
+- **Asimetría (G5), como en VALD (8/11/2026):** en todos los tests por lado, |D − I| ÷ máx × 100 con la letra del lado que tiene el valor más alto (L/R), p. ej. «11 % L». Sin signo en pantalla ni en CSV (el CSV lleva la magnitud y el lado en dos columnas). La fórmula está comprobada con 135 filas de SL CMJ exportadas por VALD (las diferencias son solo el redondeo de los valores I/D del CSV). Internamente se sigue guardando con signo (R +, L −) por compatibilidad.
+- **Tabla de sesiones:** «Excluir» (reversible, con motivo opcional; la sesión deja de contar en todo) y «Reincorporar». «Eliminar…» borra definitivamente UNA sesión y exige escribir el nombre del jugador y la fecha exactos. Las copias de seguridad antiguas pueden conservar la sesión eliminada.
+- **No existe «Máxima repetición»:** los datos importados traen una media por sesión (D8), no repeticiones sueltas.
+
+Comprobación sugerida (10 minutos): abre un jugador con sesiones importadas, mira un test (por ejemplo Run-Specific Knee Iso-Push) y comprueba que los puntos y las fechas coinciden con tu Excel o VALD; excluye una sesión y ve que cambia el Personal Average; reincorpórala; comprueba que el Personal Best aparece (más alto es mejor) y cambia la dirección de una variable en el catálogo para ver que se actualiza; prueba el tema oscuro y una ventana estrecha.
+
+## Fase 5b: vista de un test para toda la plantilla (versión 5b-0.1.0)
+
+Desde la ficha de un jugador, en un test, el botón **«Ver todos los jugadores en este test»** abre la vista comparativa (`#test-N`):
+- **Valor mostrado (D33):** Personal Average por defecto; Personal Best, Última sesión válida e Histórico completo como opciones (D33b sigue pendiente, por eso no se ha quitado ninguna). Filtros por variable, protocolo y fechas, y orden por jugador, valor (el mejor primero según la dirección) o fecha.
+- **Grupos por posición (D11, revisada 7/11/2026):** cada jugador va a su única posición principal, sin fechas; sin posición: «Sin posición». El orden de los grupos es el de Configuración (D9).
+- **Cambio de posición:** al no llevar fechas, el cambio mueve todo el histórico del jugador a la nueva posición (ya no hay filas por posición ocupada).
+- **Tests por lado:** columnas «Izquierda» y «Derecha» con su unidad y columna **Asimetría** al estilo VALD («11 % L») calculada con los dos valores de la fila.
+- **Cada fila** muestra fechas (rango en el Personal Average), número de sesiones y repeticiones. Las sesiones excluidas no aparecen.
+- **Escala básica (G4):** una línea MIN–MAX con un marcador por jugador (azul «L», naranja «R», blanco sin lado), sin referencias externas (fase 5c).
+- **Navegación (RF-03):** el jugador y el test se enlazan en ambos sentidos conservando test, variable, protocolo, fechas y modo; el jugador de origen queda resaltado; hay migas de pan, y Atrás y recargar mantienen la vista (todo va en la dirección de la página).
+
+Comprobación sugerida (10 minutos): abre un jugador con sesiones, entra en un test y pulsa «Ver todos los jugadores en este test»; cambia a Personal Best; abre otro jugador desde la tabla; pulsa Atrás y comprueba que sigues en Personal Best con el jugador de origen resaltado; recarga la página; cambia la posición actual de un jugador en su ficha y comprueba que sus resultados antiguos no cambian de grupo.
+
+## Fase 5c: percentiles y referencias (versión 5c-0.1.0)
+
+En la ficha del jugador, bajo el gráfico de evolución, aparece **«Percentiles frente a La Liga»**; en la vista de test (`#test-N`), en los modos Personal Average y Última sesión, hay una columna de percentil por lado.
+- **Referencia «La Liga» (D19):** base de datos propia, **sin datos sintéticos**; un valor por jugador (su Personal Average o su última sesión válida, D28), sin sesiones excluidas y **sin el propio jugador** (D28a). Filtro de posición opcional (por la posición única del jugador).
+- **Dos percentiles:** estadístico (el % de valores menores más la mitad de los iguales) y de rendimiento (si la variable es «más bajo es mejor» se invierte: 100 − p; con rango objetivo o sin dirección no hay percentil de rendimiento ni color).
+- **Seis bandas (D14):** 0–<10 rojo intenso, 10–<35 naranja, 35–<50 amarillo suave, 50–<65 amarillo intenso, 65–<90 verde suave, 90–100 verde intenso. El número siempre acompaña al color.
+- **Muestra mínima (D52):** 10 jugadores; cambiable en Configuración → «Muestra mínima para percentiles». Con menos: «Muestra insuficiente» con el N, sin color.
+- **G2** (barras del valor frente al Personal Average y la mediana de la referencia) y **G4 completa** (mediana P50 sobre la línea, marcadores L/R y corchete de asimetría; si el valor queda fuera del rango la escala se amplía y se avisa: provisional, D24).
+- **No hecho:** radar G3 (D16 abierta); percentiles de variables relativas o derivadas (solo variables medidas).
+
+Comprobación sugerida (10 minutos): importa datos reales de al menos 11 jugadores en un test, abre uno y mira la tabla de percentiles; sube en Configuración la muestra mínima a un número mayor que tu N y comprueba que aparece «Muestra insuficiente».
+
+## Cambio de posición (7/11/2026) y fase 6a (versión 6a-0.1.0)
+
+**La posición ya no lleva fechas.** Cada jugador tiene una única posición principal (y secundarias informativas); cambiarla vale para todo su histórico. Al abrir la aplicación o restaurar una copia con posiciones fechadas se aplica una migración automática: se conserva la principal vigente (sin fecha de fin; si no hay, la de inicio más reciente), una secundaria por posición y se quitan las fechas. Solo se audita el número de registros afectados. Haz una copia antes de abrir esta versión con tus datos reales.
+
+**Fase 6a** (ratios y exportación; los valores relativos de la vista de test y el resto de la fase 6 siguen pendientes):
+- **Tarjeta «Relaciones: DSI, EUR y ORZ»** en la ficha del jugador, siempre con **toda la historia** y el Personal Average de cada término (sin sesiones excluidas):
+  - **DSI por lado** (D38) = SL CMJ «CONCENTRIC PEAK FORCE / BM» (N/kg ÷ 9,80665) ÷ Knee Iso-Push Peak Force relativo al peso corporal (BW), sin unidad. El peso de cada sesión de Knee es la última masa corporal medida en o antes de esa fecha (**sin ventana antropométrica**: sigue abierta; las sesiones sin masa previa se omiten y se avisa).
+  - **EUR** (D39) = CMJ JH (imp-mom) Personal Average ÷ Squat Jump JH (imp-mom) Personal Best. Lleva la advertencia metodológica de la decisión.
+  - **ORZ** (D47): la altura (30 o 45 cm) con mayor RSI Personal Average; con una sola altura no se muestra nada; **con empate exacto no hay ORZ (propuesta mía, sin confirmar)**.
+  - Percentil estadístico frente a La Liga (sin sintéticos, sin el propio jugador, mínimo de muestra de Configuración). Sin color: DSI y EUR no tienen dirección «mejor/peor» definida.
+- **Exportar CSV** en la vista de test (`#test-N`): exporta la tabla que ves (modo, filtros y orden). Pensado para Excel en español: separador «;», coma decimal, UTF-8.
+
+## Fase 6b y 6c (versión 6b-0.1.0)
+
+**6b — vista de test ampliada:**
+- **Filtro de posición** (la posición única del jugador, «Sin posición» incluida), además de variable, protocolo y fechas. Casilla para **mostrar las sesiones excluidas** como lista informativa (no entran en ninguna tabla ni percentil).
+- **Valores relativos:** las variables «relativas» del catálogo (Peak Force relativo BW o SW) se ven en la vista de test, en la ficha del jugador y con sus percentiles. Se calculan al vuelo (no se guardan): fuerza ÷ (factor × masa × 9,80665), con la **última masa medida en o antes de cada sesión** (sin ventana: sigue abierta). Una sesión sin masa previa no tiene valor relativo y se avisa. El valor absoluto sigue disponible en su variable. Se muestra la fórmula y la unidad.
+
+**6c — «Relaciones entre variables»** (menú nuevo): eliges X e Y (test + variable + lado), población (posición) y periodo; no hay selección por defecto.
+- **Entre jugadores:** una observación por jugador (su Personal Average en el periodo). Spearman ρ (principal) y Pearson r con IC 95 %.
+- **Dentro del jugador:** pares del mismo jugador y el mismo día; correlación de medidas repetidas (Bakdash y Marusich, 2017). Puede dar signo opuesto a la relación entre jugadores.
+- Dispersión (con tabla equivalente), población, periodo, método y n siempre visibles; muestra mínima la de Configuración (10); sin sintéticos salvo casilla; sin valores p; solo asociaciones, nada causal ni prescriptivo.
+- **El criterio estadístico es provisional: lo has de confirmar.**
+
+## Fase 6d/6e: Premier League y clasificación de Natera (versión 6f-0.1.0)
+
+Con las 6 imágenes que subiste (columna **In Season 2025-26**, no pre-season) la ficha del jugador muestra, bajo la tabla de percentiles de La Liga, un bloque **«Premier League»** con los cortes P5, P25, mediana, P75 y P95 y la **zona** del valor (por ejemplo, «entre P25 y la mediana»).
+- **Solo lo que está en las tablas:** una variable del catálogo se enlaza únicamente si el nombre de la métrica es el mismo. Lo que no figura (variables relativas, asimetrías no listadas, Iso-Hold, etc.) muestra «no tiene percentil de la Premier League». No hay equivalencias supuestas.
+- **Enlazado hoy (55 variables-test, con tus equivalencias del 7/11):** Iso-Push Hip, Knee y Ankle (Peak Force); CMJ (11 variables de rendimiento + 5 asimetrías); Squat Jump (altura y RSI-Mod); SL CMJ (9; equivale al SLJ de la tabla, D37); Drop Jump, en 30 y 45 cm (4 + 2 asimetrías en cada altura); Hop Test (3 + 2 asimetrías). Equivalencias confirmadas por ti: «Peak Power / BM» = CON PEAK POWER/BM (CMJ y SL CMJ), «Eccentric Duration» = ECC DECEL PHASE DURATION (CMJ y SL CMJ), y las dos asimetrías de aterrizaje del Drop Jump.
+- **Unidades:** la duración concéntrica del CMJ y del SL CMJ y el tiempo de contacto del Hop Test están en segundos en la tabla y en milisegundos en el catálogo: se convierten (× 1000). El resto coincide.
+- **Color (D14b, opción A confirmada):** las seis zonas que delimitan P5/P25/P50/P75/P95 llevan las seis bandas en orden (rojo = más allá del P5 … verde = P95 o más); la dirección ya viene en el orden de la tabla. Los umbrales de la Premier (5/25/50/75/95) no son los de La Liga (10/35/50/65/90), y el color indica posición en la muestra de la Premier, no un umbral clínico ni de riesgo. No hay percentil intermedio (sin interpolar). El texto de la zona acompaña siempre al color.
+- **Asimetrías con signo:** se muestran los cortes pero no se ubica ni se colorea al jugador, porque no está verificado que el signo de ForceDecks coincida con el de la app (D25).
+- **Límites que debes conocer:** la tabla de Drop Jump no indica la altura de caída (se aplica a 30 y 45 cm); las referencias de Iso-Push y SL CMJ son por lado (confirmado por ti); en el resto de variables con lado no consta, y se avisa.
+- **Nordic Hamstring Exercise:** tengo cargados los cortes in-season de NordBord (Max Force, Max Force Asymmetry en valor absoluto, Torque), pero el test aún no tiene variables en el catálogo; se aplicarán cuando crees variables llamadas exactamente «Max Force», «Max Force Asymmetry» y «Torque».
+- No incluido: Iso Prone (no confirmado como equivalente de ningún test), ForceFrame (cadera, tobillo), Squat Assessment, IMTP y SLDJ (no están en el catálogo) y las métricas de la tabla sin variable equivalente.
+
+**Clasificación de Natera (Iso-Push relativo).** En el panel de percentiles de «Peak Force relativo» aparece un bloque con la clase del valor: Ankle y Knee en BW (Normal 2,75 / 3,75; Good 3,0 / 4,2; Excellent 3,25 / 4,5) y Hip en SW (Normal 2,0; Good 2,2; Excellent 2,5). Por debajo de Normal la fuente no da etiqueta y se muestra en rojo (decisión tuya). Se aplican como intervalos continuos y a cada lado (no consta si los umbrales son por lado). La clase se escribe siempre con texto; el color (amarillo, verde claro, verde, como en tu imagen) es solo refuerzo.
+
+## Fase 6g: targets (versión 6g-0.1.0, esquema 5)
+
+En la ficha del jugador, bajo cada gráfico de evolución, aparece el bloque **Target** (decisión D15: «individual + valor por defecto por posición»).
+- **Definir:** despliega «Definir o cambiar targets». Puedes fijar un target **individual** (jugador + variable; un solo valor para ambos lados si la variable es I/D) y un target **por defecto de la posición principal** del jugador. Cada uno admite una nota o fuente.
+- **Cuál se aplica:** el individual manda sobre el de la posición (confirmado). En las variables izquierda/derecha el target es **un solo valor para los dos lados**.
+- **Qué se ve:** una línea discontinua en el gráfico (la leyenda indica «individual» o «posición») y una tabla con la distancia del resultado actual y del Personal Average al target, en unidades y en %. Indica «alcanzado» o «no alcanzado» según la dirección de la variable en el catálogo (más alto / más bajo); con otra dirección solo muestra la distancia.
+- **Sin color:** no hay regla de color para targets; no se inventa.
+- **Copias:** los targets van en la copia de seguridad (tabla nueva, esquema 5). Una copia antigua se restaura con un aviso de que esa tabla quedará vacía. Al eliminar una posición se eliminan sus targets por defecto.
+- **Aún no hay** valores por defecto cargados: los defines tú.
+
+## Fase 5d: perfil radial (versión 7d-0.1.0)
+
+En la ficha del jugador, tarjeta «Perfil radial: FAST DYNAMIC STRENGTH (CMJ)», con el aspecto del radar que aportaste:
+- **Variables (las que indicaste, todas del CMJ):** JH (imp-mom), Peak Power/BM (= CON PEAK POWER/BM), CON Impulse 100ms, RSI mod, EDRFD/BM (= ECC DECEL RFD, N/s/kg) y ECC Peak Power/BM.
+- **Líneas:** lila = el jugador (Personal Average, o la última medida si lo eliges en el desplegable); amarilla = mediana (P50) de La Liga; blanca punteada = mediana in-season de la Premier League.
+- **Normalización (elección mía, a confirmar):** cada eje es el valor dividido por el P50 de La Liga de esa variable, con La Liga = 100 %; por eso el hexágono amarillo es regular y los otros dos se leen como porcentaje de él. Si algún eje supera el 112 %, se reduce todo el dibujo para que quepa. Los valores originales con unidad, el N de La Liga y las fechas van en una tabla debajo.
+- **Referencia La Liga:** tu base de datos (opcionalmente una posición), sin sintéticos ni el propio jugador, un valor por jugador con la misma base que el del jugador y mínimo de jugadores del ajuste de percentiles. Una variable sin dato del jugador, sin P50 suficiente o con «más bajo es mejor» se omite y se lista aparte; con menos de 3 variables no se dibuja. La línea de la Premier solo se dibuja si la tienen todos los ejes dibujados.
+- **Imagen:** «Descargar imagen (PNG)» (2000 × 980 px). En el lugar de la foto del jugador aparece su nombre y la base del valor, y la leyenda incluye una línea lila para el jugador.
+- **Variables elegibles desde la aplicación:** botón «Elegir variables del radar» (test y de 3 a 8 variables de un solo valor con «más alto es mejor»; el orden de los ejes es el de marcado). Se guarda en este navegador (`radarConfig`, va en las copias) y vale para todos los jugadores; «Volver al perfil por defecto» restaura las seis del CMJ. Con otra selección el título pasa a «PERFIL <TEST>».
+
+## Mejoras de la versión 7d
+
+- **Corregir una sesión guardada:** en la tabla de sesiones de cada variable, botón «Corregir…» (no aparece en variables calculadas). Cambia fecha, hora, el valor (o los dos lados) de la variable que ves y las repeticiones, sobre la misma sesión; no crea otra. Se rechaza una fecha u hora inválida, un valor no numérico y una colisión con otra sesión del mismo jugador, test, protocolo, fecha y hora. Las demás variables de la sesión no cambian (si todo el fichero estaba mal, elimina la sesión y vuelve a importar). El registro de auditoría anota qué campos cambian, nunca los valores.
+- **Alta manual de la carga (Iso-Hold y RM):** tarjeta «Alta manual de carga» en la ficha del jugador: test, fecha, hora opcional y carga en kg (admite coma). Crea una sesión con origen «manual», sin repeticiones; MVIC, %PIMA, %BW/%SW y 1RM estimado se calculan solos. Se rechaza un duplicado exacto (jugador, test, fecha y hora) y una carga ≤ 0 o > 1000 kg.
+- **Variables del radar elegibles:** ver la sección del radar.
+
+## Fase 7: seguridad, acceso y copias (versión 7-0.1.0)
+
+**Qué se ha revisado y cómo (con datos sintéticos, en Chromium sin interfaz):**
+- **Ningún dato sale del equipo.** Revisión del código: no hay `fetch`, `XMLHttpRequest`, WebSocket, `sendBeacon` ni direcciones externas, ni `innerHTML`, `eval` o `localStorage`. La política de seguridad del navegador (`index.html`) bloquea además cualquier conexión (`connect-src 'none'`) y los scripts externos. En una sesión completa de uso (220 peticiones) todas fueron a la propia página; ninguna a otro origen.
+- **Qué recibe el hosting:** GitHub Pages solo sirve los archivos de la aplicación. El repositorio contiene únicamente código, documentación y ejemplos sintéticos; los datos de jugadores viven en el navegador. Es **público**: contiene también las tablas de la Premier y los umbrales de Natera que aportaste (no datos de jugadores).
+- **Ciclo crear copia → borrar → restaurar, en navegador:** copia sin cifrar y copia cifrada (AES-256-GCM, clave derivada con PBKDF2 de 600 000 iteraciones); se borra la base entera; se restaura. Las 19 tablas de datos quedan idénticas (sesiones, valores, exclusiones, targets…); solo cambia el registro de auditoría, que anota la restauración. Una contraseña errónea y un fichero alterado se rechazan sin tocar los datos. La copia cifrada no contiene ningún nombre en claro.
+- **Exclusión reversible y eliminación:** excluir no toca los valores y se puede revertir; eliminar exige escribir el nombre del jugador y la fecha, borra solo esa sesión y avisa de que las copias antiguas pueden conservarla (pruebas automáticas).
+- **Defectos corregidos en esta fase:** (1) el informe CSV de importación incluía nombres y ficheros procedentes del Excel sin neutralizar fórmulas (`=`, `+`, `-`, `@`); ahora se neutralizan como ya hacía la exportación de tablas. (2) Textos de la documentación desactualizados (versión y recuento de archivos).
+- **Texto malicioso en nombres:** un nombre de jugador con HTML (`<img onerror=…>`) se muestra como texto y no se ejecuta.
+
+**Límites que debes conocer:**
+- La suma de verificación de una copia **sin cifrar** detecta daños y modificaciones accidentales, pero no impide que alguien modifique el fichero y recalcule la suma. La copia cifrada sí es autenticada. Si la copia va a salir del equipo, cífrala.
+- No hay inicio de sesión: el acceso es el de tu cuenta del equipo y el de tu perfil de Chrome. Quien abra ese perfil puede ver los datos. No hay recuperación de la contraseña de una copia cifrada.
+- Si se borran los datos del sitio, se cambia de perfil o navegador, o se pierde el equipo sin copia, los datos se pierden. Las copias son la única garantía.
+- Todas las pruebas son con datos sintéticos y Chromium sin interfaz. **No se ha probado en Chrome real, con tu volumen de datos real ni con lectores de pantalla.**
+
+**Primeros pasos (para ti):**
+1. Abre `https://danielsanchezbcn.github.io/dashboard-rendimiento/` y pulsa Ctrl+F5.
+2. «Importar»: sube el primer Excel o CSV de VALD, confirma los nombres de jugador y revisa el informe.
+3. «Copias de seguridad» → «Crear copia completa» (activa «Cifrar con contraseña» si la guardas fuera del equipo) y guárdala en un USB o una carpeta sincronizada.
+4. Para comprobar que funciona: restaura esa copia en «Restaurar copia» (leer y validar, marcar la confirmación, restaurar). Haz este ensayo la primera vez con pocos datos.
+5. Crea una copia después de cada sesión de importación; la aplicación te recuerda cuándo toca.
+
+## Fase 7a: D5 (Nordic, RM, Iso-Hold) y regla de masa corporal (versión 7a-0.1.0)
+
+**Regla de masa corporal (decidida el 8/11/2026), para todos los tests y cálculos** (relativos BW/SW, DSI, Iso-Hold, 1RM estimado): se usa la masa corporal **medida más cercana a la fecha**, antes o después, sin ventana. A igual distancia se toma la anterior (elección mía, a confirmar). Si el jugador no tiene ninguna medición, se usa su **peso de referencia**, que se define en la ficha del jugador, en «Antropometría con historial» (kg, g o lb); cualquier medición lo sustituye. Si tampoco hay peso de referencia, el valor no se calcula y se cuenta. La ventana antropométrica queda cerrada: ya no existe.
+
+**Variables nuevas en el catálogo** (versión 5 de la semilla; se añaden solas al abrir la aplicación y no tocan lo que hayas editado):
+- **Nordic Hamstring Exercise:** Max Force (N, izquierda/derecha), Max Force Asymmetry (%, **con signo**) y Torque (Nm, izquierda/derecha). Con esos nombres exactos se aplican ya las referencias Premier del Nordic (la asimetría se compara en valor absoluto, porque la tabla Premier no tiene signo).
+- **RM** (Hamstring Bridge 8RM, Single-Leg Knee Flexion 8RM, Leg Press 8RM doble y a una pierna, RFESS 8RM, Calf Raise de pie 12RM y sentado 6RM): «Carga máxima (kg)», que introduces tú. Sin Personal Average: se muestra la carga máxima y el Personal Best (la mayor carga, con su fecha).
+- **Iso-Hold** (Hip, Knee, Ankle y Seated Calf Raise): «Carga externa (kg)», que introduces tú, y las calculadas MVIC iso-push (kg), %PIMA y %BW (Knee y Ankle) o %SW (Hip y Seated Calf Raise, con el factor de su Iso-Push). Parejas: Hip, Knee y Ankle con su Run-Specific Iso-Push, y Seated Calf Raise Iso-Hold con «Single-Leg Seated Calf Raise». MVIC = media, ponderada por repeticiones y de ambos lados, de (Peak Force ÷ 9,80665 − factor × masa de cada sesión de Iso-Push) con todas las sesiones válidas; %PIMA = carga ÷ MVIC × 100; %BW y %SW usan la masa más cercana a hoy. No dependen de la fecha del Iso-Hold.
+- **1RM estimado (kg)** en el 12RM de talones: (carga + masa) × 1,4. 1,4 coincide con la ecuación de Epley a 12 repeticiones (1 + 12/30); es una inferencia mía, no una fuente que hayas dado, y estas ecuaciones suelen perder precisión con muchas repeticiones (no verificado aquí). Es una estimación, no una medición.
+- **Todas las asimetrías llevan signo** (la app ya lo hacía: positivo si domina la derecha, D25).
+- La carga de los RM y de los Iso-Hold no viene de VALD: se carga con el Excel de importación (una columna por variable) como cualquier otro dato.
+- **Calf Raise sentado:** su variable relativa del catálogo usa SW con factor 0,05 (variante que indicaste el 7/11), así que su Iso-Hold usa %SW con 0,05, no %BW.
 
 ## Comprobación de las fases 3 y 4 (unos 30 minutos)
 
@@ -137,6 +293,10 @@ Pruebas automáticas con datos sintéticos (`prueba-copias.test.mjs`, `prueba-ju
 
 Además, con un Chromium sin interfaz: la actualización real de una base creada con la versión 1c a la 4 (19 tablas, 34 tests visibles), la importación completa de un `.xlsx` real y de un CSV de VALD con el asistente (sesiones guardadas en IndexedDB, una de ellas fusionada); lectura de tus 4 ficheros reales de VALD sin errores, cero infracciones de la política de seguridad y sin desplazamiento horizontal de la página a 375, 768 y 1280 píxeles.
 
+**Fase 5b:** probada con datos sintéticos en Chromium sin interfaz: ida y vuelta jugador ↔ test, modo y jugador de origen conservados con Atrás y recargar, tema claro y oscuro, anchos 375, 768 y 1280 sin desborde, sin mensajes de seguridad. **Sin probar:** Chrome real, volumen real y lectores de pantalla.
+
+**Fase 5a:** probada con datos sintéticos en Chromium sin interfaz (gráficos pintados en tema claro y oscuro, anchos 375, 768 y 1280 sin desborde horizontal, excluir/reincorporar, eliminación bloqueada sin confirmación, sin violaciones de la política de seguridad). **Sin probar:** Chrome real, rendimiento con volumen real y lectores de pantalla (los gráficos llevan texto alternativo y todos los datos están en la tabla).
+
 **No se ha probado todavía en Chrome real**: eso es lo que comprueba la lista anterior. Tampoco se ha probado en Edge.
 
 ## Limitaciones conocidas
@@ -144,8 +304,7 @@ Además, con un Chromium sin interfaz: la actualización real de una base creada
 - Solo hay una copia en un fichero: no existen copias automáticas, porque el navegador exige una acción tuya para escribir en disco.
 - El registro de acciones de una copia no incluye la propia creación de esa copia (se anota después).
 - Si dos mediciones antropométricas están a la misma distancia de una fecha, la selección es ambigua y habrá que elegir una; hoy solo está implementada la función que lo detecta.
-- El importador de VALD conoce los códigos de la lista anterior; ABCMJ, LCMJ y LSJ no se importan hasta saber qué son y cómo guardarlos. Con muchos jugadores nuevos, confirmar cada nombre es largo: es deliberado (nada se vincula en silencio).
-- No hay gráficos ni cálculos de relativos y asimetrías sobre las sesiones todavía (fases 4 y 5).
+- El importador de VALD conoce los códigos de la lista anterior. Con tus 13 CSV reales (8/11/2026) se leen todos sin error; no se importan 8 filas ABCMJ, 1 LCMJ y 1 LSJ (código sin perfil: hasta que me digas qué son y cómo guardarlos) ni 5 filas de Drop Jump con altura de caída 0 cm (4) o 40 cm (1) (el catálogo solo tiene 30 y 45 cm). Cada fila omitida se avisa en pantalla. Con muchos jugadores nuevos, confirmar cada nombre es largo: es deliberado (nada se vincula en silencio).
 - No se puede corregir ni reemplazar una sesión ya guardada: si un valor estaba mal, hoy solo se puede guardar la versión nueva como otra sesión o eliminar los datos sintéticos; la corrección está aplazada.
 - El importador de Excel no admite `.xls` antiguo (guárdalo como `.xlsx`) ni ficheros de más de 25 MB.
 - El orden de manifestaciones y zonas es el de tu lista; todavía no hay flechas para reordenarlas ni para reordenar los tests.

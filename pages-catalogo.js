@@ -183,7 +183,7 @@ function VariableForm({ test, variable, rawVars, data, onDone }) {
   const formula = () => {
     if (kind === 'raw') return null;
     if (!op) return text.trim() ? { op: null, operands: [], params: {}, text } : null;
-    return { op, operands: source === '' ? [] : [Number(source)], params: op === 'REL_SW' ? { factor: Number(factor) } : {}, text };
+    return { op, operands: source === '' ? [] : [Number(source)], params: C.OPERATIONS[op]?.params?.factor ? { factor: Number(factor) } : {}, text };
   };
   const save = run(async () => {
     const common = { name, unit, sides: sides || null, direction: direction || null, manifestationId: man === '' ? null : Number(man) };
@@ -201,9 +201,9 @@ function VariableForm({ test, variable, rawVars, data, onDone }) {
     <label>Manifestación de la variable <select value=${man} onChange=${(e) => setMan(e.target.value)}><option value="">La del test</option>${mans.map((m) => html`<option key=${m.id} value=${m.id}>${m.name}</option>`)}</select></label>
     <label>Tipo <select value=${kind} disabled=${!!v} onChange=${(e) => setKind(e.target.value)}>${Object.entries(C.KINDS).map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select></label>
     ${kind === 'derived' ? html`
-      <label>Operación <select value=${op} onChange=${(e) => setOp(e.target.value)}><option value="">Solo descripción</option>${Object.entries(C.OPERATIONS).map(([k, d]) => html`<option key=${k} value=${k}>${d.label}</option>`)}</select></label>
+      <label>Operación <select value=${op} onChange=${(e) => setOp(e.target.value)}><option value="">Solo descripción</option>${Object.entries(C.OPERATIONS).filter(([k, d]) => !d.system || op === k).map(([k, d]) => html`<option key=${k} value=${k}>${d.label}</option>`)}</select></label>
       ${op ? html`<label>Variable de origen <select value=${source} onChange=${(e) => setSource(e.target.value)}><option value="">Elige…</option>${rawVars.filter((r) => !v || r.id !== v.id).map((r) => html`<option key=${r.id} value=${r.id}>${r.name}</option>`)}</select></label>` : null}
-      ${op === 'REL_SW' ? html`<label>Factor SW <input type="number" step="any" min="0" value=${factor} onInput=${(e) => setFactor(e.target.value)} /></label>` : null}
+      ${C.OPERATIONS[op]?.params?.factor ? html`<label>${op === 'REL_SW' || op === 'ISO_LOAD_SW' ? 'Factor SW' : 'Factor'} <input type="number" step="any" min="0" value=${factor} onInput=${(e) => setFactor(e.target.value)} /></label>` : null}
       ${op ? html`<p class="muted" style="flex-basis:100%">Definición: ${C.OPERATIONS[op].definition}</p>` : null}
       <label>Descripción de la fórmula <input type="text" value=${text} onInput=${(e) => setText(e.target.value)} /></label>
       ${v ? html`<label>Motivo si cambias la fórmula <input type="text" value=${reason} onInput=${(e) => setReason(e.target.value)} /></label>` : null}` : null}
@@ -230,7 +230,7 @@ function VariableRow({ v, test, rawVars, data, history }) {
     <td>${v.direction ? C.DIRECTIONS[v.direction] : ND}</td>
     <td>${manName}</td>
     <td>${v.kind === 'derived'
-      ? html`<strong>${op ? op.label : 'Calculada'}</strong>${src ? ` de «${src}»` : ''}${v.formula?.op === 'REL_SW' ? ` (factor ${v.formula.params.factor})` : ''}${v.formula?.text ? html`<br /><span class="muted">${v.formula.text}</span>` : null}
+      ? html`<strong>${op ? op.label : 'Calculada'}</strong>${src ? ` de «${src}»` : ''}${v.formula?.params?.factor ? ` (factor ${v.formula.params.factor})` : ''}${v.formula?.text ? html`<br /><span class="muted">${v.formula.text}</span>` : null}
         ${op ? html`<br /><span class="muted">${op.definition}</span>` : null}${!v.formula ? html`<br /><span class="muted">Fórmula no definida</span>` : null}
         ${history.length > 1 ? html`<details><summary>Versiones (${history.length})</summary><ul>${history.map((h) => html`<li key=${h.id}>v${h.version} · ${new Date(h.at).toLocaleDateString('es-ES')} · ${h.reason}${h.formula?.params?.factor ? ` · factor ${h.formula.params.factor}` : ''}</li>`)}</ul></details>` : null}`
       : html`Dato de origen`}</td>

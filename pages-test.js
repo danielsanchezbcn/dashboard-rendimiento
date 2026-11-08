@@ -1,0 +1,160 @@
+// pages-test.js — fase 5b: vista de un test para toda la plantilla (RF-02), con navegación de ida y vuelta al jugador (RF-03) y G4 básico.
+import { html } from './libs.js';
+import { useApp } from './context.js';
+import { Card, useLoad } from './componentes.js';
+import { fmtDay } from './fechas.js';
+import { listCatalog, isAsymVariable, asymText, asymSideLetter } from './catalogo.js';
+import { listPositions } from './posiciones.js';
+import { compareTest, MODES } from './comparativa.js';
+import { positionOnDate } from './posiciones.js';
+import { buildHash, replaceQuery } from './rutas.js';
+import { getSetting } from './db.js';
+import { MIN_N_DEFAULT, buildReference, evaluate } from './percentiles.js';
+import { CeldaPercentil } from './pages-percentiles.js';
+import { buildCsv } from './exportar.js';
+import { expandRelative, isViewable, isRelative, relFactor, hasData } from './relativos.js';
+import { pairContext, isIsoDerived } from './isohold.js';
+import { withReferenceWeights } from './relaciones.js';
+import { downloadBlob } from './io.js';
+
+const nf = (n, d = 2) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
+export const Migas = ({ items }) => html`<nav aria-label="Ruta de navegación"><ol class="crumbs">${items.map((it, i) => html`<li key=${i}>${it.href ? html`<a href=${it.href}>${it.label}</a>` : html`<span aria-current="page">${it.label}</span>`}</li>`)}</ol></nav>`;
+
+// Parámetros que se conservan al ir y volver entre jugador y test.
+export const KEEP = (q) => ({ v: q.v, p: q.p, from: q.from, to: q.to, m: q.m, pos: q.pos });
+
+const sideName = { L: 'Izquierda', R: 'Derecha', S: 'Valor' };
+
+// G4 en su forma básica: escala horizontal MIN–MAX de la variable con un marcador por jugador (círculo blanco sin lado; azul «L» y naranja «R» por lado).
+// Sin referencias externas (llegan en la fase 5c). Los mismos datos están en la tabla.
+function EscalaG4({ groups, sides, unit, originId, hrefFor }) {
+  const rows = groups.flatMap((g) => g.rows.map((r) => ({ ...r, gname: g.name, first: r === g.rows[0] })));
+  const vals = rows.flatMap((r) => sides.map((s) => r.cells[s]?.value).filter((v) => v != null));
+  if (!vals.length) return null;
+  const min = Math.min(...vals), max = Math.max(...vals), span = max - min || 1;
+  const W = 640, left = 150, right = 20, rowH = 22, top = 24;
+  const x = (v) => left + ((v - min) / span) * (W - left - right);
+  let y = top, out = [];
+  let lastGroup = null;
+  for (const r of rows) {
+    if (r.gname !== lastGroup) { out.push(html`<text key=${'g' + r.gname + y} x="4" y=${y + 10} class="gname">${r.gname}</text>`); y += 24; lastGroup = r.gname; }
+    out.push(html`<g key=${'r' + r.playerId + '-' + y + r.date}><a href=${hrefFor(r.playerId)}>
+      <text x="4" y=${y + 4} font-weight=${r.playerId === originId ? 700 : 400}>${r.playerName.length > 20 ? r.playerName.slice(0, 19) + '…' : r.playerName}</text>
+      <line x1=${left} x2=${W - right} y1=${y} y2=${y} class="axis" />
+      ${sides.map((s) => r.cells[s]?.value == null ? null : html`<g key=${s}><title>${r.playerName} · ${sideName[s]} ${nf(r.cells[s].value)} ${unit ?? ''}${r.cells[s].date ? ` (${fmtDay(r.cells[s].date)})` : ''}</title>
+        <circle cx=${x(r.cells[s].value)} cy=${y} r="8" fill=${s === 'L' ? 'var(--side-l)' : s === 'R' ? 'var(--side-r)' : 'var(--surface)'} stroke=${s === 'S' ? 'var(--text)' : 'none'} stroke-width="1.5" />
+        ${s === 'S' ? null : html`<text x=${x(r.cells[s].value)} y=${y + 3} text-anchor="middle" style="fill:var(--side-text);font-size:9px;font-weight:700">${s}</text>`}</g>`)}
+    </a></g>`);
+    y += rowH;
+  }
+  const H = y + 26;
+  return html`<section><h3>Escala de la variable (forma básica de G4)</h3>
+    <svg class="scale" viewBox=${`0 0 ${W} ${H}`} width="100%" role="img" aria-label=${`Escala de ${nf(min)} a ${nf(max)} ${unit ?? ''} con un marcador por jugador; los mismos datos están en la tabla`}>
+      ${out}
+      <text x=${left} y=${H - 6} text-anchor="start">${nf(min)} ${unit ?? ''}</text><text x=${W - right} y=${H - 6} text-anchor="end">${nf(max)} ${unit ?? ''}</text>
+    </svg>
+    <p class="muted">Sin referencias externas (percentiles y «La Liga» llegan en la fase 5c). Cada marcador abre el jugador en este test.</p></section>`;
+}
+
+export function NotaRelativa({ variable, omitted = {}, catalog }) {
+  if (isIsoDerived(variable)) {
+    const n = omitted[variable.id] ?? 0;
+    const op = variable.formula.op;
+    const txt = { ISO_MVIC: 'MVIC iso-push: media, ponderada por repeticiones y de ambos lados, de (Peak Force del Iso-Push emparejado ÷ 9,80665 − factor × masa de cada sesión de Iso-Push), con todas las sesiones válidas.', ISO_PIMA: '%PIMA: carga externa ÷ MVIC iso-push × 100.', ISO_LOAD_BW: '%BW: carga externa ÷ masa corporal × 100, con la masa medida más cercana a hoy.', ISO_LOAD_SW: `%SW: carga externa ÷ (${String(variable.formula.params?.factor ?? '').replace('.', ',')} × masa corporal) × 100, con la masa medida más cercana a hoy.`, RM_EST: `1RM estimado: (carga + masa corporal) × ${String(variable.formula.params?.factor ?? '').replace('.', ',')}; estimado, no medido. La masa es la medida más cercana a la fecha de la sesión.` }[op];
+    return html`<p class="muted">Variable <strong>calculada</strong> al vuelo (no se guarda). ${txt} Sin medición de masa ni peso de referencia no se calcula${n ? `: ${n} sesión(es) o jugador(es) sin valor por ese motivo` : ''}.</p>`;
+  }
+  if (!isRelative(variable)) return null;
+  const f = relFactor(variable);
+  const raw = catalog.variables.find((v) => v.id === variable.formula.operands[0]);
+  const n = omitted[variable.id] ?? 0;
+  return html`<p class="muted">Valor <strong>relativo</strong> (${variable.unit}): ${raw?.name ?? 'fuerza'} del lado (N) ÷ (${f !== 1 ? `${String(f).replace('.', ',')} × ` : ''}masa corporal (kg) × 9,80665). La masa es la masa corporal medida más cercana a la fecha de cada sesión (antes o después), o el peso de referencia del jugador si no tiene ninguna medición. El valor absoluto está en la variable «${raw?.name ?? 'absoluta'}».${n ? html` <span class="status warn">${n} sesión(es) sin ninguna masa medida ni peso de referencia no tienen valor relativo y no cuentan aquí.</span>` : null}</p>`;
+}
+
+export function VistaTest({ id, query = {} }) {
+  const { db, version } = useApp();
+  const { data, error } = useLoad(async () => {
+    const test = await db.tests.get(id);
+    if (!test) return { missing: true };
+    const [catalog, raw, players, records, positions, mn, anthropometry] = await Promise.all([listCatalog(db), db.sessions.where('testId').equals(id).toArray(), db.players.toArray(), db.playerPositions.toArray(), listPositions(db), getSetting(db, 'percentileMinN'), db.anthropometry.toArray()]);
+    const { sessions, omitted } = expandRelative(catalog.variables, id, raw, withReferenceWeights(anthropometry, players), await pairContext(db, catalog.tests, test));
+    return { test, catalog, sessions, omitted, players, records, positions, minN: Number.isInteger(mn) && mn >= 1 ? mn : MIN_N_DEFAULT };
+  }, [db, id, version]);
+  if (error) return html`<p class="status fail">${error}</p>`;
+  if (!data) return html`<p>Cargando…</p>`;
+  if (data.missing) return html`<p>El test no existe. <a href="#fuerza">Volver</a></p>`;
+  const { test, catalog, sessions, omitted, players, records, positions, minN } = data;
+  const path = `test-${id}`;
+  const set = (patch) => replaceQuery(path, { ...query, ...patch });
+  const vars = catalog.variables.filter((v) => v.testId === id && isViewable(v) && hasData(v, sessions));
+  const variable = vars.find((v) => String(v.id) === String(query.v)) ?? vars[0];
+  const protocols = catalog.protocols.filter((p) => p.testId === id);
+  const mode = MODES.some(([k]) => k === query.m) ? query.m : 'pa';
+  const proto = query.p ?? 'all';
+  const protocolId = proto === 'all' ? undefined : proto === 'none' ? null : Number(proto);
+  const sort = ['player', 'value', 'date'].includes(query.s) ? query.s : 'player';
+  const originId = query.j ? Number(query.j) : null;
+  const origin = originId ? players.find((p) => p.id === originId) : null;
+  const playersById = Object.fromEntries(players.map((p) => [p.id, p]));
+  const histories = {}; for (const r of records) (histories[r.playerId] ??= []).push(r);
+  const backLink = (pid) => buildHash(`jugador-${pid}`, { ...KEEP(query), t: id, v: variable?.id, b: 'fuerza' });
+  const crumbs = [{ label: 'Jugadores', href: '#jugadores' }, ...(origin ? [{ label: origin.jerseyName, href: backLink(origin.id) }] : []), { label: `${test.name} · todos los jugadores` }];
+  if (!variable) return html`<${Card} titulo=${test.name}><${Migas} items=${crumbs} /><p class="muted">Ningún jugador tiene sesiones válidas de este test con variables que mostrar.</p><//>`;
+  // Filtro de posición (la posición única del jugador): 'all', 'none' (sin posición) o el id de una posición.
+  const posQ = query.pos ?? 'all';
+  const posOfPlayer = (pid) => positionOnDate(histories[pid] ?? []).principal?.positionId ?? null;
+  const posOk = (pid) => posQ === 'all' || (posQ === 'none' ? posOfPlayer(pid) === null : posOfPlayer(pid) === Number(posQ));
+  const inRange = (s) => (protocolId === undefined || (s.protocolId ?? null) === protocolId) && (!query.from || s.date >= query.from) && (!query.to || s.date <= query.to);
+  const excluded = query.ex === '1' ? sessions.filter((s) => s.status === 'excluded' && s.values?.[variable.id] && posOk(s.playerId) && inRange(s)).sort((a, b) => b.date.localeCompare(a.date)) : [];
+  const res = compareTest({ sessions: sessions.filter((s) => posOk(s.playerId)), variable, players: playersById, histories, positions, mode, protocolId, from: query.from || null, to: query.to || null, sort });
+  const lr = res.sides.length === 2;
+  // Percentil frente a La Liga (todas las posiciones) solo en los modos que definen un percentil: Personal Average y Última sesión (guía).
+  const pctOn = mode === 'pa' || mode === 'last';
+  const refs = pctOn ? Object.fromEntries(res.sides.map((sd) => [sd, buildReference({ sessions, variable, side: sd, players: playersById, histories, basis: mode, protocolId, from: query.from || null, to: query.to || null })])) : null;
+  const pctOf = (r, sd) => (refs && r.cells[sd]?.value != null ? evaluate(refs[sd], { playerId: r.playerId, value: r.cells[sd].value, direction: variable.direction, minN }) : null);
+  const unit = variable.unit ? ` ${variable.unit}` : '';
+  const cell = (c) => (c == null ? html`<span class="muted">—</span>` : c.value === null ? html`<span class="muted" title=${c.reason}>no definido</span>` : html`${isAsymVariable(variable) ? asymText(c.value) : html`${nf(c.value)}${unit}`}${mode === 'pa' ? html`<small class="cell-date">${fmtDay(c.from)} a ${fmtDay(c.date)}</small>` : c.date ? html`<small class="cell-date">${fmtDay(c.date)}</small>` : null}`);
+  const repsOf = (r) => res.sides.map((s) => r.cells[s]).filter(Boolean).map((c) => (c.sessions ? `${c.sessions} ses.${c.reps != null ? `, ${c.reps} rep.` : ''}` : c.reps ?? '—')).join(' / ');
+  const hrefFor = (pid) => buildHash(`jugador-${pid}`, { ...KEEP({ ...query, m: mode }), t: id, v: variable.id, b: 'fuerza', from: query.from, to: query.to });
+  const exportCsv = () => {
+    const header = ['Posición', 'Jugador', ...res.sides.map((s) => `${sideName[s]}${variable.unit ? ` (${variable.unit})` : ''}`), ...(lr ? ['Asimetría (%)', 'Lado con el valor más alto'] : []), ...(pctOn ? res.sides.map((s) => `Percentil ${sideName[s].toLowerCase()} (La Liga)`) : []), 'Desde', 'Hasta', 'Sesiones', 'Repeticiones'];
+    const rows = res.groups.flatMap((g) => g.rows.map((r) => {
+      const cs = res.sides.map((s) => r.cells[s]).filter(Boolean);
+      return [g.name, r.playerName, ...res.sides.map((s) => r.cells[s]?.value ?? ''), ...(lr ? [r.asym == null ? '' : Math.abs(r.asym), asymSideLetter(r.asym)] : []),
+        ...(pctOn ? res.sides.map((s) => { const e = pctOf(r, s); return e?.sufficient ? e.percentileStat ?? '' : ''; }) : []),
+        cs[0]?.from ?? cs[0]?.date ?? '', cs[0]?.to ?? cs[0]?.date ?? '', cs[0]?.sessions ?? '', cs.map((c) => c.reps ?? '').join(' / ')];
+    }));
+    const slug = (s) => String(s).normalize('NFD').replace(/\p{M}/gu, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
+    downloadBlob(new Blob([buildCsv(header, rows)], { type: 'text/csv;charset=utf-8' }), `${slug(test.name)}_${slug(variable.name)}_${mode}.csv`);
+  };
+  return html`<${Card} titulo=${`${test.name} · todos los jugadores`}>
+    <${Migas} items=${crumbs} />
+    <div class="filters">
+      <label>Variable <select value=${variable.id} onChange=${(e) => set({ v: e.target.value })}>${vars.map((v) => html`<option key=${v.id} value=${v.id}>${v.name}${v.unit ? ` (${v.unit})` : ''}${v.sides === 'LR' ? ' · I/D' : ''}</option>`)}</select></label>
+      ${protocols.length ? html`<label>Protocolo <select value=${proto} onChange=${(e) => set({ p: e.target.value })}><option value="all">Todos</option><option value="none">Sin protocolo</option>${protocols.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label>` : null}
+      <label>Posición <select value=${posQ} onChange=${(e) => set({ pos: e.target.value })}><option value="all">Todas</option><option value="none">Sin posición</option>${positions.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label>
+      <label>Desde <input type="date" value=${query.from ?? ''} onInput=${(e) => set({ from: e.target.value })} /></label>
+      <label>Hasta <input type="date" value=${query.to ?? ''} onInput=${(e) => set({ to: e.target.value })} /></label>
+      <label>Ordenar por <select value=${sort} onChange=${(e) => set({ s: e.target.value })}><option value="player">Jugador</option><option value="value">Valor (el mejor primero)</option><option value="date">Fecha (la más reciente primero)</option></select></label>
+    </div>
+    <${NotaRelativa} variable=${variable} omitted=${omitted} catalog=${catalog} />
+    <label class="check"><input type="checkbox" checked=${query.ex === '1'} onChange=${(e) => set({ ex: e.target.checked ? '1' : undefined })} /> Mostrar también las sesiones excluidas (solo informativas: no entran en ningún cálculo)</label>
+    <fieldset class="modes"><legend>Valor mostrado</legend>${MODES.map(([k, n]) => html`<label class="check" key=${k}><input type="radio" name="modo" checked=${mode === k} onChange=${() => set({ m: k })} /> ${n}</label>`)}</fieldset>
+    ${mode === 'pa' ? html`<p class="muted">Personal Average: media de las sesiones válidas ponderada por repeticiones.</p>` : null}
+    ${mode === 'pb' && variable.direction !== 'higher' && variable.direction !== 'lower' ? html`<p class="status warn">Esta variable no tiene una dirección que permita definir el Personal Best (${variable.direction === 'target' ? 'rango objetivo, D23' : 'defínela en el catálogo'}).</p>` : null}
+    <p>${res.players} jugador(es) con datos · ${res.rows} fila(s). Las sesiones excluidas no aparecen. <button type="button" class="secondary" disabled=${!res.rows} onClick=${exportCsv}>Exportar CSV</button></p>
+    ${!res.rows ? html`<p class="muted">Sin datos para estos filtros.</p>` : res.groups.map((g) => html`<div class="table-wrap" key=${g.key}><table><caption>${g.name}</caption>
+      <thead><tr><th>Jugador</th>${res.sides.map((s) => html`<th key=${s} class="num">${sideName[s]}${variable.unit ? ` (${variable.unit})` : ''}</th>`)}${lr ? html`<th class="num" title="|derecha − izquierda| ÷ máx × 100 y la letra del lado con el valor más alto (como VALD), con los dos valores mostrados">Asimetría</th>` : null}${pctOn ? res.sides.map((s) => html`<th key=${'p' + s}>Percentil${lr ? ` ${sideName[s].toLowerCase()}` : ''} (La Liga)</th>`) : null}<th>Repeticiones</th></tr></thead>
+      <tbody>${g.rows.map((r, i) => html`<tr key=${i} class=${r.playerId === originId ? 'origin' : ''}>
+        <th scope="row"><a href=${hrefFor(r.playerId)}>${r.playerName}</a>${r.playerId === originId ? html` <span class="muted">(origen)</span>` : ''}${r.multi ? html`<small class="cell-date">ocupó varias posiciones</small>` : ''}</th>
+        ${res.sides.map((s) => html`<td key=${s} class="num"><a href=${hrefFor(r.playerId)}>${cell(r.cells[s])}</a></td>`)}
+        ${lr ? html`<td class="num">${r.asym == null ? '—' : asymText(r.asym)}</td>` : null}
+        ${pctOn ? res.sides.map((s) => html`<td key=${'p' + s}><${CeldaPercentil} ev=${pctOf(r, s)} /></td>`) : null}
+        <td>${repsOf(r)}</td></tr>`)}</tbody></table></div>`)}
+    ${query.ex === '1' ? (excluded.length ? html`<div class="table-wrap"><table><caption>Sesiones excluidas (no cuentan en la tabla anterior ni en percentiles)</caption>
+      <thead><tr><th>Jugador</th><th>Fecha</th>${res.sides.map((s) => html`<th key=${s} class="num">${sideName[s]}</th>`)}<th>Motivo</th></tr></thead>
+      <tbody>${excluded.map((s) => html`<tr key=${s.id} class="excluded"><th scope="row">${playersById[s.playerId]?.jerseyName ?? '—'}</th><td>${fmtDay(s.date)}</td>${res.sides.map((sd) => html`<td key=${sd} class="num">${isAsymVariable(variable) ? asymText(s.values[variable.id]?.[sd]) : html`${nf(s.values[variable.id]?.[sd])}${unit}`}</td>`)}<td>${s.excludedReason || '—'}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">No hay sesiones excluidas con estos filtros.</p>`) : null}
+    ${pctOn ? html`<p class="muted">Percentil de rendimiento frente a «La Liga» (todas las posiciones; sin datos sintéticos ni el propio jugador; mínimo ${minN} jugadores; rango medio). Solo en Personal Average y Última sesión.</p>` : null}
+    ${lr ? html`<p class="muted">Asimetría como en VALD: |D − I| ÷ máx × 100, con la letra del lado que tiene el valor más alto (L izquierda, R derecha); calculada con los dos valores que se ven en la fila.</p>` : null}
+    <${EscalaG4} groups=${res.groups} sides=${res.sides} unit=${variable.unit} originId=${originId} hrefFor=${hrefFor} />
+  <//>`;
+}

@@ -57,30 +57,30 @@ export function PosicionesCard() {
 
 // ---------- Ventana antropométrica ----------
 
-export function VentanaCard() {
+// ---------- Muestra mínima para percentiles (D52) ----------
+
+export function PercentilCard() {
   const { db, version, bump } = useApp();
   const [input, setInput] = useState(null);
-  const { msg, setMsg, run } = useRunner();
-  const { data: days } = useLoad(async () => (await getSetting(db, 'anthropometryWindowDays')) ?? null, [db, version]);
-  const shown = input ?? (days != null ? String(days) : '');
+  const { msg, setMsg } = useRunner();
+  const { data: saved } = useLoad(async () => (await getSetting(db, 'percentileMinN')) ?? null, [db, version]);
+  const cur = Number.isInteger(saved) && saved >= 1 ? saved : 10;
+  const shown = input ?? String(cur);
   const save = async (e) => {
     e.preventDefault();
     const n = Number(shown);
-    if (shown === '' || !Number.isInteger(n) || n < 0 || n > 3650) return setMsg({ level: 'fail', text: 'Introduce un número entero de días entre 0 y 3650.' });
-    await setSetting(db, 'anthropometryWindowDays', n);
+    if (!Number.isInteger(n) || n < 1 || n > 1000) return setMsg({ level: 'fail', text: 'Introduce un número entero de jugadores entre 1 y 1000.' });
+    await setSetting(db, 'percentileMinN', n);
     setInput(null);
-    setMsg({ level: 'ok', text: `ventana de ${n} días guardada.` });
+    setMsg({ level: 'ok', text: `mínimo de ${n} jugadores guardado.` });
     bump();
   };
   return html`
-    <${Card} titulo="Ventana antropométrica">
-      <p>Días máximos entre la fecha de un test y la medición antropométrica que se usa para valores relativos. ${days != null ? `Ahora: ${days} días.` : 'Sin definir: mientras no la definas, los valores relativos figurarán como no disponibles (no se usa «la última medición» sin límite).'}</p>
+    <${Card} titulo="Muestra mínima para percentiles">
+      <p>Número mínimo de jugadores en la referencia de «La Liga» para mostrar un percentil como clasificación y colorearlo. Con menos jugadores se muestra «muestra insuficiente» con el N, sin color. Ahora: <strong>${cur}</strong> (10 por decisión del usuario). Un N pequeño da percentiles poco estables.</p>
       <form class="fields" onSubmit=${save}>
-        <label>Días <input type="number" min="0" max="3650" value=${shown} onInput=${(e) => setInput(e.target.value)} /></label>
-        <div class="actions">
-          <button type="submit">Guardar</button>
-          <button type="button" class="secondary" disabled=${days == null} onClick=${run(async () => { await clearSetting(db, 'anthropometryWindowDays'); setInput(null); bump(); }, 'ventana eliminada: sin definir.')}>Quitar</button>
-        </div>
+        <label>Jugadores <input type="number" min="1" max="1000" value=${shown} onInput=${(e) => setInput(e.target.value)} /></label>
+        <div class="actions"><button type="submit">Guardar</button></div>
       </form>
       <${Msg} msg=${msg} />
     <//>`;

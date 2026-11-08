@@ -373,7 +373,8 @@ export async function findBatchByHash(db, hash) {
 
 // Informe descargable (CSV). No contiene valores de datos; sí números de fila y mensajes.
 export function reportCsv(batch) {
-  const q = (s) => `"${String(s ?? '').replace(/"/g, '""')}"`;
+  // Neutraliza fórmulas (= + - @): el informe incluye nombres y ficheros que vienen del Excel importado y se abrirá en Excel.
+  const q = (s) => { let x = String(s ?? ''); if (/^[=+\-@\t\r]/.test(x)) x = "'" + x; return `"${x.replace(/"/g, '""')}"`; };
   const lines = [['Apartado', 'Fila(s)', 'Detalle'].map(q).join(',')];
   const add = (a, r, d) => lines.push([a, r, d].map(q).join(','));
   add('Fichero', '', `${batch.fileName} · hoja ${batch.sheet} · importación del ${batch.createdAt}`);

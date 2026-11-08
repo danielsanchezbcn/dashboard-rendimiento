@@ -4,7 +4,7 @@
 // Nada se vincula en silencio: cada nombre que ya coincide con un jugador existente se propone, no se aplica sin confirmar.
 
 import { normalizeName, findCandidates, createPlayer, addAlias } from './jugadores.js';
-import { listPositions, createPosition, setMainPositionFrom, playerHistory } from './posiciones.js';
+import { listPositions, createPosition, setMainPosition, playerHistory } from './posiciones.js';
 import { audit } from './db.js';
 
 export const ATLETAS_SOURCE = 'VALD';
@@ -62,8 +62,8 @@ export async function planAthletes(db, rows) {
 }
 
 // decisions[nombre] = { action:'link', playerId } | { action:'new' } | { action:'skip' }
-// positionMap[posiciónVALD] = { positionId } | { create:true } | null ; fromDate = AAAA-MM-DD (solo si hay posiciones asignadas)
-export async function commitAthletes(db, { rows, decisions, positionMap = {}, fromDate = null }) {
+// positionMap[posiciónVALD] = { positionId } | { create:true } | null (la posición no lleva fecha)
+export async function commitAthletes(db, { rows, decisions, positionMap = {} }) {
   const counts = { jugadoresNuevos: 0, vinculados: 0, aliasAnadidos: 0, aliasYaExistian: 0, omitidos: 0, posicionesAsignadas: 0, posicionesYaTenian: 0, posicionesCreadas: 0, errores: 0 };
   const created = new Map();
   const posIds = new Map();
@@ -83,10 +83,10 @@ export async function commitAthletes(db, { rows, decisions, positionMap = {}, fr
       else { playerId = d.playerId; counts.vinculados++; }
       try { await addAlias(db, playerId, ATLETAS_SOURCE, r.name); counts.aliasAnadidos++; }
       catch (e) { if (/ya existe para este jugador/.test(e.message)) counts.aliasYaExistian++; else throw e; }
-      if (r.position && posIds.has(r.position) && fromDate) {
+      if (r.position && posIds.has(r.position)) {
         const hist = (await playerHistory(db, playerId)).filter((h) => h.role === 'principal');
         if (hist.length) counts.posicionesYaTenian++; // nunca se pisa una posición ya registrada
-        else { await setMainPositionFrom(db, playerId, posIds.get(r.position), fromDate); counts.posicionesAsignadas++; }
+        else { await setMainPosition(db, playerId, posIds.get(r.position)); counts.posicionesAsignadas++; }
       }
     } catch (e) { counts.errores++; }
   }
