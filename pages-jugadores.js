@@ -9,6 +9,7 @@ import { totalOf, countSynthetic } from './sinteticos.js';
 import { ResultadosJugador } from './pages-evolucion.js';
 import { RelacionesPanel } from './pages-relaciones.js';
 import { RadarPanel } from './pages-radar.js';
+import { FvPanel } from './pages-fv.js';
 
 const posName = (positions, id) => positions.find((p) => p.id === id)?.name ?? '(posición eliminada)';
 
@@ -252,6 +253,7 @@ export function PerfilJugador({ id, query = {} }) {
     <${Antropometria} key=${'a' + player.id} player=${player} records=${data.records} />
     <${ResultadosJugador} key=${'r' + player.id} player=${player} query=${query} />
     <${RadarPanel} key=${'radar' + player.id} player=${player} />
+    <${FvPanel} key=${'fv' + player.id} player=${player} />
     <${RelacionesPanel} key=${'rel' + player.id} player=${player} />
   `;
 }

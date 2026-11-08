@@ -28,7 +28,7 @@ check('normalizar: vacío no coincide con nada', J.compareNames('', '').sameKey 
 // ---- Jugadores y alias
 {
   const db = await fresh();
-  check('esquema 5 con 20 tablas', db.verno === 5 && db.tables.length === 20);
+  check('esquema 6 con 21 tablas', db.verno === 6 && db.tables.length === 21);
   check('jugador: nombre obligatorio', (await rejects(() => J.createPlayer(db, { jerseyName: '  ' }))) === 'El nombre en camiseta es obligatorio.');
   const a = await J.createPlayer(db, { jerseyName: ' Jugador  Uno ' });
   check('jugador: nombre limpio y activo', (await db.players.get(a)).jerseyName === 'Jugador Uno' && (await db.players.get(a)).active === true);
@@ -201,15 +201,15 @@ function totalZero(c) { return Object.values(c).every((v) => v === 0); }
   v1.close();
   const db = D.createDb('upg');
   await D.initDb(db);
-  check('migración 1→5: se conservan los datos y aparecen tablas vacías', db.verno === 5 && (await D.getSetting(db, 'backupReminderDays')) === 14 && (await db.auditLog.count()) === 1 && (await D.getLocal(db, 'lastBackup')).at === 'x' && (await db.players.count()) === 0);
+  check('migración 1→6: se conservan los datos y aparecen tablas vacías', db.verno === 6 && (await D.getSetting(db, 'backupReminderDays')) === 14 && (await db.auditLog.count()) === 1 && (await D.getLocal(db, 'lastBackup')).at === 'x' && (await db.players.count()) === 0);
   const v = await B.validateBackup(db, oldCopy);
-  check('copia del esquema 1 en base del esquema 4: válida con un aviso por tabla nueva', v.ok && v.warnings.length === 16 && v.warnings.every((w) => w.includes('versión anterior')));
+  check('copia del esquema 1 en base del esquema actual: válida con un aviso por tabla nueva', v.ok && v.warnings.length === 17 && v.warnings.every((w) => w.includes('versión anterior')));
   const j = await J.createPlayer(db, { jerseyName: 'Se perderá al restaurar' });
   await B.restoreBackup(db, oldCopy);
   check('restaurar copia del esquema 1: tablas nuevas vacías y datos antiguos recuperados', (await db.players.count()) === 0 && (await D.getSetting(db, 'backupReminderDays')) === 14 && j > 0);
   const newCopy = await B.buildBackup(db, D.APP_VERSION);
   const v1again = D.createDb('upg-v1only');
-  check('copia del esquema 5 contiene schemaVersion 5', newCopy.schemaVersion === 5 && v1again.verno === 5);
+  check('copia del esquema 5 contiene schemaVersion 5', newCopy.schemaVersion === 6 && v1again.verno === 6);
 }
 
 // ---- Volumen realista (4 temporadas: ~55 jugadores) y copia/restauración con todas las tablas

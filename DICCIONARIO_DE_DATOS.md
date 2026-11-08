@@ -14,6 +14,7 @@ Base de datos local: `dashboard-rendimiento` (IndexedDB), **esquema versión 4**
 | `playerAliases` | `id` (autonumérica) | `playerId`, `source`, `normalizedKey`, `synthetic` | Sí | Alias de cada jugador por fuente |
 | `positions` | `id` (autonumérica) | `name`, `order`, `synthetic` | Sí | Lista de posiciones definida por el usuario |
 | `targets` | `id` (autonumérica) | `variableId`, `playerId`, `positionId`, `synthetic` | Sí | Targets (D15): individual (jugador + variable) o por defecto de una posición (posición + variable); `values` = `{L,R,S}`, `note`, `source`, `definedAt`, `updatedAt` (esquema 5) |
+| `fvProfiles` | `id` (autonumérica) | `playerId`, `date`, `synthetic` | Sí | Perfiles carga-velocidad (G6, esquema 6): `playerId`, `date`, `exercise` (texto libre), `fdmVelocity` (m/s, 0,33 por defecto), `points` [{`load` kg, `velocity` m/s}] (3 a 12, cargas distintas), `source` (`manual` o `Excel`), `createdAt`, `correctedAt`. Fo, Vo, pendiente, FDM y potencia se calculan al vuelo, no se guardan |
 | `playerPositions` | `id` (autonumérica) | `playerId`, `positionId`, `validFrom`, `synthetic` | Sí | Historial de posiciones de cada jugador |
 | `anthropometry` | `id` (autonumérica) | `playerId`, `date`, `synthetic` | Sí | Mediciones antropométricas fechadas |
 | `blocks` | `key` | `order` | Sí | Bloques principales: `fuerza`, `perimetros`, `nme` |
@@ -278,3 +279,7 @@ Variables, unidades y fórmulas de los tests que no son Iso-Push, CMJ, SL CMJ, S
 
 
 **Añadidos de la versión 7d (sin cambio de esquema):** las sesiones corregidas llevan `correctedAt` (fecha ISO de la última corrección); las sesiones de alta manual llevan `source: 'manual'`, `reps: {}` y `protocolId: null`; el ajuste `radarConfig` (tabla `settings`) guarda `{ test, variables: [nombres en orden] }`.
+
+**Versión 7e (esquema 6):** tabla `fvProfiles` (arriba) y ajuste `fvReference` en `settings` (puntos de la línea Balanced: [{`load`, `velocity`}]; sin ajuste se usa la del Excel del usuario).
+
+**Versión 7g (sin cambio de esquema):** ajuste `quadrantCuts` en `settings` = { `dsi`, `eur` } (valores fijos de los cortes de los cuadrantes; vacío o ausente = mediana de La Liga).

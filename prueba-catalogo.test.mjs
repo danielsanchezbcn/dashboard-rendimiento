@@ -33,7 +33,7 @@ check('datos que faltan o inválidos devuelven null, nunca 0', C.asymmetryPct(nu
 // ---- Esquema y catálogo inicial
 {
   const db = await fresh(false);
-  check('esquema 5 con 20 tablas', db.verno === 5 && db.tables.length === 20);
+  check('esquema 6 con 21 tablas', db.verno === 6 && db.tables.length === 21);
   check('antes de sembrar no hay catálogo', (await db.tests.count()) === 0 && (await db.manifestations.count()) === 0);
   const r = await I.seedInitialCatalog(db);
   check('siembra: 34 tests y 127 variables (100 + 14 de carga/Nordic + 13 calculadas de Iso-Hold y 1RM)', r.sembrado && r.tests === 34 && r.variables === 127, JSON.stringify(r));
@@ -197,7 +197,7 @@ check('migración: alinea la unidad escrita a mano con la definitiva y lo deja e
   const m = (await db.manifestations.toArray())[0].id;
   const t = await C.createTest(db, { name: 'Test del usuario', manifestationId: m });
   const backup = await B.buildBackup(db, D.APP_VERSION);
-  check('la copia incluye las tablas del catálogo', ['blocks', 'manifestations', 'zones', 'tests', 'protocols', 'variables', 'formulaHistory'].every((k) => k in backup.tables) && backup.schemaVersion === 5);
+  check('la copia incluye las tablas del catálogo', ['blocks', 'manifestations', 'zones', 'tests', 'protocols', 'variables', 'formulaHistory'].every((k) => k in backup.tables) && backup.schemaVersion === 6);
   await db.tests.delete(t);
   await db.tests.add({ name: 'Basura', blockKey: 'fuerza', manifestationId: m, zoneId: null, archived: false, order: 999 });
   const val = await B.validateBackup(db, backup);

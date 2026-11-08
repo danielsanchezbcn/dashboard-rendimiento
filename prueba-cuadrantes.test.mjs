@@ -1,0 +1,18 @@
+import { quadrantCuts, quadrantOf } from './relaciones.js';
+let fail = 0; const check = (n, ok, d = '') => { console.log((ok ? 'OK   ' : 'FAIL ') + n + (ok ? '' : ' ' + d)); if (!ok) fail = 1; };
+const others = Array.from({ length: 12 }, (_, i) => ({ playerId: i + 1, L: 1 + i * 0.1, R: 1.05 + i * 0.1, eur: 1.0 + i * 0.01 }));
+let c = quadrantCuts({ others, minN: 10 });
+check('corte EUR = mediana de 12 valores', Math.abs(c.eur.value - 1.055) < 1e-9 && c.eur.source === 'mediana' && c.eur.n === 12);
+const all = others.flatMap((o) => [o.L, o.R]).sort((a, b) => a - b); const med = (all[11] + all[12]) / 2;
+check('corte DSI = mediana de los 24 valores (I y D juntos)', Math.abs(c.dsi.value - med) < 1e-9 && c.dsi.n === 12, String(c.dsi.value));
+c = quadrantCuts({ others: others.slice(0, 5), minN: 10 });
+check('muestra insuficiente (N = 5 < 10): sin corte automático', c.eur.value === null && c.dsi.value === null);
+c = quadrantCuts({ others: others.slice(0, 5), fixed: { dsi: 1.2, eur: 1.05 }, minN: 10 });
+check('valores fijos del usuario valen aunque la muestra sea pequeña', c.dsi.value === 1.2 && c.dsi.source === 'fijo' && c.eur.value === 1.05);
+c = quadrantCuts({ others, fixed: { dsi: -3, eur: 'x' }, minN: 10 });
+check('valores fijos inválidos (≤ 0 o no numéricos) se ignoran: vuelve la mediana', c.dsi.source === 'mediana' && c.eur.source === 'mediana');
+const cu = quadrantCuts({ others, fixed: { dsi: 1.5, eur: 1.05 }, minN: 10 });
+check('cuadrante: por encima y por debajo', quadrantOf(1.6, 1.0, cu).dsiHigh === true && quadrantOf(1.6, 1.0, cu).eurHigh === false && /por debajo del valor fijado/.test(quadrantOf(1.6, 1.0, cu).text));
+check('sin zona neutra: igual al corte cuenta como por encima', quadrantOf(1.5, 1.05, cu).dsiHigh === true && quadrantOf(1.5, 1.05, cu).eurHigh === true);
+check('sin dato o sin corte → null', quadrantOf(null, 1, cu) === null && quadrantOf(1, 1, quadrantCuts({ others: [], minN: 10 })) === null);
+process.exit(fail);

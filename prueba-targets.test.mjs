@@ -11,7 +11,7 @@ const vS = await db.variables.add({ testId: 1, name: 'Contact', unit: 'ms', side
 const vR = await db.variables.add({ testId: 1, name: 'Rango', unit: '', sides: 'single', direction: 'range' });
 const p1 = await db.players.add({ jerseyName: 'A' }); const p2 = await db.players.add({ jerseyName: 'S', synthetic: 1 });
 const pos = await db.positions.add({ name: 'Defensa', order: 1, active: true });
-check('esquema 5 con tabla targets', db.verno === 5 && db.tables.some((t) => t.name === 'targets'));
+check('esquema 6 con tabla targets', db.verno === 6 && db.tables.some((t) => t.name === 'targets'));
 await setTarget(db, { scope: 'position', positionId: pos, variableId: vLR, values: { L: 2000, R: 2000 }, note: 'por defecto' });
 let T = await listTargets(db);
 check('target por posición creado', T.length === 1 && T[0].scope === 'position' && T[0].values.L === 2000);

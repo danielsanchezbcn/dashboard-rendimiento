@@ -3,7 +3,7 @@
 // Los ratios son orientativos y no tienen unidad. No se inventa nada: sin datos suficientes devuelven «no definido» con el motivo.
 
 import { buildSeries, personalAverage, personalBest } from './evolucion.js';
-import { evaluate, MIN_N_DEFAULT } from './percentiles.js';
+import { evaluate, median, MIN_N_DEFAULT } from './percentiles.js';
 import { daysBetween } from './fechas.js';
 
 export const G = 9.80665;
@@ -121,4 +121,35 @@ export function ratioReferences({ loc, sessions, anthropometry, players, playerI
   const mine = relationsFor({ loc, sessions, anthropometry, playerId });
   const ev = (e, v) => (v.defined ? evaluate(e, { playerId, value: v.value, direction: null, minN }) : null);
   return { mine, dsiL: ev(entries.L, mine.dsi.L), dsiR: ev(entries.R, mine.dsi.R), eur: ev(entries.eur, mine.eur) };
+}
+
+// ---- G8 (D18): cuadrantes DSI (eje vertical, un punto por lado) y EUR (eje horizontal).
+// Cortes por defecto = mediana de La Liga (sin sintéticos ni el propio jugador): EUR con un valor por jugador; DSI con un valor por jugador y lado (I y D juntos, decisión confirmada el 8/11/2026: una sola línea horizontal).
+// Se exige N ≥ minN jugadores con dato; si no, no hay corte automático (el usuario puede fijar valores). Sin zona neutra: el valor igual al corte cuenta como «por encima».
+export function squadRatios({ loc, sessions, anthropometry, players, playerId, includeSynthetic = false }) {
+  const ids = Object.keys(players).map(Number).filter((id) => includeSynthetic || !players[id].synthetic);
+  const others = [];
+  for (const id of ids) {
+    if (id === playerId) continue;
+    const r = relationsFor({ loc, sessions, anthropometry, playerId: id });
+    others.push({ playerId: id, L: r.dsi.L.defined ? r.dsi.L.value : null, R: r.dsi.R.defined ? r.dsi.R.value : null, eur: r.eur.defined ? r.eur.value : null });
+  }
+  return { others, mine: relationsFor({ loc, sessions, anthropometry, playerId }) };
+}
+const finiteN = (x) => typeof x === 'number' && Number.isFinite(x);
+export function quadrantCuts({ others, fixed = null, minN = MIN_N_DEFAULT }) {
+  const dsiVals = others.flatMap((o) => [o.L, o.R]).filter(finiteN);
+  const dsiPlayers = others.filter((o) => finiteN(o.L) || finiteN(o.R)).length;
+  const eurVals = others.map((o) => o.eur).filter(finiteN);
+  const auto = (vals, n) => (n >= minN ? median(vals) : null);
+  const fx = (v) => (finiteN(v) && v > 0 ? v : null);
+  const dsi = fx(fixed?.dsi) !== null ? { value: fixed.dsi, source: 'fijo' } : { value: auto(dsiVals, dsiPlayers), source: 'mediana', n: dsiPlayers };
+  const eurC = fx(fixed?.eur) !== null ? { value: fixed.eur, source: 'fijo' } : { value: auto(eurVals, eurVals.length), source: 'mediana', n: eurVals.length };
+  return { dsi, eur: eurC, minN };
+}
+export function quadrantOf(dsi, eur, cuts) {
+  if (!finiteN(dsi) || !finiteN(eur) || !finiteN(cuts.dsi.value) || !finiteN(cuts.eur.value)) return null;
+  const ref = (c) => (c.source === 'fijo' ? 'del valor fijado' : 'de la mediana');
+  const dsiHigh = dsi >= cuts.dsi.value; const eurHigh = eur >= cuts.eur.value;
+  return { dsiHigh, eurHigh, text: `DSI ${dsiHigh ? 'por encima' : 'por debajo'} ${ref(cuts.dsi)} · EUR ${eurHigh ? 'por encima' : 'por debajo'} ${ref(cuts.eur)}` };
 }

@@ -11,9 +11,9 @@ const check = (name, cond, extra = '') => { console.log(`${cond ? 'OK  ' : 'FAIL
 // 1. Base y esquema
 const db = D.createDb('test-1b');
 await D.initDb(db);
-check('esquema 5 con 20 tablas', db.verno === 5 && db.tables.map((t) => t.name).sort().join() === 'anthropometry,auditLog,blocks,formulaHistory,importBatches,importMappings,local,manifestations,meta,playerAliases,playerPositions,players,positions,protocols,sessions,settings,targets,tests,variables,zones');
+check('esquema 6 con 21 tablas', db.verno === 6 && db.tables.map((t) => t.name).sort().join() === 'anthropometry,auditLog,blocks,formulaHistory,fvProfiles,importBatches,importMappings,local,manifestations,meta,playerAliases,playerPositions,players,positions,protocols,sessions,settings,targets,tests,variables,zones');
 check('meta.createdAt y auditoría inicial', !!(await db.meta.get('createdAt')) && (await db.auditLog.count()) === 1);
-check('la copia excluye la tabla local', B.backupTableNames(db).join() === 'anthropometry,auditLog,blocks,formulaHistory,importBatches,importMappings,manifestations,meta,playerAliases,playerPositions,players,positions,protocols,sessions,settings,targets,tests,variables,zones');
+check('la copia excluye la tabla local', B.backupTableNames(db).join() === 'anthropometry,auditLog,blocks,formulaHistory,fvProfiles,importBatches,importMappings,manifestations,meta,playerAliases,playerPositions,players,positions,protocols,sessions,settings,targets,tests,variables,zones');
 
 await D.setSetting(db, 'backupReminderDays', 14);
 await D.setLocal(db, 'lastBackup', { at: 'x' });
@@ -89,17 +89,17 @@ for (const [gzip, pw] of [[false, ''], [true, ''], [false, 'clave-segura-1'], [t
   const oldSnap = await B.buildBackup(old, '1b-0.1.1');
   check('copia del esquema 1 no incluye las tablas nuevas', oldSnap.schemaVersion === 1 && B.backupTableNames(old).join() === 'auditLog,meta,settings');
   const v = await B.validateBackup(db, oldSnap);
-  check('copia v1 válida en base v2 con un aviso por tabla ausente', v.ok && v.warnings.length === 16 && v.warnings.some((w) => w.includes('players')), `${v.warnings.length} avisos`);
+  check('copia v1 válida en base v2 con un aviso por tabla ausente', v.ok && v.warnings.length === 17 && v.warnings.some((w) => w.includes('players')), `${v.warnings.length} avisos`);
   await D.setSetting(db, 'otroAjuste', true);
   await B.restoreBackup(db, oldSnap);
   check('restaurar copia v1 en v2: recupera lo antiguo y deja vacías las nuevas', (await db.settings.count()) === 1 && (await D.getSetting(db, 'backupReminderDays')) === 14 && (await db.players.count()) === 0);
   const db3 = new Dexie('test-1b-v3');
   db3.version(1).stores({ settings: 'key', auditLog: '++id, timestamp, action', meta: 'key', local: 'key' });
   db3.version(2).stores({ players: '++id, jerseyName, synthetic', playerAliases: '++id, playerId, source, normalizedKey, synthetic', positions: '++id, name, order, synthetic', playerPositions: '++id, playerId, positionId, validFrom, synthetic', anthropometry: '++id, playerId, date, synthetic' });
-  db3.version(6).stores({ extra: '++id' });
+  db3.version(7).stores({ extra: '++id' });
   await db3.open();
   const snap3 = await B.buildBackup(db3, 'futura');
-  check('copia de un esquema posterior (6) rechazada por la base actual (5)', (await B.validateBackup(db, snap3)).errors.some((e) => e.includes('posterior')));
+  check('copia de un esquema posterior (7) rechazada por la base actual (6)', (await B.validateBackup(db, snap3)).errors.some((e) => e.includes('posterior')));
   old.close(); db3.close();
 }
 

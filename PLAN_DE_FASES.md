@@ -42,8 +42,8 @@ El detalle de cada gráfico está en la guía. La especificación de **estilo** 
 | G2 Comparativo del perfil | 5c | Percentiles, referencias, D19 |
 | G3 Radial | 5c | Percentiles, D16 |
 | G6 Fuerza-velocidad | 8 (propuesta) | D5, D17 |
-| G7 Curvas de señales | 8 (propuesta) | Archivos con señales y decisión de modelo de datos |
-| G8 Cuadrantes | 8 (propuesta) | D18 |
+| G7 Curvas de señales | Aplazado (8/11/2026): no se trabaja en este informe | Archivos con señales y decisión de modelo de datos |
+| G8 Cuadrantes | 8: implementado (7g, 8/11/2026) | D18 |
 
 ## Correspondencia entre requisitos y fases
 
