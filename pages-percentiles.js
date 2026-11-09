@@ -27,7 +27,7 @@ const BASIS = { pa: 'Personal Average', last: 'Última sesión válida' };
 export function Banda({ ev }) {
   if (!ev || ev.band === null) return null;
   const b = BANDS[ev.band];
-  return html`<span class=${'band band-' + b.key} title=${`${b.name} (P${b.range})`}>${nf(ev.percentilePerf, 0)}</span>`;
+  return html`<span class=${'band band-' + b.key} title=${`${b.name} (P${b.range})${ev.positional ? ' · color según la posición en La Liga: la variable no tiene dirección «mejor/peor»' : ''}`}>${nf(ev.percentilePerf, 0)}</span>`;
 }
 
 // Resultado de un percentil para una celda: número siempre visible (el color nunca es el único canal).
@@ -88,17 +88,6 @@ function EscalaG4({ rows, unit, asym, premierP50, target, plRef }) {
     ${asym != null && rows.length === 2 ? html`<g><path d=${`M ${cx[0]} ${y0 + 72} v 6 H ${cx[1]} v -6`} fill="none" stroke=${T} stroke-opacity="0.6" /><text x=${Math.min(W - 90, Math.max(90, (cx[0] + cx[1]) / 2))} y=${y0 + 94} text-anchor="middle" font-size="12" fill=${T}>Asimetría ${asymText(asym)}</text></g>` : null}
     <text x=${L} y=${Hs - 6} text-anchor="start" font-size="11" fill=${T}>${nfv(min)} ${unit ?? ''}</text><text x=${W - R} y=${Hs - 6} text-anchor="end" font-size="11" fill=${T}>${nfv(max)} ${unit ?? ''}</text>
   </svg></div><//>${out ? html`<p class="muted">Algún valor queda fuera del rango de la referencia de La Liga: la escala se ha ampliado para mostrarlo.</p>` : null}`;
-}
-
-// Clasificación bibliográfica de Natera para el Iso-Push relativo: etiqueta siempre en texto + número; color de banda solo como refuerzo.
-function NateraBloque({ test, variable, shown }) {
-  const ref = findNatera(test, variable);
-  if (!ref) return null;
-  return html`<h4>Clasificación de Natera (Iso-Push, ${ref.unit})</h4>
-    <div class="table-wrap"><table><caption>Umbrales: Normal desde ${nf(ref.normal, 2)} ${ref.unit} · Good desde ${nf(ref.good, 2)} · Excellent desde ${nf(ref.excellent, 2)}</caption>
-      <thead><tr><th>Lado</th><th class="num">Valor (${ref.unit})</th><th>Clase</th></tr></thead>
-      <tbody>${shown.map((r) => { const c = classifyNatera(ref, r.value); return html`<tr key=${r.side}><th scope="row">${SIDE[r.side]}</th><td class="num">${nf(r.value, 2)}</td><td><span class=${c.band ? `badge band-${c.band}` : 'badge'}>${c.text}</span></td></tr>`; })}</tbody></table></div>
-    <p class="muted">Fuente: ${NATERA_SOURCE}. Los límites se aplican como intervalos continuos (la fuente publica rangos con huecos de redondeo). Por debajo de «Normal» la fuente no da etiqueta: se muestra en rojo por decisión del usuario. No se ha verificado si los umbrales son por lado o por jugador; se aplican a cada lado. Los demás colores replican los de la fuente (amarillo, verde claro, verde).</p>`;
 }
 
 // Datos de la referencia (todos los jugadores del test), cargados una vez por test y compartidos por el gráfico y el cuadro.
@@ -175,22 +164,26 @@ export function PercentilesPanel({ player, test, variable, mine, q, setQ, filter
   const g2 = sides.filter((sd) => cell['last' + sd].value != null || cell['pa' + sd].value != null);
   const refOk = (b, sd) => cell[b + sd].ev?.sufficient && cell[b + sd].ev.p50 != null;
   const pbMissing = sides.map((sd) => stats?.[sd]?.pb).find((b) => b && !b.defined && b.reason);
+  const nat = findNatera(test, variable); // referencia de Natera: tercera columna por lado en el mismo cuadro
+  const nCols = nat ? 4 : 3;
   const tipSpan = (t, tip) => (tip ? html`<span title=${tip} aria-label=${`${t}. ${tip}`} tabindex="0">${t}</span>` : html`${t}`);
   return html`<section class="refs"><h4>Resultados y percentiles: La Liga y Premier League</h4>
     <div class="filters"><label>Referencia de La Liga <select value=${rp} onChange=${(e) => setQ({ rp: e.target.value })}><option value="all">Todas las posiciones</option>${positions.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label></div>
     <div class="table-wrap"><table><caption>${variable.name}${unit ? ` (${unit})` : ''}${plRef ? ` · Premier League ${PREMIER_SEASON}` : ''}</caption>
-      <thead><tr><th rowspan="2" scope="col">Medida</th>${sides.map((sd) => html`<th key=${sd} colspan="3" scope="colgroup">${SD[sd]}</th>`)}</tr>
-        <tr>${sides.flatMap((sd) => [html`<th key=${sd + 'v'} scope="col" class="num">Valor</th>`, html`<th key=${sd + 'l'} scope="col">Percentil La Liga</th>`, html`<th key=${sd + 'p'} scope="col">Premier League</th>`])}</tr></thead>
-      <tbody>${BASES.map(([b, name]) => html`<tr key=${b}><th scope="row">${name}</th>${sides.flatMap((sd) => { const c = cell[b + sd]; if (c.value == null) return [html`<td key=${sd + 'v'} class="num"><span class="muted" title=${c.tip ?? ''}>—</span></td>`, html`<td key=${sd + 'l'}>—</td>`, html`<td key=${sd + 'p'}>—</td>`];
+      <thead><tr><th rowspan="2" scope="col">Medida</th>${sides.map((sd) => html`<th key=${sd} colspan=${nCols} scope="colgroup">${SD[sd]}</th>`)}</tr>
+        <tr>${sides.flatMap((sd) => [html`<th key=${sd + 'v'} scope="col" class="num">Valor</th>`, html`<th key=${sd + 'l'} scope="col">Percentil La Liga</th>`, html`<th key=${sd + 'p'} scope="col">Premier League</th>`, ...(nat ? [html`<th key=${sd + 'n'} scope="col" title=${`Natera: Normal desde ${nf(nat.normal, 2)} ${nat.unit} · Good desde ${nf(nat.good, 2)} · Excellent desde ${nf(nat.excellent, 2)}`}>Natera (${nat.unit})</th>`] : [])])}</tr></thead>
+      <tbody>${BASES.map(([b, name]) => html`<tr key=${b}><th scope="row">${name}</th>${sides.flatMap((sd) => { const c = cell[b + sd]; if (c.value == null) return [html`<td key=${sd + 'v'} class="num"><span class="muted" title=${c.tip ?? ''}>—</span></td>`, html`<td key=${sd + 'l'}>—</td>`, html`<td key=${sd + 'p'}>—</td>`, ...(nat ? [html`<td key=${sd + 'n'}>—</td>`] : [])];
         return [html`<td key=${sd + 'v'} class="num">${tipSpan(txt(c.value), c.tip)}</td>`,
           html`<td key=${sd + 'l'} title=${c.ev.sufficient ? `P50 de La Liga: ${nfv(c.ev.p50)}${u} · N = ${c.ev.n}` : ''}><${CeldaPercentil} ev=${c.ev} /></td>`,
-          html`<td key=${sd + 'p'}>${c.pl?.placed ? html`<span class=${`badge band-${c.pl.band}`}>${c.pl.text}</span>` : plRef ? html`<span class="muted">sin ubicar</span>` : '—'}</td>`]; })}</tr>`)}</tbody></table></div>
+          html`<td key=${sd + 'p'}>${c.pl?.placed ? html`<span class=${`badge band-${c.pl.band}`}>${c.pl.text}</span>` : plRef ? html`<span class="muted">sin ubicar</span>` : '—'}</td>`, ...(nat ? [html`<td key=${sd + 'n'}>${(() => { const k = classifyNatera(nat, c.value); return k ? html`<span class=${`badge band-${k.band}`}>${k.text}</span>` : '—'; })()}</td>`] : [])]; })}</tr>`)}</tbody></table></div>
     ${pbMissing ? html`<p class="muted">${pbMissing.reason}${/catálogo/.test(pbMissing.reason) ? html` <a href=${'#catalogo-test-' + variable.testId}>Abrir el test en el catálogo</a>.` : null}</p>` : null}
+    <details class="notas"><summary>Notas y método de los percentiles</summary>
+    ${nat ? html`<p class="muted">Natera (${nat.unit}): Normal desde ${nf(nat.normal, 2)} · Good desde ${nf(nat.good, 2)} · Excellent desde ${nf(nat.excellent, 2)}. Fuente: ${NATERA_SOURCE}. Los límites se aplican como intervalos continuos (la fuente publica rangos con huecos de redondeo). Por debajo de «Normal» la fuente no da etiqueta: se muestra en rojo por decisión del usuario. No se ha verificado si los umbrales son por lado o por jugador; se aplican a cada lado.</p>` : null}
     ${abs ? html`<p class="muted">Medida relativa (${unit}): los percentiles de La Liga se calculan sobre esta medida relativa.${plRef?.estimated ? html` Premier League, ESTIMADA: la Premier publica fuerza (N) y masa corporal (P5 72,0 · P25 76,6 · P50 81,8 · P75 88,2 · P95 97,1 kg) por separado, no la relación entre ambas. Cortes estimados (${unit}) P5/P25/P50/P75/P95 = ${plRef.cuts.map((c) => nf(c, 2)).join(' · ')}; rango posible entre dispersión mínima y máxima: ${plRef.range.lo.map((a, i) => `${nf(a, 2)}–${nf(plRef.range.hi[i], 2)}`).join(' · ')} (la mediana es la misma en ambos extremos).` : ''}</p>` : null}
     ${!plRef ? html`<p class="muted">Esta variable no figura en las tablas de la Premier League aportadas (${PREMIER_SEASON}): no tiene percentil de la Premier League.</p>`
       : html`<p class="muted">Premier League (${PREMIER_SEASON}, tabla «In Season»${plRef.unitConverted ? ', convertida a la unidad del catálogo' : ''}): se indica la zona entre los cortes publicados (P5, P25, P50, P75, P95), sin interpolar percentiles. P50 = ${nf(plRef.cuts[2], 3)}${u}. Los umbrales de la Premier no están validados como de rendimiento.</p>`}
     <p class="muted">Pasa el cursor sobre un valor o un percentil para ver su fecha, periodo, N y el P50 de La Liga. Método: percentil exacto por rango medio. El resultado actual y el Personal Average se comparan con el Personal Average de los demás jugadores (mismo valor, mismo percentil); el Personal Best con sus Personal Best. Referencia de La Liga: un valor por jugador y base (${posName}), sin sesiones excluidas, <strong>sin datos sintéticos y sin este jugador</strong>; mínimo ${minN} jugadores (cámbialo en Configuración).${sides.length === 2 ? ' Con dos lados, la referencia junta los valores izquierdo y derecho de todos los jugadores: hay un único P50 para ambas piernas.' : ''} El percentil de rendimiento tiene en cuenta la dirección de la variable; el color sigue las seis bandas de la guía.</p>
-    <${NateraBloque} test=${test} variable=${variable} shown=${shown} />
+    </details>
     <fieldset class="modes"><legend>Marcadores de la escala</legend>${BASES.slice().reverse().map(([b, n]) => html`<label class="check" key=${b}><input type="radio" name="rb" checked=${basisShown === b} onChange=${() => setQ({ rb: b })} /> ${n}</label>`)}</fieldset>
     ${shown.length ? html`<${EscalaG4} rows=${shown} unit=${unit} asym=${asym} premierP50=${plRef ? plRef.cuts[2] : null} target=${sides.map((sd) => targets[sd]).filter(Boolean).filter((t, i, a) => a.findIndex((v) => v.value === t.value) === i)} />` : null}
     ${shown.some((r) => r.ev.n && !r.ev.sufficient) ? html`<p class="status warn">Muestra insuficiente para clasificar: no se dibuja la mediana ni se colorea (N inferior a ${minN}).</p>` : null}

@@ -62,13 +62,13 @@ export function NotaRelativa({ variable, omitted = {}, catalog }) {
     const n = omitted[variable.id] ?? 0;
     const op = variable.formula.op;
     const txt = { ISO_MVIC: 'MVIC iso-push: media, ponderada por repeticiones y de ambos lados, de (Peak Force del Iso-Push emparejado ÷ 9,80665 − factor × masa de cada sesión de Iso-Push), con todas las sesiones válidas.', ISO_PIMA: '%PIMA: carga externa ÷ MVIC iso-push × 100.', ISO_LOAD_BW: '%BW: carga externa ÷ masa corporal × 100, con la masa medida más cercana a hoy.', ISO_LOAD_SW: `%SW: carga externa ÷ (${String(variable.formula.params?.factor ?? '').replace('.', ',')} × masa corporal) × 100, con la masa medida más cercana a hoy.`, RM_EST: `1RM estimado: (carga + masa corporal) × ${String(variable.formula.params?.factor ?? '').replace('.', ',')}; estimado, no medido. La masa es la medida más cercana a la fecha de la sesión.` }[op];
-    return html`<p class="muted">Variable <strong>calculada</strong> al vuelo (no se guarda). ${txt} Sin medición de masa ni peso de referencia no se calcula${n ? `: ${n} sesión(es) o jugador(es) sin valor por ese motivo` : ''}.</p>`;
+    return html`<details class="notas"><summary>Cómo se calcula esta variable</summary><p class="muted">Variable <strong>calculada</strong> al vuelo (no se guarda). ${txt} Sin medición de masa ni peso de referencia no se calcula${n ? `: ${n} sesión(es) o jugador(es) sin valor por ese motivo` : ''}.</p></details>`;
   }
   if (!isRelative(variable)) return null;
   const f = relFactor(variable);
   const raw = catalog.variables.find((v) => v.id === variable.formula.operands[0]);
   const n = omitted[variable.id] ?? 0;
-  return html`<p class="muted">Valor <strong>relativo</strong> (${variable.unit}): ${raw?.name ?? 'fuerza'} del lado (N) ÷ (${f !== 1 ? `${String(f).replace('.', ',')} × ` : ''}masa corporal (kg) × 9,80665). La masa es la masa corporal medida más cercana a la fecha de cada sesión (antes o después), o el peso de referencia del jugador si no tiene ninguna medición. El valor absoluto está en la variable «${raw?.name ?? 'absoluta'}».${n ? html` <span class="muted" title="Añade una medición de masa corporal o el peso de referencia en la ficha del jugador (Antropometría) y esas sesiones tendrán valor relativo.">Sin masa: ${n} sesión(es) no tienen valor relativo (ver el valor absoluto).</span>` : null}</p>`;
+  return html`<details class="notas"><summary>Cómo se calcula esta variable</summary><p class="muted">Valor <strong>relativo</strong> (${variable.unit}): ${raw?.name ?? 'fuerza'} del lado (N) ÷ (${f !== 1 ? `${String(f).replace('.', ',')} × ` : ''}masa corporal (kg) × 9,80665). La masa es la masa corporal medida más cercana a la fecha de cada sesión (antes o después), o el peso de referencia del jugador si no tiene ninguna medición. El valor absoluto está en la variable «${raw?.name ?? 'absoluta'}».${n ? html` <span class="muted" title="Añade una medición de masa corporal o el peso de referencia en la ficha del jugador (Antropometría) y esas sesiones tendrán valor relativo.">Sin masa: ${n} sesión(es) no tienen valor relativo (ver el valor absoluto).</span>` : null}</p></details>`;
 }
 
 export function VistaTest({ id, query = {} }) {
@@ -136,6 +136,7 @@ export function VistaTest({ id, query = {} }) {
     downloadBlob(new Blob([buildCsv(header, rows)], { type: 'text/csv;charset=utf-8' }), `${slug(test.name)}_${slug(variable.name)}_${mode}.csv`);
   };
   return html`<${Card} titulo=${`${test.name} · todos los jugadores`}>
+    <div class="test-sticky"><h3>${test.name}</h3><span class="muted">· todos los jugadores</span></div>
     <${Migas} items=${crumbs} />
     <div class="filters">
       <label>Variable <select value=${variable.id} onChange=${(e) => set({ v: e.target.value })}>${vars.map((v) => html`<option key=${v.id} value=${v.id}>${v.name}${v.unit && !v.name.includes(`(${v.unit})`) ? ` (${v.unit})` : ''}${v.sides === 'LR' ? ' · I/D' : ''}</option>`)}</select></label>

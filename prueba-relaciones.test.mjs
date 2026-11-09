@@ -46,7 +46,29 @@ players[13] = { jerseyName: 'Sintético', synthetic: 1 }; anth.push({ id: 99, pl
 sessions.push(S(sid++, 13, 3, '2026-02-01', { 13: { L: 100 * R.G, R: 100 * R.G } }), S(sid++, 13, 4, '2026-02-01', { 14: { L: 70 * R.G, R: 70 * R.G } }));
 const ref = R.ratioReferences({ loc, sessions, anthropometry: anth, players, playerId: 6 });
 check('jugador 6: DSI izquierdo = (1,5+6/20) ÷ 3 y EUR = 36/30', close(ref.mine.dsi.L.value, (1.5 + 6 / 20) / 3) && close(ref.mine.eur.value, 36 / 30), JSON.stringify(ref.mine.dsi.L));
-check('percentil DSI sobre 11 jugadores reales (sin el propio ni el sintético), sin color por no tener dirección', ref.dsiL.n === 11 && ref.dsiL.sufficient && ref.dsiL.band === null && Math.abs(ref.dsiL.percentileStat - (5 / 11) * 100) < 1e-9, JSON.stringify(ref.dsiL));
+// Un único conjunto con ambos lados (22 valores de 11 jugadores reales, sin el propio ni el sintético); percentil por rango medio de cada lado frente al total; color solo de posición.
+const pool = []; for (const id of Object.keys(players).map(Number)) { if (id === 6 || players[id].synthetic) continue; const r = R.relationsFor({ loc, sessions, anthropometry: anth, playerId: id }); for (const k of ['L', 'R']) if (r.dsi[k].defined) pool.push(r.dsi[k].value); }
+const mid = (x) => ((pool.filter((v) => v < x).length + pool.filter((v) => v === x).length / 2) / pool.length) * 100;
+check('percentil DSI pooled L+R (22 valores) con color de posición', ref.dsiL.n === 22 && pool.length === 22 && ref.dsiL.sufficient && ref.dsiL.band !== null && Math.abs(ref.dsiL.percentileStat - mid(ref.mine.dsi.L.value)) < 1e-9 && Math.abs(ref.dsiR.percentileStat - mid(ref.mine.dsi.R.value)) < 1e-9, JSON.stringify(ref.dsiL));
+check('un solo P50 para ambas piernas', ref.dsiL.p50 === ref.dsiR.p50);
 check('ORZ sin Drop Jump de ningún jugador: oculta', ref.mine.orz.hidden === true);
-check('muestra mínima respetada', R.ratioReferences({ loc, sessions, anthropometry: anth, players, playerId: 6, minN: 20 }).dsiL.sufficient === false);
+check('muestra mínima respetada', R.ratioReferences({ loc, sessions, anthropometry: anth, players, playerId: 6, minN: 30 }).dsiL.sufficient === false);
+// Orientación de fuerza (cortes 40/60; aviso de Knee Iso-Push < 40 solo en DSI bajo y EUR alto)
+const E = (p, ok = true) => ({ sufficient: ok, percentileStat: ok ? p : null });
+check('DSI 20 → Ballistic; 40 y 60 → Concurrent; 61 → Maximal', R.strengthOrientation('dsi', E(20), []).text === 'Ballistic strength training orientation' && R.strengthOrientation('dsi', E(40), []).text === 'Concurrent strength training' && R.strengthOrientation('dsi', E(60), []).text === 'Concurrent strength training' && R.strengthOrientation('dsi', E(61), []).text === 'Maximal strength training orientation');
+check('EUR 20 → Plyometric; 50 → Concurrent; 90 → Maximal', R.strengthOrientation('eur', E(20), []).text === 'Plyometric strength training orientation' && R.strengthOrientation('eur', E(50), []).text === 'Concurrent strength training' && R.strengthOrientation('eur', E(90), [{ label: 'izquierda', ev: E(70) }]).text === 'Maximal strength training orientation');
+check('DSI bajo con Knee < 40: aviso', /por debajo de 40 \(izquierda 30\)/.test(R.strengthOrientation('dsi', E(10), [{ label: 'izquierda', ev: E(30) }]).kneeNote));
+check('DSI bajo con Knee ≥ 40: sin aviso; sin dato de Knee: aviso de no comprobado', R.strengthOrientation('dsi', E(10), [{ label: 'izquierda', ev: E(55) }]).kneeNote === null && /No se ha podido comprobar/.test(R.strengthOrientation('dsi', E(10), [{ label: 'izquierda', ev: null }]).kneeNote));
+check('DSI medio/alto: sin aviso de Knee', R.strengthOrientation('dsi', E(50), [{ label: 'izquierda', ev: E(10) }]).kneeNote === null);
+check('EUR alto con Knee < 40 en una pierna: aviso de esa pierna', /derecha 20/.test(R.strengthOrientation('eur', E(90), [{ label: 'izquierda', ev: E(70) }, { label: 'derecha', ev: E(20) }]).kneeNote));
+check('muestra insuficiente: sin orientación', R.strengthOrientation('dsi', E(0, false), []).text === null);
+check('Knee relativo por lado definido', ref.mine.knee.L.defined === true);
+// Cuadrantes de componentes: DSI (Knee BW × SL BW, un punto por lado) y EUR (SJ PB × CMJ PA); cortes = mediana de La Liga de cada eje
+const cq = R.componentQuadrants({ loc, sessions, anthropometry: anth, players, playerId: 6 });
+check('cuadrante DSI: 2 puntos propios (I y D) con x = Knee BW e y = SL BW', cq.mine.dsi.length === 2 && close(cq.mine.dsi[0].x, ref.mine.dsi.L.kneeBW) && close(cq.mine.dsi[0].y, ref.mine.dsi.L.slBW));
+check('cuadrante DSI: fondo de 22 puntos (11 jugadores × 2 lados, sin sintético) y cortes = medianas', cq.dsi.bg.length === 22 && cq.dsi.n === 11 && cq.dsi.cutX !== null && close(cq.dsi.cutX, [...cq.dsi.bg.map((p) => p.x)].sort((a, b) => a - b).slice(10, 12).reduce((a, b) => a + b, 0) / 2));
+check('cuadrante EUR: punto propio x = SJ PB, y = CMJ PA; 11 de fondo', close(cq.mine.eur.x, ref.mine.eur.sjPB) && close(cq.mine.eur.y, ref.mine.eur.cmjPA) && cq.eur.bg.length === 11 && cq.eur.cutY !== null);
+const cq2 = R.componentQuadrants({ loc, sessions, anthropometry: anth, players, playerId: 6, minN: 30 });
+check('muestra insuficiente: sin cortes', cq2.dsi.cutX === null && cq2.eur.cutY === null);
+check('posición: igual al corte cuenta como por encima; sin corte → null', R.quadrantSide({ x: 1, y: 2 }, 1, 3).xHigh === true && R.quadrantSide({ x: 1, y: 2 }, 1, 3).yHigh === false && R.quadrantSide({ x: 1, y: 2 }, null, 3) === null);
 process.exit(failed ? 1 : 0);

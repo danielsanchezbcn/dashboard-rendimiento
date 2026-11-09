@@ -49,11 +49,12 @@ export const perfQuantile = (values, p, direction) => quantile(values, direction
 const timeKey = (p) => p.date + (p.time || '');
 const posOf = (histories, playerId) => positionOnDate(histories[playerId] ?? []).principal?.positionId ?? null; // posición única, sin fechas
 
-// Valor de un jugador para la base elegida: 'pa' = Personal Average; 'last' = Average de su última sesión válida; 'pb' = Personal Best (solo con dirección más alto/más bajo).
+// Valor de un jugador para la base elegida: 'pa' = Personal Average; 'first' = Average de su primera sesión válida; 'last' = Average de su última sesión válida; 'pb' = Personal Best (solo con dirección más alto/más bajo).
 export function playerValue(sessions, variable, side, { basis, positionId = null, histories = {}, playerId, from = null, to = null, protocolId } = {}) {
   let pts = buildSeries(sessions, variable.id, side, { from, to, protocolId }).valid;
   if (positionId !== null && posOf(histories, playerId) !== positionId) pts = [];
   if (!pts.length) return null;
+  if (basis === 'first') { const f = [...pts].sort((a, b) => timeKey(a).localeCompare(timeKey(b)) || a.sessionId - b.sessionId)[0]; return { value: f.value, date: f.date, reps: f.reps, sessions: 1 }; }
   if (basis === 'pb') { const pb = personalBest(pts, variable.direction); return pb.defined ? { value: pb.value, date: pb.date, reps: pb.reps, sessions: pts.length } : null; }
   if (basis === 'last') { const l = [...pts].sort((a, b) => timeKey(a).localeCompare(timeKey(b)) || a.sessionId - b.sessionId).at(-1); return { value: l.value, date: l.date, reps: l.reps, sessions: 1 }; }
   const pa = personalAverage(pts);
@@ -84,7 +85,7 @@ export function evaluate(entries, { playerId, value, direction, minN = MIN_N_DEF
   out.percentileStat = midRankPercentile(ref, value);
   if (direction === 'higher') out.percentilePerf = out.percentileStat;
   else if (direction === 'lower') out.percentilePerf = 100 - out.percentileStat;
-  else { out.reason = direction === 'target' ? 'Variable con rango objetivo: no hay percentil de rendimiento ni color.' : 'La variable no tiene dirección definida: no hay percentil de rendimiento ni color.'; return out; }
+  else { out.percentilePerf = out.percentileStat; out.positional = true; } // sin dirección (o con rango objetivo): el color indica la POSICIÓN en La Liga, no «mejor/peor» (9/11/2026: todo percentil lleva color)
   out.band = bandFor(out.percentilePerf);
   return out;
 }

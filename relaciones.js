@@ -100,56 +100,91 @@ export function relationsFor({ loc, sessions, anthropometry, playerId }) {
   const an = anthropometry.filter((a) => a.playerId === playerId);
   const dsi = {};
   for (const side of ['L', 'R']) dsi[side] = dsiSide({ slPoints: pts(loc.slForce, sessions, playerId, side), kneePoints: pts(loc.kneeForce, sessions, playerId, side), anthropometry: an });
+  // Knee Iso-Push Peak Force relativo (BW), Personal Average por lado: sirve para matizar la orientación de fuerza (percentil de fuerza máxima).
+  const knee = {};
+  for (const side of ['L', 'R']) {
+    const kp = pts(loc.kneeForce, sessions, playerId, side);
+    const rel = kp.length ? relativeBWPoints(kp, an) : { points: [] };
+    knee[side] = rel.points.length ? { defined: true, value: personalAverage(rel.points).value } : { defined: false };
+  }
   return {
-    dsi,
+    dsi, knee,
     eur: eur({ cmjPoints: pts(loc.cmjJh, sessions, playerId, 'S'), sjPoints: pts(loc.sjJh, sessions, playerId, 'S') }),
     orz: orz({ rsi30: pts(loc.rsi30, sessions, playerId, 'S'), rsi45: pts(loc.rsi45, sessions, playerId, 'S') }),
   };
 }
 
-// Percentil estadístico frente a «La Liga» (sin sintéticos, sin el propio jugador, mínimo N). Sin dirección: sin color (uso orientativo).
+// Percentil estadístico frente a «La Liga» (sin sintéticos, sin el propio jugador, mínimo N). El color solo indica la posición en la distribución, no «mejor/peor».
 export function ratioReferences({ loc, sessions, anthropometry, players, playerId, minN = MIN_N_DEFAULT, includeSynthetic = false }) {
   const ids = Object.keys(players).map(Number).filter((id) => includeSynthetic || !players[id].synthetic);
-  const entries = { L: [], R: [], eur: [] };
+  const entries = { dsi: [], knee: [], eur: [] }; // DSI y Knee: un único conjunto con ambos lados (un P50 para las dos piernas; cada pierna se compara con el total)
   for (const id of ids) {
     if (id === playerId) continue;
     const r = relationsFor({ loc, sessions, anthropometry, playerId: id });
-    if (r.dsi.L.defined) entries.L.push({ playerId: id, value: r.dsi.L.value });
-    if (r.dsi.R.defined) entries.R.push({ playerId: id, value: r.dsi.R.value });
+    for (const k of ['L', 'R']) {
+      if (r.dsi[k].defined) entries.dsi.push({ playerId: id, value: r.dsi[k].value });
+      if (r.knee[k].defined) entries.knee.push({ playerId: id, value: r.knee[k].value });
+    }
     if (r.eur.defined) entries.eur.push({ playerId: id, value: r.eur.value });
   }
   const mine = relationsFor({ loc, sessions, anthropometry, playerId });
-  const ev = (e, v) => (v.defined ? evaluate(e, { playerId, value: v.value, direction: null, minN }) : null);
-  return { mine, dsiL: ev(entries.L, mine.dsi.L), dsiR: ev(entries.R, mine.dsi.R), eur: ev(entries.eur, mine.eur) };
+  // direction 'higher': solo para colocar el percentil en las seis bandas de color (posición en la distribución). DSI y EUR no tienen sentido «mejor/peor».
+  const ev = (e, v) => (v.defined ? evaluate(e, { playerId, value: v.value, direction: 'higher', minN }) : null);
+  return { mine, dsiL: ev(entries.dsi, mine.dsi.L), dsiR: ev(entries.dsi, mine.dsi.R), eur: ev(entries.eur, mine.eur), kneeL: ev(entries.knee, mine.knee.L), kneeR: ev(entries.knee, mine.knee.R) };
 }
 
-// ---- G8 (D18): cuadrantes DSI (eje vertical, un punto por lado) y EUR (eje horizontal).
-// Cortes por defecto = mediana de La Liga (sin sintéticos ni el propio jugador): EUR con un valor por jugador; DSI con un valor por jugador y lado (I y D juntos, decisión confirmada el 8/11/2026: una sola línea horizontal).
-// Se exige N ≥ minN jugadores con dato; si no, no hay corte automático (el usuario puede fijar valores). Sin zona neutra: el valor igual al corte cuenta como «por encima».
-export function squadRatios({ loc, sessions, anthropometry, players, playerId, includeSynthetic = false }) {
-  const ids = Object.keys(players).map(Number).filter((id) => includeSynthetic || !players[id].synthetic);
-  const others = [];
-  for (const id of ids) {
-    if (id === playerId) continue;
-    const r = relationsFor({ loc, sessions, anthropometry, playerId: id });
-    others.push({ playerId: id, L: r.dsi.L.defined ? r.dsi.L.value : null, R: r.dsi.R.defined ? r.dsi.R.value : null, eur: r.eur.defined ? r.eur.value : null });
-  }
-  return { others, mine: relationsFor({ loc, sessions, anthropometry, playerId }) };
-}
+// ---- Cuadrantes (9/11/2026): uno para el DSI y otro para el EUR, cada uno con sus dos componentes como ejes.
+//  DSI: x = Knee Iso-Push Peak Force (BW), y = SL CMJ Peak Force (BW), un punto por lado.
+//  EUR: x = Squat Jump (JH imp-mom, Personal Best, cm), y = CMJ (JH imp-mom, Personal Average, cm), un punto por jugador.
+// Cortes = mediana de La Liga de cada eje (sin sintéticos ni el propio jugador; DSI con las dos piernas juntas; mínimo N). Sin zona neutra.
 const finiteN = (x) => typeof x === 'number' && Number.isFinite(x);
-export function quadrantCuts({ others, fixed = null, minN = MIN_N_DEFAULT }) {
-  const dsiVals = others.flatMap((o) => [o.L, o.R]).filter(finiteN);
-  const dsiPlayers = others.filter((o) => finiteN(o.L) || finiteN(o.R)).length;
-  const eurVals = others.map((o) => o.eur).filter(finiteN);
-  const auto = (vals, n) => (n >= minN ? median(vals) : null);
-  const fx = (v) => (finiteN(v) && v > 0 ? v : null);
-  const dsi = fx(fixed?.dsi) !== null ? { value: fixed.dsi, source: 'fijo' } : { value: auto(dsiVals, dsiPlayers), source: 'mediana', n: dsiPlayers };
-  const eurC = fx(fixed?.eur) !== null ? { value: fixed.eur, source: 'fijo' } : { value: auto(eurVals, eurVals.length), source: 'mediana', n: eurVals.length };
-  return { dsi, eur: eurC, minN };
+export function componentQuadrants({ loc, sessions, anthropometry, players, playerId, minN = MIN_N_DEFAULT, includeSynthetic = false }) {
+  const ids = Object.keys(players).map(Number).filter((id) => includeSynthetic || !players[id].synthetic);
+  const pointsOf = (id) => {
+    const r = relationsFor({ loc, sessions, anthropometry, playerId: id });
+    return {
+      dsi: ['L', 'R'].filter((k) => r.dsi[k].defined).map((k) => ({ side: k, x: r.dsi[k].kneeBW, y: r.dsi[k].slBW })),
+      eur: r.eur.defined ? { x: r.eur.sjPB, y: r.eur.cmjPA } : null,
+    };
+  };
+  const mine = pointsOf(playerId);
+  const others = ids.filter((id) => id !== playerId).map(pointsOf);
+  const dsiBg = others.flatMap((o) => o.dsi), eurBg = others.map((o) => o.eur).filter(Boolean);
+  const cut = (pts, axis, n) => (n >= minN ? median(pts.map((p) => p[axis])) : null);
+  const nDsi = others.filter((o) => o.dsi.length).length;
+  return {
+    mine, minN,
+    dsi: { bg: dsiBg, n: nDsi, cutX: cut(dsiBg, 'x', nDsi), cutY: cut(dsiBg, 'y', nDsi) },
+    eur: { bg: eurBg, n: eurBg.length, cutX: cut(eurBg, 'x', eurBg.length), cutY: cut(eurBg, 'y', eurBg.length) },
+  };
 }
-export function quadrantOf(dsi, eur, cuts) {
-  if (!finiteN(dsi) || !finiteN(eur) || !finiteN(cuts.dsi.value) || !finiteN(cuts.eur.value)) return null;
-  const ref = (c) => (c.source === 'fijo' ? 'del valor fijado' : 'de la mediana');
-  const dsiHigh = dsi >= cuts.dsi.value; const eurHigh = eur >= cuts.eur.value;
-  return { dsiHigh, eurHigh, text: `DSI ${dsiHigh ? 'por encima' : 'por debajo'} ${ref(cuts.dsi)} · EUR ${eurHigh ? 'por encima' : 'por debajo'} ${ref(cuts.eur)}` };
+// Posición respecto a los cortes (igual al corte cuenta como «por encima»; no hay zona neutra).
+export function quadrantSide(point, cutX, cutY) {
+  if (!point || !finiteN(point.x) || !finiteN(point.y) || !finiteN(cutX) || !finiteN(cutY)) return null;
+  return { xHigh: point.x >= cutX, yHigh: point.y >= cutY };
+}
+
+// ---- Orientación del entrenamiento de fuerza (9/11/2026), según el percentil del DSI o del EUR frente a La Liga.
+// Cortes de percentil elegidos por el usuario (0–40 / 40–60 / 60–100); no son umbrales de la bibliografía.
+// Si el percentil de fuerza máxima (Knee Iso-Push Peak Force, BW) está por debajo de 40, se avisa en los casos señalados por el usuario
+// (DSI en la banda baja y EUR en la banda alta), porque la orientación puede variar; no se decide aquí cuál sería.
+export const ORIENTATION_CUTS = [40, 60];
+const ORIENT = {
+  dsi: ['Ballistic strength training orientation', 'Concurrent strength training', 'Maximal strength training orientation'],
+  eur: ['Plyometric strength training orientation', 'Concurrent strength training', 'Maximal strength training orientation'],
+};
+export function strengthOrientation(kind, ev, kneeEvs = []) {
+  if (!ev) return null;
+  if (!ev.sufficient || ev.percentileStat === null) return { text: null, reason: 'Sin orientación: muestra insuficiente en La Liga.' };
+  const p = ev.percentileStat;
+  const band = p < ORIENTATION_CUTS[0] ? 0 : p <= ORIENTATION_CUTS[1] ? 1 : 2;
+  const out = { text: ORIENT[kind][band], band, kneeNote: null };
+  const sensitive = (kind === 'dsi' && band === 0) || (kind === 'eur' && band === 2);
+  if (sensitive) {
+    const known = kneeEvs.filter((k) => k.ev && k.ev.sufficient && k.ev.percentileStat !== null);
+    const low = known.filter((k) => k.ev.percentileStat < 40);
+    if (low.length) out.kneeNote = `Percentil de Knee Iso-Push Peak Force (BW) por debajo de 40 (${low.map((k) => `${k.label} ${Math.round(k.ev.percentileStat)}`).join(', ')}): la orientación puede variar.`;
+    else if (!known.length) out.kneeNote = 'No se ha podido comprobar el percentil de Knee Iso-Push Peak Force (BW): si está por debajo de 40, la orientación puede variar.';
+  }
+  return out;
 }

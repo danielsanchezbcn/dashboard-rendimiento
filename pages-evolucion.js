@@ -8,6 +8,7 @@ import { addManualLoad, LOAD_VARIABLE_NAMES } from './isohold.js';
 import { listCatalog, SIDES } from './catalogo.js';
 import { replaceQuery, buildHash } from './rutas.js';
 import { Migas, KEEP, NotaRelativa } from './pages-test.js';
+import { RelacionTest, OrzTest } from './pages-relaciones.js';
 import { expandRelative, isViewable, hasData, orderVars, isRelative, defaultVar } from './relativos.js';
 import { PercentilesPanel, useRefData, refContext } from './pages-percentiles.js';
 import { positionOnDate } from './posiciones.js';
@@ -82,9 +83,8 @@ function lineConfig(c, { sides, series, stats, unit, yMin, yMax, tg, refLines = 
     const col = colorLado(sd);
     datasets.push({ side: sd, label: `Average de sesión${sfx(sd)}`, data: series[sd].valid.map((p) => ({ x: dayNum(p.date), y: p.value, p })), borderColor: col, backgroundColor: col, pointRadius: 4, tension: 0, borderWidth: 2 });
     if (series[sd].excluded.length) datasets.push({ label: `Sesión excluida${sfx(sd)}`, data: series[sd].excluded.map((p) => ({ x: dayNum(p.date), y: p.value })), showLine: false, borderColor: PAL.texto, backgroundColor: 'transparent', pointStyle: 'crossRot', pointRadius: 6, borderWidth: 2 });
-    const { pa, pb } = stats[sd];
+    const { pa } = stats[sd]; // el Personal Best no se dibuja como línea: es el punto más alto (decisión 9/11/2026)
     if (pa.defined) datasets.push({ label: `Personal Average${sfx(sd)}`, data: [{ x: x0, y: pa.value }, { x: x1, y: pa.value }], borderColor: lr ? col : PAL.texto, borderDash: [6, 4], pointRadius: 0, borderWidth: 2 });
-    if (pb.defined) datasets.push({ label: `Personal Best${sfx(sd)}`, data: [{ x: x0, y: pb.value }, { x: x1, y: pb.value }], borderColor: lr ? col : PAL.texto, borderDash: [2, 3], pointRadius: 0, borderWidth: 2 });
   }
   refLines.forEach((r) => datasets.push({ label: r.label, data: [{ x: x0, y: r.value }, { x: x1 === x0 ? x0 + 1 : x1, y: r.value }], borderColor: r.color, borderDash: r.dash, pointRadius: 0, borderWidth: r.w }));
   const tgs = sides.map((sd) => tg[sd]).filter(Boolean).filter((t, i, a) => a.findIndex((u) => u.value === t.value) === i);
@@ -286,13 +286,19 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
     <${TargetPanel} key=${'t' + variable.id} player=${player} variable=${variable} sides=${sides} targets=${targets} positions=${positions} positionId=${positionId} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} reload=${reload} />
     ${asym && asym.length ? html`<section><h4>Asimetría por sesión (como en VALD)</h4>
       <p class="leyenda" aria-label="Leyenda"><span class="leyenda-chip" style=${`background:${PAL.izq}`}>LEFT</span> <span class="leyenda-chip" style=${`background:${PAL.der}`}>RIGHT</span></p>
+      <details class="notas"><summary>Cómo se calcula la asimetría</summary>
       <p class="muted">|D − I| ÷ máx × 100 y la letra del lado con el valor más alto (L izquierda, R derecha). Como en VALD: barra azul hacia la izquierda si el lado izquierdo es mayor, naranja hacia la derecha si lo es el derecho.</p>
+      </details>
       <${Grafico} deps=${[key, 'asim']} nombre=${`asimetria-${variable.name}`} alto=${`${Math.max(9, 3.2 + asym.length * 2.2)}rem`} label=${`Asimetría de ${variable.name}: ${asym.length} sesiones`} build=${(c) => asymConfig(c, asym, variable)} />
       <p class="muted">Última: ${asymText(asym[asym.length - 1].pct)} (izquierda ${nf(asym[asym.length - 1].left)}, derecha ${nf(asym[asym.length - 1].right)} ${variable.unit ?? ''}).</p></section>` : null}
     <${PercentilesPanel} key=${variable.id} player=${player} test=${test} variable=${variable} mine=${sessions} q=${q} setQ=${setQ} filters=${f} targets=${tg} refData=${refData} abs=${abs} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} />
+    <${RelacionTest} key=${'rel' + test.id + player.id} player=${player} test=${test} />
+    <${OrzTest} key=${'orz' + test.id + player.id} player=${player} test=${test} />
     <${RadarPanel} key=${'radar' + test.id + player.id} player=${player} testName=${test.name} />
     <${TablaSesiones} sessions=${sessions.filter((s) => s.values?.[variable.id] && (protocolId === undefined || (s.protocolId ?? null) === protocolId) && (!f.from || s.date >= f.from) && (!f.to || s.date <= f.to))} variable=${variable} player=${player} test=${test} reload=${reload} />
+    <details class="notas"><summary>Notas sobre los datos del gráfico y la tabla</summary>
     <p class="muted">Cada punto es el Average de una sesión (media de sus repeticiones). Las sesiones excluidas no cuentan en el Personal Best, el Personal Average ni en ningún análisis. La Máxima repetición no está disponible: los datos importados traen una media por sesión.</p>
+    </details>
   </div>`;
 }
 
@@ -350,7 +356,7 @@ export function ResultadosJugador({ player, query = {} }) {
     <div role="tablist" aria-label="Bloques" class="tabs">${blocks.map(([k, n]) => html`<button type="button" role="tab" key=${k} aria-selected=${block === k} class=${block === k ? 'tab on' : 'tab'} onClick=${() => setQ({ b: k, t: undefined, v: undefined })}>${n} <span class="muted">(${testsOf(k).length})</span></button>`)}</div>
     ${!tests.length ? html`<p class="muted">${block === 'fuerza' ? 'Este jugador aún no tiene sesiones de fuerza. Impórtalas desde «Importar».' : 'Sin datos en este bloque todavía (aún no hay importación para él).'}</p>` : html`
       <div class="test-list">${groups.map((g) => html`<div key=${g}><h3>${g}</h3><div class="chips">${tests.filter((t) => mName(t) === g).map((t) => html`<button type="button" key=${t.id} class=${t.id === test.id ? 'chip on' : 'chip'} aria-pressed=${t.id === test.id} onClick=${() => setQ({ t: t.id, v: undefined })}>${zName(t) ? zName(t) + ' · ' : ''}${t.name}</button>`)}</div></div>`)}</div>
-      <h3>${test.name}</h3>
+      <div class="test-sticky"><span class="muted">${playerLabel(player)} ·</span> <h3>${test.name}</h3></div>
       <${PanelTest} key=${test.id} player=${player} test=${test} catalog=${catalog} sessions=${sessions.filter((s) => s.testId === test.id)} omitted=${omitted} reload=${reload} q=${query} setQ=${setQ} targets=${targets} positions=${positions} positionId=${positionId} />`}
   <//><${AltaManualCarga} player=${player} catalog=${catalog} reload=${reload} />`;
 }

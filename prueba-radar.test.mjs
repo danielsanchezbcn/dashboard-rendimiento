@@ -26,4 +26,18 @@ r = run({ sessions: sessions.filter((s) => !(s.playerId === 4)) });
 check('jugador sin sesiones: todo omitido', r.axes.length === 0 && r.omitted.length === 6);
 r = buildRadar({ profile, test, variables: variables.slice(0, 4), sessions, players, histories: {}, playerId: 4, basis: 'pa', minN: 10 });
 check('variable inexistente en el catálogo: se lista aparte y el resto se dibuja', r.axes.length === 4 && r.omitted.length === 2 && r.drawable);
+// Referencias seleccionables (multi): P50/P75 La Liga, por posición, Premier, y medidas del jugador; todo ÷ P50 de La Liga (todas las posiciones)
+const H = {}; for (let p = 1; p <= 13; p++) H[p] = [{ playerId: p, positionId: p <= 8 ? 10 : 20, role: 'principal' }]; // 7 jugadores en 10 (sin el 4) y 5 en 20
+r = buildRadar({ profile, test, variables, sessions, players, histories: H, playerId: 4, basis: 'pa', positionId: 10, minN: 5, multi: true });
+const a0 = r.axes[0];
+const vals = (k) => sessions.filter((x) => x.testId === 1).filter((x) => x.playerId !== 4);
+check('multi: ratios de P50 La Liga = 1 y P75 > 1', Math.abs(a0.ratios.p50 - 1) < 1e-12 && a0.ratios.p75 > 1 && a0.refs.p75 > a0.refs.p50);
+check('multi: P50 por posición calculado con los jugadores de esa posición (sin el propio)', a0.refs.p50pos !== null && r.complete.p50pos && r.complete.p75pos && a0.refs.p75pos >= a0.refs.p50pos);
+check('multi: P75 Premier = cuarto corte; ratios sobre el P50 de La Liga', a0.refs.premier75 > a0.refs.premier50 && Math.abs(a0.ratios.premier75 - a0.refs.premier75 / a0.refs.p50) < 1e-12 && r.complete.premier75);
+const ses4 = sessions.filter((x) => x.playerId === 4).sort((a, b) => a.date.localeCompare(b.date));
+check('multi: primera, última, PA y PB del jugador', Math.abs(a0.refs.first - ses4[0].values[10].S) < 1e-9 && Math.abs(a0.refs.last - ses4[1].values[10].S) < 1e-9 && Math.abs(a0.refs.pa - (ses4[0].values[10].S + ses4[1].values[10].S) / 2) < 1e-9 && Math.abs(a0.refs.pb - Math.max(ses4[0].values[10].S, ses4[1].values[10].S)) < 1e-9);
+r = buildRadar({ profile, test, variables, sessions, players, histories: H, playerId: 4, basis: 'pa', positionId: null, minN: 5, multi: true });
+check('multi: sin posición elegida, las referencias por posición no están disponibles', r.complete.p50pos === false && r.complete.p75pos === false && r.complete.p50 === true);
+r = buildRadar({ profile, test, variables, sessions, players, histories: H, playerId: 4, basis: 'pa', positionId: 20, minN: 10, multi: true });
+check('multi: posición con menos jugadores que el mínimo → no disponible', r.complete.p50pos === false);
 process.exit(fail);

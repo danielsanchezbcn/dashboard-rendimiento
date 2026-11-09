@@ -7,7 +7,6 @@ import { listPositions, playerHistory, positionOnDate, setMainPosition, clearMai
 import { METRICS, playerAnthropometry, addAnthropometry, updateAnthropometry, deleteAnthropometry, setReferenceWeight, clearReferenceWeight } from './antropometria.js';
 import { totalOf, countSynthetic } from './sinteticos.js';
 import { ResultadosJugador } from './pages-evolucion.js';
-import { RelacionesPanel } from './pages-relaciones.js';
 import { FvPanel } from './pages-fv.js';
 import { AntropPercentiles } from './pages-imagen.js';
 
@@ -258,6 +257,5 @@ export function PerfilJugador({ id, query = {} }) {
     <${Posiciones} player=${player} history=${data.history} positions=${data.positions} />
     <${Antropometria} key=${'a' + player.id} player=${player} records=${data.records} />
     <${FvPanel} key=${'fv' + player.id} player=${player} />
-    <${RelacionesPanel} key=${'rel' + player.id} player=${player} />
   `;
 }

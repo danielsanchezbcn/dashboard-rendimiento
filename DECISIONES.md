@@ -220,3 +220,49 @@ Estilo y biblioteca (D20) cerrados el 6 de noviembre de 2026. Ese mismo día se 
 - Nuevos roles de columna: «Peso de referencia del jugador (kg)» y «Altura del jugador (cm)». Peso → peso de referencia del jugador (sustituye al anterior; el resumen cuenta nuevos / sustituidos / iguales y el informe anota cada cambio). Altura → medición antropométrica fechada con la fecha de la fila (si ya existe igual, se omite). Rangos admitidos 45–130 kg y 140–215 cm: fuera de ellos la fila no se importa (suele ser otra unidad).
 - Una fila con solo peso/altura no crea sesión. Un fichero puede traer solo peso y altura.
 - Versión 7z.
+
+## (70) DSI/EUR por pantalla de test, orientación de fuerza, textos desplegables, test siempre visible (9/11/2026)
+- Línea de Personal Best eliminada del gráfico de evolución (el punto más alto ya lo muestra).
+- Textos largos de método y notas (percentiles, variable relativa/calculada, asimetría, datos del gráfico): desplegables y cerrados por defecto.
+- DSI solo en las pantallas de Knee Iso-Push y SL CMJ; EUR solo en CMJ y Squat Jump. La tarjeta «Relaciones» conserva ORZ y los cuadrantes DSI × EUR. Tabla: Lado · valor · percentil (mismas bandas de color y número que en el resto) · orientación. El detalle y la comparación con La Liga solo aparecen con el cursor.
+- Percentil de DSI y EUR: un único conjunto con las dos piernas (un P50); cada pierna se compara con el total. El color indica la POSICIÓN en La Liga (no «mejor/peor»: DSI y EUR no tienen dirección de rendimiento).
+- Orientación de fuerza (cortes del usuario 0–40 / 40–60 / 60–100; <40, 40–60 inclusive, >60): DSI → Ballistic / Concurrent / Maximal; EUR → Plyometric / Concurrent / Maximal. Aviso si el percentil de Knee Iso-Push Peak Force (BW, Personal Average, mismo conjunto de dos piernas) es < 40: en DSI bajo (misma pierna) y EUR alto (cualquier pierna). Si no se puede comprobar, se dice. No se decide cuál sería la orientación alternativa.
+- Barra fija con jugador y test al bajar por la pantalla (ficha del jugador y «todos los jugadores»).
+- Versión 8a.
+
+## (71) Todo percentil lleva color; ORZ solo en Drop Jump; fuera el cuadrante DSI × EUR (9/11/2026)
+- Todo percentil calculado en el dashboard lleva color. Con dirección «más alto/más bajo es mejor» el color es de rendimiento. Sin dirección (perímetros, % variables, pendiente F–V, peso y altura, rango objetivo) el color indica la POSICIÓN en La Liga (percentil bajo = banda roja, alto = verde) y el tooltip lo dice (`positional`). Los perímetros siguen sin dirección (no se asume que un perímetro mayor sea «mejor»).
+- ORZ solo en las pantallas de DL Drop Jump 30 cm y 45 cm. La tarjeta «Relaciones» de la ficha del jugador desaparece.
+- Eliminado el cuadrante DSI × EUR (las funciones de cálculo se conservan para los cuadrantes nuevos, pendientes de definir ejes).
+- Pendiente de datos del usuario: tests de tobillo (inversión/eversión) y cadera (aducción 45°, aducción 0°, abducción 0°): perfil de importación VALD, variable única Peak Force y relativa (BW; longitud de pierna y BW en cadera).
+- Versión 8b.
+
+## (72) Cuadrantes DSI y EUR por separado (9/11/2026)
+- Cada uno va justo después de su tabla de resultados, en las pantallas de Knee Iso-Push y SL CMJ (DSI) y de CMJ y Squat Jump (EUR).
+- DSI: x = Knee Iso-Push Peak Force (BW), y = SL CMJ Peak Force (BW), un punto por pierna. EUR: x = Squat Jump JH imp-mom (Personal Best, cm), y = CMJ JH imp-mom (Personal Average, cm).
+- Cortes: mediana de La Liga de cada eje (sin sintéticos ni el propio jugador; DSI con las dos piernas juntas; mínimo N de Ajustes). Sin zona neutra; el texto solo dice «por encima / por debajo» de la mediana, sin etiquetas interpretativas.
+- Se eliminan el cuadrante DSI × EUR, sus cortes fijos y su prueba.
+- Versión 8c.
+
+## (73) Radar: referencias seleccionables (9/11/2026)
+- Diez referencias que se activan o desactivan (se recuerdan en este navegador): P50 y P75 de La Liga, P50 y P75 de La Liga por posición, P50 y P75 de la Premier League, primera medida, Personal Average, Personal Best y última medida del jugador. Por defecto: P50 La Liga, P50 Premier League y Personal Average.
+- Todas se dibujan como valor ÷ P50 de La Liga (todas las posiciones; el P50 por posición ya no cambia el denominador). Una referencia solo se dibuja si la tienen todos los ejes dibujados; si no, aparece desactivada con el motivo (posición sin elegir o con menos jugadores que el mínimo, Premier sin dato, jugador sin dato).
+- La Liga excluye al propio jugador y a los sintéticos; mínimo de jugadores el de Ajustes. P75 de la Premier = cuarto corte in-season.
+- Colores: La Liga amarillo, Premier lila, jugador blanco (PA, PB), grises para primera y última medida; trazos distintos y leyenda en la imagen (también en el PNG). Los valores rotulados en los ejes son los de la primera medida del jugador activada (PA, última, PB, primera).
+- Versión 8d.
+
+## (74) Rediseño visual de la interfaz (9/11/2026)
+- Solo apariencia (hoja de estilo `style.css`, bloque «Tema visual»): sin cambios de funciones, textos ni estructura, y sin tocar el diseño de ningún gráfico (lienzos Chart.js, SVG de gráficos, paletas y tipografías de los gráficos).
+- Tema oscuro azul marino (coherente con el fondo de los gráficos) y tema claro refinado, según el sistema. Navegación lateral siempre oscura con iconos (máscaras SVG incrustadas, compatibles con la CSP), marca en la cabecera, tarjetas con relieve y título con marca de acento, botones, campos, tablas (cabecera en versalitas, filas resaltadas), pestañas tipo segmentado, chips, desplegables y barra fija del test con desenfoque.
+- Los colores de las seis bandas de percentil no cambian.
+- Versión 8e.
+
+## (75) Sesiones ausentes del fichero al importar (9/11/2026)
+- Al importar periódicamente todos los tests, las sesiones guardadas que ya no vienen en el fichero (p. ej. pruebas de readaptación borradas en VALD) se listan en el Resumen, **sin marcar**. Solo se eliminan las que el usuario marca; al guardar, el borrado es permanente.
+- Alcance de lo que se ofrece: mismo origen (VALD o Excel; nunca sesiones manuales), mismo test y protocolo, y fechas dentro del rango del propio fichero (un fichero corto no ofrece borrar lo anterior). Se excluyen las que coinciden con el fichero (idénticas o en conflicto).
+- Rastro: el lote guarda una copia de cada sesión eliminada (`deletedSessions`), el informe CSV lo anota y la auditoría guarda solo ids y fechas. No hay botón de restaurar: recomendar copia de seguridad antes.
+- Aviso si el fichero tiene filas sin resolver o con error (la sesión podría estar en ellas).
+- Versión 8f.
+
+## (76) Natera en el mismo cuadro de percentiles (9/11/2026)
+- La clasificación de Natera (Run-Specific Iso-Push, Peak Force relativo) deja de ser una tabla aparte: es una tercera columna por lado («Natera») en el cuadro junto al percentil de La Liga y la zona de la Premier, para las tres filas (Resultado actual, Personal Best, Personal Average). Umbrales y fuente pasan a las notas desplegables. Sin cambios en los cálculos.

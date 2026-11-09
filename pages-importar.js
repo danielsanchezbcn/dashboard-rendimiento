@@ -51,6 +51,8 @@ function ImportarFicheros() {
   const [atl, setAtl] = useState(null);
   const [choices, setChoices] = useState({});
   const [result, setResult] = useState(null);
+  const [missing, setMissing] = useState([]);
+  const [delIds, setDelIds] = useState({});
   const { msg, setMsg, busy, run } = useRunner();
 
   const sheet = file?.sheets[sheetIdx];
@@ -128,8 +130,11 @@ function ImportarFicheros() {
       if (r.action === 'new' && !String(r.jerseyName ?? '').trim()) throw new Error(`Escribe el alias (nombre en camiseta) del jugador nuevo «${p.text}».`);
       res[p.text] = r;
     }
-    if (origin === 'vald') { const r = await V.planValdImport(db, vald, res); setPlan(r.plan); setVplans(r.plans); }
-    else setPlan(await I.planImport(db, { rows: parsed.rows, testId: Number(testId), protocolId: protocolId ? Number(protocolId) : null, resolutions: res }));
+    let groups;
+    if (origin === 'vald') { const r = await V.planValdImport(db, vald, res); setPlan(r.plan); setVplans(r.plans); groups = r.plans.map((x) => ({ testId: x.group.testId, protocolId: null, sessions: x.plan.sessions })); }
+    else { const pl = await I.planImport(db, { rows: parsed.rows, testId: Number(testId), protocolId: protocolId ? Number(protocolId) : null, resolutions: res }); setPlan(pl); groups = [{ testId: Number(testId), protocolId: protocolId ? Number(protocolId) : null, sessions: pl.sessions }]; }
+    setMissing(await I.findMissingSessions(db, { source: origin === 'vald' ? 'VALD' : I.IMPORT_SOURCE, groups }));
+    setDelIds({});
     setChoices({});
     setStep('resumen');
   });
@@ -137,10 +142,18 @@ function ImportarFicheros() {
   const save = run(async () => {
     if (origin === 'vald') {
       const rv = await V.commitValdImport(db, { file, vald, plans: vplans, choices, remember });
+      const ids = Object.keys(delIds).filter((k) => delIds[k]).map(Number);
+      if (ids.length) {
+        const byTest = {}; vplans.forEach((x, i) => { byTest[x.group.testId] = rv.batchIds[i]; });
+        rv.eliminadas = (await I.applyMissingDeletion(db, { ids, source: 'VALD', batchByTest: byTest })).eliminadas;
+        rv.batches = (await I.listBatches(db)).filter((b) => rv.batchIds.includes(b.id));
+      }
       setResult(rv); setStep('resultado'); bump();
       return;
     }
     const r = await I.commitImport(db, { file, sheetName: sheet.name, mappingName, testId: Number(testId), protocolId: protocolId ? Number(protocolId) : null, mapping: { headerRow, cols, fixedDate, noHeader, subHeader }, parsed, plan, conflictChoices: choices, rememberAlias: remember });
+    const ids = Object.keys(delIds).filter((k) => delIds[k]).map(Number);
+    if (ids.length) r.eliminadas = (await I.applyMissingDeletion(db, { ids, source: I.IMPORT_SOURCE, batchByTest: { [Number(testId)]: r.batchId } })).eliminadas;
     const batch = (await I.listBatches(db)).find((b) => b.id === r.batchId);
     setResult({ ...r, batch });
     setStep('resultado');
@@ -186,7 +199,7 @@ function ImportarFicheros() {
     ${step === 'mapeo' ? html`<${PasoMapeo} ...${{ cat, importable, headers, grid, headerRow, subHeader, testId, chooseTest, protocolId, setProtocolId, cols, setCol, setCols, fixedDate, setFixedDate, mappingName, setMappingName, variables, test, msg, toPreview, back: () => setStep('archivo'), busy, db }} />` : null}
     ${step === 'vista' && parsed ? html`<${PasoVista} ...${{ parsed, cols: origin === 'vald' ? [] : cols, headers: origin === 'vald' ? [] : headers, vald: origin === 'vald' ? vald : null, back: () => setStep(origin === 'vald' ? 'archivo' : 'mapeo'), next: toPlayers, busy, msg }} />` : null}
     ${step === 'jugadores' ? html`<${PasoJugadores} ...${{ proposals, resolutions, setResolutions, remember, setRemember, back: () => setStep('vista'), next: toSummary, busy, msg }} />` : null}
-    ${step === 'resumen' && plan ? html`<${PasoResumen} ...${{ plan, choices, setChoices, variables, test, back: () => setStep('jugadores'), save, busy, msg }} />` : null}
+    ${step === 'resumen' && plan ? html`<${PasoResumen} ...${{ plan, choices, setChoices, missing, delIds, setDelIds, cat, variables, test, back: () => setStep('jugadores'), save, busy, msg }} />` : null}
     ${step === 'resultado' && result ? html`<${PasoResultado} ...${{ result, again: reset }} />` : null}
     <${Historial} batches=${batches} cat=${cat} />
   `;
@@ -338,7 +351,7 @@ function PasoAtletas({ atl, back, done }) {
 
 const STATUS_TEXT = { nueva: 'Nueva', duplicada: 'Ya existe idéntica (se omite)', conflicto: 'Ya existe con valores distintos', 'conflicto-fichero': 'Filas contradictorias en el fichero' };
 
-function PasoResumen({ plan, choices, setChoices, back, save, busy, msg }) {
+function PasoResumen({ plan, choices, setChoices, missing = [], delIds = {}, setDelIds, cat, back, save, busy, msg }) {
   const c = plan.counts;
   const conflicts = plan.sessions.filter((s) => s.status === 'conflicto');
   const inFile = plan.sessions.filter((s) => s.status === 'conflicto-fichero');
@@ -359,6 +372,11 @@ function PasoResumen({ plan, choices, setChoices, back, save, busy, msg }) {
     ${conflicts.length ? html`<div class="table-wrap"><table><caption>Conflictos con sesiones ya guardadas</caption>
       <thead><tr><th scope="col">Jugador</th><th scope="col">Fecha</th><th scope="col">Qué hacer</th></tr></thead>
       <tbody>${conflicts.map((s) => html`<tr key=${s.key}><td>${s.playerText}</td><td>${fmtDay(s.date)} ${s.time}</td><td><select aria-label=${'Conflicto de ' + s.playerText + ' ' + s.date} value=${choices[s.key] ?? 'omitir'} onChange=${(e) => setChoices((x) => ({ ...x, [s.key]: e.target.value }))}><option value="omitir">Omitir (conservar la sesión existente)</option><option value="nueva">Guardar como sesión nueva (otra sesión ese día)</option></select></td></tr>`)}</tbody></table></div>` : null}
+    ${missing.length ? html`<div class="table-wrap missing-box"><table><caption>Sesiones guardadas que no aparecen en este fichero (${missing.length})</caption>
+      <thead><tr><th scope="col"><span class="sr">Eliminar</span></th><th scope="col">Jugador</th><th scope="col">Test</th><th scope="col">Fecha</th></tr></thead>
+      <tbody>${missing.map((m) => html`<tr key=${m.id}><td><input type="checkbox" aria-label=${'Eliminar la sesión de ' + m.playerName + ' del ' + m.date} checked=${!!delIds[m.id]} onChange=${(e) => setDelIds((x) => ({ ...x, [m.id]: e.target.checked }))} /></td><td>${m.playerName}</td><td>${cat?.tests.find((t) => t.id === m.testId)?.name ?? m.testId}</td><td>${fmtDay(m.date)} ${m.time}</td></tr>`)}</tbody></table>
+      <p class="muted">Son sesiones importadas antes con el mismo origen y test, dentro del rango de fechas de este fichero, que hoy no vienen en él. No se elimina nada salvo lo que marques; lo marcado se borra de forma permanente al guardar (el lote conserva una copia y el informe lo indica). ${(plan.counts.pendientes || plan.counts.filasConError) ? 'Ojo: hay filas sin resolver o con error; si la sesión que buscas estaba en ellas, no la marques.' : ''}</p>
+      <div class="actions"><button type="button" class="secondary" onClick=${() => setDelIds(Object.fromEntries(missing.map((m) => [m.id, true])))}>Marcar todas</button><button type="button" class="secondary" onClick=${() => setDelIds({})}>Desmarcar todas</button></div></div>` : null}
     ${inFile.length ? html`<p class="status warn">Filas contradictorias en el fichero (filas ${inFile.map((s) => s.rowNumbers.join('+')).join('; ')}): si son sesiones distintas del mismo día, añade una columna de hora.</p>` : null}
     <p>${creates} ${creates === 1 ? 'sesión se guardará' : 'sesiones se guardarán'}. Los valores originales no se modifican y las derivadas se calcularán después.</p>
     <div class="actions"><button type="button" class="secondary" onClick=${back}>Atrás</button><button type="button" disabled=${busy} onClick=${save}>Guardar importación</button></div>
@@ -372,6 +390,7 @@ function PasoResultado({ result, again }) {
     <p class="status ok">${result.batchIds?.length > 1 ? `Lotes ${result.batchIds.join(', ')} guardados` : `Lote ${result.batchId} guardado`}: ${k.sesionesCreadas} sesiones creadas.</p>
     <ul>
       <li>${k.duplicadasOmitidas} duplicadas omitidas · ${k.conflictosOmitidos} conflictos omitidos · ${k.conflictosGuardadosComoNuevas} conflictos guardados como sesión nueva · ${k.conflictosFichero} grupos contradictorios del fichero sin importar.</li>
+      ${result.eliminadas ? html`<li><strong>${result.eliminadas}</strong> sesiones ausentes del fichero eliminadas por tu decisión.</li>` : null}
       ${(k.pesosGuardados || k.alturasGuardadas) ? html`<li>${k.pesosGuardados} pesos de referencia guardados (${k.pesosCambiados} sustituyeron a uno anterior) · ${k.alturasGuardadas} alturas guardadas.</li>` : null}
       <li>${k.jugadoresNuevos} jugadores nuevos · ${k.aliasGuardados} alias guardados${k.aliasFijados ? ` · ${k.aliasFijados} alias (camiseta) fijados` : ''} · ${k.filasSinResolver} filas sin resolver · ${k.filasConError} filas con error.</li>
     </ul>

@@ -51,7 +51,7 @@ profs.push({ id: 22, playerId: 1, date: '2026-01-01', exercise: 'Sentadilla', fd
 const cur = profs.find((x) => x.playerId === 13);
 const cmp = compareWithSquad({ profiles: profs, players: sq, anthropometry: an, playerId: 13, current: { ...cur, exercise: 'SENTADILLA ' }, minN: 10 });
 check('comparación: N = 12 (sin él, sin sintético, sin otro ejercicio, un perfil por jugador)', cmp.every((r) => r.ev.n === 12), cmp.map((r) => r.ev.n).join());
-check('Vo, Fo÷masa y potencia con banda de color; pendiente solo estadística', cmp.filter((r) => r.direction === 'higher').every((r) => r.ev.band !== null) && cmp.find((r) => r.key === 'slope').ev.band === null && cmp.find((r) => r.key === 'slope').ev.percentileStat !== null);
+check('Vo, Fo÷masa y potencia con banda de color; pendiente con color de posición (positional)', cmp.filter((r) => r.direction === 'higher').every((r) => r.ev.band !== null) && cmp.find((r) => r.key === 'slope').ev.band !== null && cmp.find((r) => r.key === 'slope').ev.positional === true && cmp.find((r) => r.key === 'slope').ev.percentileStat !== null);
 const few = compareWithSquad({ profiles: profs.slice(0, 5), players: sq, anthropometry: an, playerId: 5, current: profs[4], minN: 10 });
 check('muestra insuficiente: sin percentil y con el motivo', few[0].ev.percentileStat === null && /insuficiente/.test(few[0].ev.reason));
 const noMass = compareWithSquad({ profiles: profs, players: sq, anthropometry: [], playerId: 13, current: cur, minN: 10 });

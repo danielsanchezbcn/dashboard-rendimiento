@@ -3,7 +3,7 @@
 // dos (jugador y mediana de la Premier League) se leen como porcentaje de él. Los valores originales y sus unidades se muestran siempre en una tabla.
 // Solo variables con «más alto es mejor» (el cociente no tiene sentido en las de «más bajo es mejor»). Un eje sin dato del jugador, sin P50 suficiente de La Liga
 // o sin referencia se omite del radar y se lista aparte; la mediana de la Premier solo se dibuja si la tienen todos los ejes dibujados.
-import { playerValue, buildReference, evaluate } from './percentiles.js';
+import { playerValue, buildReference, evaluate, quantile } from './percentiles.js';
 import { findPremier } from './premier.js';
 
 // Perfil aportado por el usuario (8/11/2026): seis variables del CMJ. «EDRFD/BM» = ECC DECEL RFD (N/s/kg), que coincide con «Eccentric Deceleration RFD / BM (N/s/kg)» de la Premier.
@@ -34,9 +34,25 @@ export function profileFromSetting(cfg) {
   return RADAR_PROFILES[0];
 }
 
+// Referencias que se pueden mostrar en el radar (9/11/2026). Todas se dibujan como valor ÷ P50 de La Liga (todas las posiciones).
+export const RADAR_REFS = [
+  { key: 'p50', label: 'P50 La Liga', group: 'liga' },
+  { key: 'p75', label: 'P75 La Liga', group: 'liga' },
+  { key: 'p50pos', label: 'P50 La Liga por posición', group: 'liga', needsPosition: true },
+  { key: 'p75pos', label: 'P75 La Liga por posición', group: 'liga', needsPosition: true },
+  { key: 'premier50', label: 'P50 Premier League', group: 'premier' },
+  { key: 'premier75', label: 'P75 Premier League', group: 'premier' },
+  { key: 'first', label: 'Primera medida del jugador', group: 'jugador' },
+  { key: 'pa', label: 'Personal Average', group: 'jugador' },
+  { key: 'pb', label: 'Personal Best', group: 'jugador' },
+  { key: 'last', label: 'Última medida del jugador', group: 'jugador' },
+];
+export const RADAR_REFS_DEFAULT = ['p50', 'premier50', 'pa'];
+export const radarRefsFromSetting = (v) => (Array.isArray(v) ? v.filter((k) => RADAR_REFS.some((r) => r.key === k)) : RADAR_REFS_DEFAULT);
+
 const lc = (s) => String(s ?? '').trim().toLowerCase();
 
-export function buildRadar({ profile, test, variables, sessions, players, histories = {}, playerId, basis = 'pa', positionId = null, minN }) {
+export function buildRadar({ profile, test, variables, sessions, players, histories = {}, playerId, basis = 'pa', positionId = null, minN, multi = false }) {
   const axes = []; const omitted = [];
   for (const a of profile.axes) {
     const variable = variables.find((v) => v.testId === test.id && !v.archived && lc(v.name) === lc(a.variable));
@@ -45,13 +61,26 @@ export function buildRadar({ profile, test, variables, sessions, players, histor
     if (variable.direction !== 'higher') { omitted.push({ label: a.label, reason: 'Solo se dibujan variables con «más alto es mejor» (el cociente con La Liga no sirve en las demás).' }); continue; }
     const mine = playerValue(sessions.filter((s) => s.testId === test.id && s.playerId === playerId), variable, 'S', { basis, positionId: null, histories, playerId });
     if (!mine) { omitted.push({ label: a.label, reason: 'El jugador no tiene sesiones válidas de esta variable.' }); continue; }
-    const entries = buildReference({ sessions, variable, side: 'S', players, histories, basis: basis === 'last' ? 'pa' : basis, positionId });
+    const entries = buildReference({ sessions, variable, side: 'S', players, histories, basis: basis === 'last' || basis === 'first' ? 'pa' : basis, positionId: multi ? null : positionId });
     const ev = evaluate(entries, { playerId, value: mine.value, direction: variable.direction, minN });
     if (!ev.sufficient || !(ev.p50 > 0)) { omitted.push({ label: a.label, reason: `Sin P50 de La Liga: muestra insuficiente (N = ${ev.n}, mínimo ${ev.minN}).` }); continue; }
     const pr = findPremier(test, variable);
     const premierP50 = pr && !pr.signed && Number.isFinite(pr.cuts[2]) ? pr.cuts[2] : null;
-    axes.push({ variable, label: a.label, unit: variable.unit ?? '', mine, laLiga: { p50: ev.p50, n: ev.n }, premier: premierP50, ratioPlayer: mine.value / ev.p50, ratioPremier: premierP50 === null ? null : premierP50 / ev.p50 });
+    const axis = { variable, label: a.label, unit: variable.unit ?? '', mine, laLiga: { p50: ev.p50, n: ev.n }, premier: premierP50, ratioPlayer: mine.value / ev.p50, ratioPremier: premierP50 === null ? null : premierP50 / ev.p50 };
+    if (multi) {
+      // Valores absolutos de cada referencia (null = no disponible) y sus cocientes sobre el P50 de La Liga.
+      const others = entries.filter((e) => e.playerId !== playerId).map((e) => e.value);
+      const q = (vals, p) => (vals.length >= (minN ?? 1) ? quantile(vals, p) : null);
+      const posVals = positionId === null ? [] : buildReference({ sessions, variable, side: 'S', players, histories, basis: 'pa', positionId }).filter((e) => e.playerId !== playerId).map((e) => e.value);
+      const own = (b) => playerValue(sessions.filter((s) => s.testId === test.id && s.playerId === playerId), variable, 'S', { basis: b, positionId: null, histories, playerId })?.value ?? null;
+      const refs = { p50: ev.p50, p75: q(others, 0.75), p50pos: q(posVals, 0.5), p75pos: q(posVals, 0.75), premier50: premierP50, premier75: pr && !pr.signed && Number.isFinite(pr.cuts[3]) ? pr.cuts[3] : null, first: own('first'), pa: own('pa'), pb: own('pb'), last: own('last') };
+      axis.refs = refs;
+      axis.ratios = Object.fromEntries(Object.entries(refs).map(([k, v]) => [k, v === null || v === undefined ? null : v / ev.p50]));
+    }
+    axes.push(axis);
   }
   const premierComplete = axes.length > 0 && axes.every((a) => a.premier !== null);
-  return { axes, omitted, premierComplete, drawable: axes.length >= 3 };
+  // Referencia dibujable solo si todos los ejes dibujados la tienen.
+  const complete = Object.fromEntries(RADAR_REFS.map((r) => [r.key, axes.length > 0 && axes.every((a) => a.ratios?.[r.key] != null)]));
+  return { axes, omitted, premierComplete, drawable: axes.length >= 3, complete };
 }

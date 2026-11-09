@@ -12,6 +12,7 @@ import { getSetting } from './db.js';
 import { useLoad } from './componentes.js';
 import { MIN_N_DEFAULT, evaluate } from './percentiles.js';
 import { massNearest, withReferenceWeights } from './relaciones.js';
+import { Banda } from './pages-percentiles.js';
 const nf = (n, d = 1) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 
 const leerArchivo = (f) => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(new Error('No se pudo leer el archivo.')); r.readAsDataURL(f); });
@@ -119,7 +120,7 @@ export function ImportarImagen() {
     <//>` : null}`;
 }
 
-// Percentil estadístico (sin color: ni «más alto» ni «más bajo» es mejor) de peso y altura frente a los demás jugadores de la base (sin sintéticos).
+// Percentil (color de posición: ni «más alto» ni «más bajo» es mejor) de peso y altura frente a los demás jugadores de la base (sin sintéticos).
 // Peso = masa medida más cercana a hoy o, si no hay, el peso de referencia. Altura = última medición en cm.
 export function AntropPercentiles({ player }) {
   const { db, version } = useApp();
@@ -140,10 +141,10 @@ export function AntropPercentiles({ player }) {
     if (!mine) return html`<tr><th scope="row">${nombre}</th><td colspan="2" class="muted">Sin dato de este jugador.</td></tr>`;
     const ev = evaluate(entries, { playerId: player.id, value: mine.value, direction: null, minN: data.minN });
     return html`<tr><th scope="row">${nombre}</th><td class="num">${nf(mine.value, 1)} ${unidad}${nota ? html` <span class="muted">(${nota(mine)})</span>` : null}</td>
-      <td>${ev.sufficient && ev.percentileStat != null ? html`<span title=${`Percentil estadístico, N = ${ev.n}; mediana de la base ${nf(ev.p50, 1)} ${unidad}`}>P${nf(ev.percentileStat, 0)}</span> <span class="muted">(N = ${ev.n})</span>` : html`<span class="muted">${ev.reason}</span>`}</td></tr>`;
+      <td>${ev.sufficient && ev.percentileStat != null ? html`<${Banda} ev=${ev} /> <span class="muted" title=${`Mediana de la base ${nf(ev.p50, 1)} ${unidad}`}>(N = ${ev.n})</span>` : html`<span class="muted">${ev.reason}</span>`}</td></tr>`;
   };
   return html`<h3>Percentil de peso y altura</h3>
     <div class="table-wrap"><table><thead><tr><th scope="col">Medida</th><th scope="col" class="num">Valor</th><th scope="col">Percentil La Liga</th></tr></thead><tbody>
       ${fila('Peso', data.pesos, 'kg', (m) => (m.ref ? 'peso de referencia' : 'masa medida'))}${fila('Altura', data.alturas, 'cm', (m) => fmtDay(m.date))}</tbody></table></div>
-    <p class="muted">Percentil estadístico sin color (ni más alto ni más bajo es «mejor»): un valor por jugador de la base, sin sintéticos ni este jugador; mínimo ${data.minN} jugadores (Configuración).</p>`;
+    <p class="muted">Percentil con color de posición (ni más alto ni más bajo es «mejor»): un valor por jugador de la base, sin sintéticos ni este jugador; mínimo ${data.minN} jugadores (Configuración).</p>`;
 }

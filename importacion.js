@@ -473,6 +473,55 @@ export async function commitImport(db, { file, sheetName, mappingName = '', test
   });
 }
 
+// Sesiones ausentes del fichero. Al importar periódicamente «todos los tests», las que ya no aparecen (p. ej. pruebas de readaptación borradas en VALD)
+// se ofrecen para eliminar. Alcance: mismo origen (VALD/Excel), mismo test y protocolo, y fechas dentro del rango del fichero.
+// Nunca se elimina nada sin que el usuario lo marque. groups: [{ testId, protocolId, sessions: plan.sessions }]
+export async function findMissingSessions(db, { source, groups }) {
+  const out = [];
+  for (const g of groups) {
+    const inFile = g.sessions ?? [];
+    const dates = inFile.map((s) => s.date).filter(Boolean).sort();
+    if (!dates.length) continue;
+    const [from, to] = [dates[0], dates[dates.length - 1]];
+    const matchedIds = new Set(inFile.map((s) => s.existingId).filter((x) => x != null));
+    const matchedKeys = new Set(inFile.filter((s) => s.resolution?.action === 'link').map((s) => `${s.resolution.playerId}|${s.date}|${s.time ?? ''}`));
+    const proto = g.protocolId ?? null;
+    const rows = await db.sessions.where('testId').equals(g.testId).toArray();
+    for (const s of rows) {
+      if (s.source !== source || (s.protocolId ?? null) !== proto || s.date < from || s.date > to) continue;
+      if (matchedIds.has(s.id) || matchedKeys.has(`${s.playerId}|${s.date}|${s.time ?? ''}`)) continue;
+      const p = await db.players.get(s.playerId);
+      out.push({ id: s.id, testId: s.testId, playerId: s.playerId, playerName: p ? playerLabel(p) : `jugador ${s.playerId}`, date: s.date, time: s.time ?? '', from, to });
+    }
+  }
+  return out.sort((a, b) => a.playerName.localeCompare(b.playerName) || a.date.localeCompare(b.date));
+}
+
+// Elimina (de forma permanente) solo las sesiones indicadas, comprobando que siguen existiendo y son del origen indicado.
+// Guarda una copia de cada sesión eliminada en el lote (deletedSessions) y una nota en el informe; la auditoría guarda solo ids y fechas.
+export async function applyMissingDeletion(db, { ids, source, batchByTest = {} }) {
+  const tables = [db.sessions, db.importBatches, db.auditLog];
+  return db.transaction('rw', tables, async () => {
+    const done = [];
+    for (const id of ids) {
+      const s = await db.sessions.get(id);
+      if (!s || s.source !== source) continue;
+      await db.sessions.delete(id);
+      done.push(s);
+    }
+    const byBatch = new Map();
+    for (const s of done) { const b = batchByTest[s.testId] ?? Object.values(batchByTest)[0]; if (b != null) byBatch.set(b, [...(byBatch.get(b) ?? []), s]); }
+    for (const [bid, list] of byBatch) {
+      const b = await db.importBatches.get(bid);
+      if (!b) continue;
+      const report = { ...(b.report ?? {}), sessionNotes: [...(b.report?.sessionNotes ?? []), ...list.map((s) => ({ rows: [], text: `Sesión eliminada por no aparecer en este fichero (decisión del usuario): jugador ${s.playerId}, ${s.date} ${s.time ?? ''}.` }))] };
+      await db.importBatches.update(bid, { report, sesionesEliminadas: (b.sesionesEliminadas ?? 0) + list.length, deletedSessions: [...(b.deletedSessions ?? []), ...list] });
+    }
+    if (done.length) await audit(db, 'sesiones-ausentes-eliminadas', { cantidad: done.length, sesiones: done.map((s) => ({ id: s.id, playerId: s.playerId, testId: s.testId, date: s.date })) });
+    return { eliminadas: done.length, omitidas: ids.length - done.length };
+  });
+}
+
 export const listBatches = async (db) => (await db.importBatches.toArray()).sort((a, b) => b.id - a.id);
 
 export async function findBatchByHash(db, hash) {
