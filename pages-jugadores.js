@@ -9,6 +9,7 @@ import { totalOf, countSynthetic } from './sinteticos.js';
 import { ResultadosJugador } from './pages-evolucion.js';
 import { RelacionesPanel } from './pages-relaciones.js';
 import { FvPanel } from './pages-fv.js';
+import { AntropPercentiles } from './pages-imagen.js';
 
 const posName = (positions, id) => positions.find((p) => p.id === id)?.name ?? '(posición eliminada)';
 
@@ -214,6 +215,7 @@ function Antropometria({ player, records }) {
         <tbody>${records.map((r) => html`<tr key=${r.id}><td>${fmtDay(r.date)} ${r.synthetic ? html`<${Sintetico} />` : null}</td>${METRICS.map((m) => html`<td key=${m.key}>${cell(r, m.key)}</td>`)}<td>${r.source || '—'}</td><td>${r.notes || '—'}</td>
           <td class="acts"><button type="button" class="secondary" onClick=${() => load(r)}>Editar</button>
           <button type="button" class="secondary" onClick=${run(async () => { if (confirm('¿Eliminar esta medición?')) { await deleteAnthropometry(db, r.id); bump(); } })}>Eliminar</button></td></tr>`)}</tbody></table></div>`}
+      <${AntropPercentiles} player=${player} />
       <h3>${f.id ? 'Editar medición' : 'Añadir medición'}</h3>
       <form onSubmit=${save}>
         <div class="fields">

@@ -25,6 +25,9 @@ export function orderVars(vars) {
   }
   return out;
 }
+// Variable por defecto: la primera (la relativa va antes que la absoluta) que tenga algún valor calculado; si la relativa no tiene ninguno
+// (p. ej. jugadores sin masa corporal ni peso de referencia), se muestra la absoluta en vez de una pantalla vacía.
+export const defaultVar = (vars, sessions) => vars.find((v) => sessions.some((s) => s.values?.[v.id])) ?? vars[0];
 export const relFactor = (v) => (v.formula.op === 'REL_SW' ? Number(v.formula.params?.factor ?? SW_FACTOR_DEFAULT) : 1);
 
 // Devuelve { sessions, omitted: { [variableRelativaId]: nº de sesiones sin masa previa } }. Añade values[relId] = {L,R,S} a copias de las sesiones.

@@ -12,7 +12,7 @@ import { audit } from './db.js';
 import { SW_FACTOR_DEFAULT, testUsage } from './catalogo.js';
 import { ISO_PAIRS, RM12_TESTS, RM_EST_FACTOR_DEFAULT, pairFactor } from './isohold.js';
 
-export const CATALOG_SEED_VERSION = 5;
+export const CATALOG_SEED_VERSION = 8;
 
 const BLOCKS = [
   { key: 'fuerza', name: 'Manifestaciones de la fuerza' },
@@ -164,6 +164,7 @@ export async function seedInitialCatalog(db) {
       for (const [test, vars] of Object.entries(VARIABLES_BY_TEST)) for (const x of vars) await addVar(testIds[test], { ...x, manifestationId: x.manifestation ? manId[x.manifestation] : x.manifestationId });
       await ensureDerived(db, ts, counts);
     }
+    await ensurePerimeters(db, ts, counts);
     counts.direccionesAsignadas = await defaultDirections(db, ts);
     await db.meta.put({ key: 'catalogSeeded', value: { version: CATALOG_SEED_VERSION, at: ts, vacioAlSembrar: empty } });
     await audit(db, 'catalogo-inicial-cargado', { version: CATALOG_SEED_VERSION, ...counts });
@@ -174,12 +175,41 @@ export async function seedInitialCatalog(db) {
 
 // 7 de noviembre de 2026 (D50): el usuario indica «Personal Best: más alto es mejor». Las variables SIN dirección pasan a «Más alto es mejor»,
 // salvo las asimetrías (unidad %, con signo: un «mejor» no tiene sentido). Nunca se toca una dirección ya definida. Cada ejecución queda en el registro.
+// Solo el TIEMPO de contacto (suelo) es «más bajo es mejor». El RSI también lleva «CONTACT TIME» en el nombre («FLIGHT TIME / CONTACT TIME») y es «más alto es mejor» (9/11/2026).
+// Direcciones confirmadas por el usuario el 9/11/2026: «más bajo es mejor» en tiempo de contacto, duraciones, profundidad y velocidad excéntrica pico (valores negativos);
+// «más alto es mejor» en COM STIFFNESS, FORCE AT 0 VELOCITY y las rigideces activas (Hop Test y Drop Jump), que son también el valor por defecto.
+export const LOWER_IS_BETTER = /^((mean )?contact time|ecc decel phase duration|concentric duration|contraction time|depth|ecc peak velocity)$/i;
 async function defaultDirections(db, ts) {
   const all = await db.variables.toArray();
-  const todo = all.filter((v) => (v.direction ?? null) === null && v.unit !== '%');
-  for (const v of todo) await db.variables.update(v.id, { direction: /contact time/i.test(v.name) ? 'lower' : 'higher', updatedAt: ts }); // tiempo de contacto: más bajo es mejor (D50)
+  const perim = new Set((await db.tests.where('blockKey').equals('perimetros').toArray()).map((t) => t.id)); // perímetros: sin dirección definida por el usuario
+  const todo = all.filter((v) => (v.direction ?? null) === null && v.unit !== '%' && !perim.has(v.testId));
+  for (const v of todo) await db.variables.update(v.id, { direction: LOWER_IS_BETTER.test(v.name) ? 'lower' : 'higher', updatedAt: ts }); // tiempo de contacto: más bajo es mejor (D50)
   if (todo.length) await audit(db, 'catalogo-direccion-por-defecto', { cantidad: todo.length, direccion: 'higher', excepciones: 'contact time = lower', excluye: 'asimetrias (%)' });
   return todo.length;
+}
+
+// 9/11/2026: los 5 perímetros que indica el usuario, en el bloque Perímetros como UN test con 5 variables (nombres tal como los escribió el usuario).
+// Confirmado por el usuario: se miden por lado (izquierdo y derecho), en cm y con una medición por sesión. Sin dirección («más alto es mejor» no está definido): percentil estadístico sin color.
+export const PERIMETERS_TEST = 'Perímetros';
+export const PERIMETERS = [
+  'THIGHT PERIMETER (1 CM UNDER FOLD GLUTE)', 'MIDDLE THIGHT PERIMETER', '10 CM ABOVE PATELLA PERIMETER', '5 CM ABOVE PATELLA PERIMETER', 'MAXIMUM CALF PERIMETER',
+];
+async function ensurePerimeters(db, ts, counts) {
+  const lc = (x) => String(x ?? '').trim().toLowerCase();
+  let t = (await db.tests.toArray()).find((x) => lc(x.name) === lc(PERIMETERS_TEST) && x.blockKey === 'perimetros');
+  if (!t) {
+    const torder = (await db.tests.orderBy('order').last())?.order ?? 0;
+    const id = await db.tests.add({ name: PERIMETERS_TEST, blockKey: 'perimetros', manifestationId: null, zoneId: null, notes: 'Perímetros por lado (cm), una medición por sesión.', archived: false, order: torder + 1, createdAt: ts, updatedAt: ts, source: 'inicial' });
+    t = await db.tests.get(id);
+    counts.tests = (counts.tests ?? 0) + 1;
+  }
+  const existing = await db.variables.where('testId').equals(t.id).toArray();
+  let order = (await db.variables.orderBy('order').last())?.order ?? 0;
+  for (const name of PERIMETERS) {
+    if (existing.some((x) => lc(x.name) === lc(name))) continue;
+    await db.variables.add({ testId: t.id, name, unit: 'cm', sides: 'LR', direction: null, manifestationId: null, kind: 'raw', formula: null, formulaVersion: 0, notes: '', archived: false, order: ++order, createdAt: ts, updatedAt: ts, source: 'inicial' });
+    counts.variables = (counts.variables ?? 0) + 1; counts.perimetrosAnadidos = (counts.perimetrosAnadidos ?? 0) + 1;
+  }
 }
 
 // Variables calculadas del Iso-Hold y del 1RM estimado (D5). Idempotente: crea solo las que falten, por nombre, a partir de la variable de carga del test.
@@ -298,7 +328,18 @@ async function migrateCatalog(db, prev) {
         for (const e of ISO_EXPLOSIVE) await mk({ name: e.name, unit: e.unit, sides: e.sides, manifestationId: manByName(e.manifestation)?.id ?? null, notes: e.notes });
       } else await apply(name, ISO_EXPLOSIVE);
     }
+    // 9/11/2026: direcciones que el usuario confirma como «más bajo es mejor» (duraciones, profundidad, velocidad excéntrica pico) en lo ya sembrado.
+    const aBajo = (await db.variables.toArray()).filter((v) => v.source === 'inicial' && v.kind === 'raw' && LOWER_IS_BETTER.test(v.name) && v.direction !== 'lower');
+    for (const v of aBajo) await db.variables.update(v.id, { direction: 'lower', updatedAt: ts });
+    if (aBajo.length) await audit(db, 'catalogo-direcciones-confirmadas', { cantidad: aBajo.length, a: 'lower', variables: [...new Set(aBajo.map((v) => v.name))] });
+    res.direccionesBajo = aBajo.length;
+    // 9/11/2026: corrección de un error mío (D50): los RSI heredaron «más bajo es mejor» por llevar «CONTACT TIME» en el nombre. Se pasan a «más alto» (lo pidió el usuario).
+    const rsiMal = (await db.variables.toArray()).filter((v) => v.source === 'inicial' && v.direction === 'lower' && /\bRSI\b/i.test(v.name));
+    for (const v of rsiMal) await db.variables.update(v.id, { direction: 'higher', updatedAt: ts });
+    if (rsiMal.length) await audit(db, 'catalogo-direccion-rsi-corregida', { cantidad: rsiMal.length, de: 'lower', a: 'higher' });
+    res.rsiCorregidos = rsiMal.length;
     await ensureDerived(db, ts, res);
+    await ensurePerimeters(db, ts, res);
     res.direccionesAsignadas = await defaultDirections(db, ts);
     await db.meta.put({ key: 'catalogSeeded', value: { ...(cur?.value ?? {}), version: CATALOG_SEED_VERSION, actualizadoEn: ts } });
     await audit(db, 'catalogo-inicial-actualizado', { version: CATALOG_SEED_VERSION, ...res });

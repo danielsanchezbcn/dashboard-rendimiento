@@ -14,6 +14,7 @@ import { downloadBlob } from './io.js';
 import { fmtDate } from './util.js';
 import { fmtDay } from './fechas.js';
 import { baseName, playerLabel } from './jugadores.js';
+import { ImportarImagen } from './pages-imagen.js';
 
 const show = (v) => (v === null || v === undefined ? '' : v instanceof Date ? v.toISOString().slice(0, 10) : String(v));
 const STEPS = [['archivo', '1. Archivo'], ['mapeo', '2. Columnas'], ['vista', '3. Vista previa'], ['jugadores', '4. Jugadores'], ['resumen', '5. Resumen'], ['resultado', '6. Informe']];
@@ -22,7 +23,7 @@ function Pasos({ step }) {
   return html`<ol class="steps" aria-label="Pasos de la importación">${STEPS.map(([id, label]) => html`<li key=${id} aria-current=${id === step ? 'step' : null} class=${id === step ? 'active' : ''}>${label}</li>`)}</ol>`;
 }
 
-export function Importar() {
+function ImportarFicheros() {
   const { db, version, bump } = useApp();
   const { data: cat } = useLoad(() => listCatalog(db), [db, version]);
   const { data: batches } = useLoad(() => I.listBatches(db), [db, version]);
@@ -383,4 +384,13 @@ function Historial({ batches, cat }) {
       <thead><tr><th scope="col">Fecha</th><th scope="col">Fichero</th><th scope="col">Test</th><th scope="col" class="num">Sesiones</th><th scope="col" class="num">Omitidas</th><th scope="col" class="num">Sin importar</th><th scope="col"><span class="sr">Informe</span></th></tr></thead>
       <tbody>${batches.map((b) => html`<tr key=${b.id}><td>${fmtDate(b.createdAt)}</td><td>${b.fileName}</td><td>${tname(b.testId)}</td><td class="num">${b.sesionesCreadas ?? 0}</td><td class="num">${(b.duplicadasOmitidas ?? 0) + (b.conflictosOmitidos ?? 0)}</td><td class="num">${(b.filasConError ?? 0) + (b.filasSinResolver ?? 0) + (b.conflictosFichero ?? 0)}</td><td class="acts"><button type="button" class="secondary" onClick=${() => downloadBlob(new Blob([I.reportCsv(b)], { type: 'text/csv;charset=utf-8' }), `informe-importacion-lote-${b.id}.csv`)}>Informe</button></td></tr>`)}</tbody></table></div>`}
   <//>`;
+}
+
+// Dos vías de importación: ficheros de tests (Excel propio, CSV de VALD, lista de atletas) o imagen de antropometría (OCR local con revisión obligatoria).
+export function Importar() {
+  const [vista, setVista] = useState('ficheros');
+  return html`<div class="modes" role="tablist" aria-label="Tipo de importación">
+      <button type="button" role="tab" aria-selected=${vista === 'ficheros'} class=${vista === 'ficheros' ? '' : 'secondary'} onClick=${() => setVista('ficheros')}>Datos de tests (Excel / VALD)</button>
+      <button type="button" role="tab" aria-selected=${vista === 'imagen'} class=${vista === 'imagen' ? '' : 'secondary'} onClick=${() => setVista('imagen')}>Antropometría desde imagen</button></div>
+    ${vista === 'ficheros' ? html`<${ImportarFicheros} />` : html`<${ImportarImagen} />`}`;
 }

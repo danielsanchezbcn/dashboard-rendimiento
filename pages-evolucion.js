@@ -8,7 +8,7 @@ import { addManualLoad, LOAD_VARIABLE_NAMES } from './isohold.js';
 import { listCatalog, SIDES } from './catalogo.js';
 import { replaceQuery, buildHash } from './rutas.js';
 import { Migas, KEEP, NotaRelativa } from './pages-test.js';
-import { expandRelative, isViewable, hasData, orderVars, isRelative } from './relativos.js';
+import { expandRelative, isViewable, hasData, orderVars, isRelative, defaultVar } from './relativos.js';
 import { PercentilesPanel, useRefData, refContext } from './pages-percentiles.js';
 import { positionOnDate } from './posiciones.js';
 import { withReferenceWeights } from './relaciones.js';
@@ -246,7 +246,7 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const vars = orderVars(catalog.variables.filter((v) => v.testId === test.id && isViewable(v) && hasData(v, sessions)));
   const proto = q.p ?? 'all';
   const from = q.from ?? '', to = q.to ?? '';
-  const variable = vars.find((v) => String(v.id) === String(q.v)) ?? vars[0];
+  const variable = vars.find((v) => String(v.id) === String(q.v)) ?? defaultVar(vars, sessions);
   if (!variable) return html`<p class="muted">Este test no tiene variables con datos.</p>`;
   const protocolId = proto === 'all' ? undefined : proto === 'none' ? null : Number(proto);
   const f = { from: from || null, to: to || null, protocolId };
@@ -259,9 +259,9 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const abs = srcVar ? (() => { const ser = Object.fromEntries(sides.map((sd) => [sd, buildSeries(sessions, srcVar.id, sd, f)])); return { variable: srcVar, stats: Object.fromEntries(sides.map((sd) => [sd, { pa: personalAverage(ser[sd].valid), pb: personalBest(ser[sd].valid, srcVar.direction) }])), current: Object.fromEntries(sides.map((sd) => [sd, currentResult(ser[sd].valid)])) }; })() : null;
   const ctx = refData ? refContext({ refData, test, variable, sides, filters: f, playerId: player.id, positionId, srcVar }) : null;
   const posNombre = positions.find((p) => p.id === positionId)?.name;
-  const REF_OPTS = [['p50', 'P50 La Liga', 'p50', [], 2], ['p50pos', `P50 La Liga (${posNombre ?? 'posición'})`, 'p50pos', [8, 4], 2], ['p75', 'P75 La Liga', 'p75', [2, 3], 2], ['p75pos', `P75 La Liga (${posNombre ?? 'posición'})`, 'p75pos', [10, 3, 2, 3], 2], ['premier50', 'P50 Premier League', 'premier50', [], 1.5]];
+  const REF_OPTS = [['p50', 'P50 La Liga', 'p50', [], 2], ['p50pos', `P50 La Liga (${posNombre ?? 'posición'})`, 'p50pos', [8, 4], 2], ['p75', 'P75 La Liga', 'p75', [2, 3], 2], ['p75pos', `P75 La Liga (${posNombre ?? 'posición'})`, 'p75pos', [10, 3, 2, 3], 2], ['premier50', 'P50 Premier League', 'premier50', [], 1.5], ['premier75', 'P75 Premier League', 'premier75', [8, 3], 1.5]];
   const chosen = String(q.rl ?? '').split(',').filter(Boolean);
-  const refLines = ctx ? REF_OPTS.filter(([k]) => chosen.includes(k) && ctx.lines[k] != null).map(([k, label, , dash, w]) => ({ k, label, value: ctx.lines[k], dash, w, color: k === 'premier50' ? PAL.premier : PAL.laLiga })) : [];
+  const refLines = ctx ? REF_OPTS.filter(([k]) => chosen.includes(k) && ctx.lines[k] != null).map(([k, label, , dash, w]) => ({ k, label, value: ctx.lines[k], dash, w, color: k.startsWith('premier') ? PAL.premier : PAL.laLiga })) : [];
   const all = sides.flatMap((sd) => [...series[sd].valid, ...series[sd].excluded].map((p) => p.value).concat(tg[sd] ? [tg[sd].value] : [])).concat(refLines.map((r) => r.value));
   const pad = all.length ? (Math.max(...all) - Math.min(...all)) * 0.1 || Math.abs(Math.max(...all)) * 0.1 || 1 : 1;
   const yMin = all.length ? Math.min(...all) - pad : undefined, yMax = all.length ? Math.max(...all) + pad : undefined; // mismo eje para ambos lados
@@ -278,7 +278,7 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
       <label>Hasta <input type="date" value=${to} onInput=${(e) => setQ({ to: e.target.value })} /></label>
     </div>
     <${NotaRelativa} variable=${variable} omitted=${omitted} catalog=${catalog} />
-    <fieldset class="modes"><legend>Líneas de referencia en el gráfico</legend>${REF_OPTS.map(([k, label]) => { const off = !ctx || ctx.lines[k] == null ; return html`<label class="check" key=${k} title=${off ? (k.endsWith('pos') && positionId == null ? 'El jugador no tiene posición principal.' : k === 'premier50' ? 'Esta variable no figura en las tablas de la Premier League.' : `Sin muestra suficiente (mínimo ${ctx?.minN ?? 10} jugadores).`) : ''}><input type="checkbox" disabled=${off} checked=${chosen.includes(k)} onChange=${(e) => setQ({ rl: (e.target.checked ? [...chosen, k] : chosen.filter((x) => x !== k)).join(',') || undefined })} /> ${label}</label>`; })}</fieldset>
+    <fieldset class="modes"><legend>Líneas de referencia en el gráfico</legend>${REF_OPTS.map(([k, label]) => { const off = !ctx || ctx.lines[k] == null ; return html`<label class="check" key=${k} title=${off ? (k.endsWith('pos') && positionId == null ? 'El jugador no tiene posición principal.' : k.startsWith('premier') ? 'Esta variable no figura en las tablas de la Premier League.' : `Sin muestra suficiente (mínimo ${ctx?.minN ?? 10} jugadores).`) : ''}><input type="checkbox" disabled=${off} checked=${chosen.includes(k)} onChange=${(e) => setQ({ rl: (e.target.checked ? [...chosen, k] : chosen.filter((x) => x !== k)).join(',') || undefined })} /> ${label}</label>`; })}</fieldset>
     ${sides.some((sd) => series[sd].valid.length)
       ? html`<${Grafico} deps=${[key, 'lineas', refLines.map((r) => r.k + r.value).join(), !!ctx]} nombre=${`evolucion-${variable.name}`} label=${`Evolución de ${variable.name}: ${sides.map((sd) => `${sideName[sd]} ${series[sd].valid.length} sesiones`).join(', ')}`} build=${(c) => lineConfig(c, { sides, series, stats, unit: variable.unit, yMin, yMax, tg, refLines, info: ctx ? (v) => ctx.info(v, 'last') : null })} />`
       : html`<p class="muted">Sin sesiones válidas en el periodo.</p>`}

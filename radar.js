@@ -45,7 +45,7 @@ export function buildRadar({ profile, test, variables, sessions, players, histor
     if (variable.direction !== 'higher') { omitted.push({ label: a.label, reason: 'Solo se dibujan variables con «más alto es mejor» (el cociente con La Liga no sirve en las demás).' }); continue; }
     const mine = playerValue(sessions.filter((s) => s.testId === test.id && s.playerId === playerId), variable, 'S', { basis, positionId: null, histories, playerId });
     if (!mine) { omitted.push({ label: a.label, reason: 'El jugador no tiene sesiones válidas de esta variable.' }); continue; }
-    const entries = buildReference({ sessions, variable, side: 'S', players, histories, basis, positionId });
+    const entries = buildReference({ sessions, variable, side: 'S', players, histories, basis: basis === 'last' ? 'pa' : basis, positionId });
     const ev = evaluate(entries, { playerId, value: mine.value, direction: variable.direction, minN });
     if (!ev.sufficient || !(ev.p50 > 0)) { omitted.push({ label: a.label, reason: `Sin P50 de La Liga: muestra insuficiente (N = ${ev.n}, mínimo ${ev.minN}).` }); continue; }
     const pr = findPremier(test, variable);
