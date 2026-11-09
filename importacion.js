@@ -12,6 +12,7 @@
 import { audit } from './db.js';
 import { isIsoDay } from './fechas.js';
 import { normalizeName, findCandidates, createPlayer, addAlias, updatePlayer, playerLabel } from './jugadores.js';
+import { addAnthropometry, setReferenceWeight } from './antropometria.js';
 
 export const ROLES = {
   ignorar: 'Ignorar esta columna',
@@ -21,10 +22,15 @@ export const ROLES = {
   reps: 'Repeticiones (total)',
   repsL: 'Repeticiones izquierda',
   repsR: 'Repeticiones derecha',
+  peso: 'Peso de referencia del jugador (kg)',
+  altura: 'Altura del jugador (cm)',
   valor: 'Valor de una variable',
 };
 export const SIDE_LABELS = { L: 'Izquierdo', R: 'Derecho', S: 'Único' };
 export const IMPORT_SOURCE = 'Excel';
+// Rangos de plausibilidad de peso y altura de jugadores adultos: fuera de ellos la fila no se importa (suele ser otra unidad: g, lb, m).
+export const RANGO_PESO = [45, 130]; // kg
+export const RANGO_ALTURA = [140, 215]; // cm
 
 const blank = (v) => v === null || v === undefined || (typeof v === 'string' && v.trim() === '');
 const txt = (v) => (blank(v) ? '' : v instanceof Date ? v.toISOString().slice(0, 10) : String(v).trim());
@@ -98,12 +104,42 @@ export function detectHeaderRow(rows) {
   return i < 0 ? 0 : i;
 }
 
+// Segunda fila de encabezado: la fila siguiente indica el lado (LEFT / RIGHT / ASYMMETRY) y el nombre de la variable solo aparece
+// en la primera columna del grupo. Se propone si la fila siguiente tiene ≥ 2 celdas de texto y casi todas son palabras de lado/asimetría.
+const SUB_WORDS = ['izq', 'izquierda', 'izquierdo', 'left', 'der', 'derecha', 'derecho', 'right', 'asimetria', 'asymmetry', 'asim', 'diff', 'diferencia'];
+export function detectSubHeader(grid, headerRow) {
+  const row = grid[headerRow + 1] ?? [];
+  const cells = row.filter((c) => !blank(c));
+  if (cells.length < 2 || cells.some((c) => typeof c === 'number' || c instanceof Date)) return false;
+  const hits = cells.filter((c) => SUB_WORDS.includes(normalizeName(String(c)).key)).length;
+  return hits >= 2 && hits / cells.length >= 0.6;
+}
+// Encabezados efectivos: con segunda fila, «nombre» (repetido hacia la derecha en las celdas vacías) + «lado».
+export function effectiveHeaders(grid, headerRow, subHeader) {
+  const top = grid[headerRow] ?? [];
+  if (!subHeader) return top.map(txt);
+  const sub = grid[headerRow + 1] ?? [];
+  const n = Math.max(top.length, sub.length);
+  const out = [];
+  let last = '';
+  for (let i = 0; i < n; i++) {
+    const t = txt(top[i]), u = txt(sub[i]);
+    if (t) last = t;
+    if (!u) { out.push(t); continue; }
+    out.push(`${t || last} ${u}`.trim());
+  }
+  return out;
+}
+export const dataStartRow = (mapping) => mapping.headerRow + 1 + (mapping.subHeader ? 1 : 0);
+
 const SIDE_WORDS = { L: ['izq', 'izquierda', 'izquierdo', 'left', 'l'], R: ['der', 'derecha', 'derecho', 'right', 'r'] };
 const ROLE_WORDS = {
   jugador: ['jugador', 'nombre', 'player', 'atleta', 'athlete', 'name'],
   fecha: ['fecha', 'date'],
   hora: ['hora', 'time'],
   reps: ['reps', 'repeticiones', 'repeticiones totales', 'n reps'],
+  peso: ['peso', 'peso kg', 'peso (kg)', 'weight', 'weight kg', 'weight (kg)', 'body mass', 'peso referencia', 'peso de referencia', 'reference weight', 'bw', 'masa', 'masa corporal'],
+  altura: ['altura', 'altura cm', 'altura (cm)', 'height', 'height cm', 'height (cm)', 'estatura', 'talla'],
 };
 
 // Propuesta (nunca decide): solo coincidencias exactas del encabezado con roles habituales o con el nombre de una variable,
@@ -126,7 +162,8 @@ export function suggestMapping(headers, variables) {
       }
       if (side) break;
     }
-    const matches = raw.filter((v) => normalizeName(v.name).key === base || normalizeName(v.name).key === key);
+    const flat = (x) => normalizeName(x).key.replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim();
+    const matches = raw.filter((v) => normalizeName(v.name).key === base || normalizeName(v.name).key === key || flat(v.name) === base);
     if (matches.length === 1) {
       const v = matches[0];
       const sd = v.sides === 'single' ? 'S' : v.sides === 'LR' ? side : side ?? 'S';
@@ -144,7 +181,7 @@ export function validateMapping(mapping, variables) {
   if (count('jugador') !== 1) errors.push('Elige exactamente una columna de «Jugador».');
   if (count('fecha') > 1) errors.push('Solo puede haber una columna de «Fecha».');
   if (count('fecha') === 0 && !isIsoDay(mapping.fixedDate ?? '')) errors.push('Elige una columna de «Fecha» o indica una fecha única para todo el fichero.');
-  for (const r of ['hora', 'reps', 'repsL', 'repsR']) if (count(r) > 1) errors.push(`Solo puede haber una columna de «${ROLES[r]}».`);
+  for (const r of ['hora', 'reps', 'repsL', 'repsR', 'peso', 'altura']) if (count(r) > 1) errors.push(`Solo puede haber una columna de «${ROLES[r]}».`);
   const byId = new Map(variables.map((v) => [v.id, v]));
   const seen = new Set();
   const sidesByVar = new Map();
@@ -167,7 +204,7 @@ export function validateMapping(mapping, variables) {
     sidesByVar.set(v.id, set);
   });
   for (const [id, set] of sidesByVar) if (set.has('S') && (set.has('L') || set.has('R'))) errors.push(`«${byId.get(id).name}»: no se puede mezclar un valor único con valores por lado.`);
-  if (nValues === 0) errors.push('Asigna al menos una columna a una variable del test.');
+  if (nValues === 0 && count('peso') + count('altura') === 0) errors.push('Asigna al menos una columna a una variable del test (o una de peso / altura).');
   return errors;
 }
 
@@ -176,13 +213,13 @@ export function validateMapping(mapping, variables) {
 export function buildRows(grid, mapping, variables) {
   const byId = new Map(variables.map((v) => [v.id, v]));
   const cols = mapping.cols ?? [];
-  const header = mapping.noHeader ? [] : grid[mapping.headerRow] ?? [];
+  const header = mapping.noHeader ? [] : effectiveHeaders(grid, mapping.headerRow, mapping.subHeader);
   const colName = (i) => (txt(header[i]) ? `«${txt(header[i])}»` : `columna ${i + 1}`);
   const idx = (role) => cols.findIndex((c) => c.role === role);
-  const iPlayer = idx('jugador'), iDate = idx('fecha'), iTime = idx('hora'), iReps = idx('reps'), iRepsL = idx('repsL'), iRepsR = idx('repsR');
+  const iPlayer = idx('jugador'), iDate = idx('fecha'), iTime = idx('hora'), iReps = idx('reps'), iRepsL = idx('repsL'), iRepsR = idx('repsR'), iPeso = idx('peso'), iAltura = idx('altura');
   const rows = [];
   const stats = { read: 0, empty: 0 };
-  for (let r = mapping.headerRow + 1; r < grid.length; r++) {
+  for (let r = dataStartRow(mapping); r < grid.length; r++) {
     const line = grid[r] ?? [];
     if (line.every(blank)) { stats.empty++; continue; }
     stats.read++;
@@ -213,7 +250,16 @@ export function buildRows(grid, mapping, variables) {
       const vid = Number(c.variableId);
       row.values[vid] = { ...(row.values[vid] ?? {}), [c.side]: n.value };
     });
-    if (!row.issues.length && Object.keys(row.values).length === 0) err('La fila no tiene ningún valor (las celdas vacías no se interpretan como 0).');
+    row.body = {};
+    for (const [key, i, rango, nombre, unidad] of [['weight', iPeso, RANGO_PESO, 'Peso', 'kg'], ['height', iAltura, RANGO_ALTURA, 'Altura', 'cm']]) {
+      if (i < 0) continue;
+      const n = parseNumber(line[i]);
+      if (n.empty) continue;
+      if (n.error) { err(`${colName(i)}: ${n.error}.`); continue; }
+      if (n.value < rango[0] || n.value > rango[1]) { err(`${colName(i)}: ${nombre} ${n.value} ${unidad} fuera del rango admitido (${rango[0]}–${rango[1]} ${unidad}); revisa la unidad.`); continue; }
+      row.body[key] = n.value;
+    }
+    if (!row.issues.length && Object.keys(row.values).length === 0 && Object.keys(row.body).length === 0) err('La fila no tiene ningún valor (las celdas vacías no se interpretan como 0).');
     row.ok = row.issues.every((x) => x.level !== 'error');
     rows.push(row);
   }
@@ -292,13 +338,22 @@ export function sameValues(a, b) {
 
 // resolutions: { [playerText]: { action: 'link', playerId } | { action: 'new', jerseyName } | { action: 'skip' } }
 export async function planImport(db, { rows, testId, protocolId = null, resolutions }) {
-  const plan = { sessions: [], pending: [], rowErrors: [], counts: { nuevas: 0, duplicadas: 0, conflictos: 0, conflictosFichero: 0, pendientes: 0, filasConError: 0 } };
+  const plan = { sessions: [], pending: [], rowErrors: [], body: [], counts: { nuevas: 0, duplicadas: 0, conflictos: 0, conflictosFichero: 0, pendientes: 0, filasConError: 0, pesosNuevos: 0, pesosCambiados: 0, pesosIguales: 0, alturasNuevas: 0, alturasIguales: 0 } };
   const groups = new Map();
+  const bodyByRef = new Map(); // ref → { weight (la de la fecha más reciente), heights: Map(fecha|valor) }
   for (const r of rows) {
     if (!r.ok) { plan.counts.filasConError++; for (const i of r.issues) plan.rowErrors.push({ row: r.rowNumber, level: i.level, text: i.text }); continue; }
     const res = resolutions[r.playerText];
     if (!res || res.action === 'skip') { plan.counts.pendientes++; plan.pending.push({ row: r.rowNumber, name: r.playerText }); continue; }
     const ref = res.action === 'link' ? `p${res.playerId}` : `n${r.playerText}`;
+    if (r.body && Object.keys(r.body).length) {
+      const b = bodyByRef.get(ref) ?? { ref, resolution: res, playerText: r.playerText, rowNumbers: [], weight: null, weightDate: '', heights: new Map() };
+      b.rowNumbers.push(r.rowNumber);
+      if (r.body.weight != null && (r.date >= b.weightDate)) { b.weight = r.body.weight; b.weightDate = r.date; }
+      if (r.body.height != null) b.heights.set(`${r.date}|${r.body.height}`, { date: r.date, value: r.body.height });
+      bodyByRef.set(ref, b);
+    }
+    if (Object.keys(r.values).length === 0) continue; // fila solo de peso / altura: no crea sesión
     const key = `${ref}|${r.date}|${r.time}`;
     const g = groups.get(key) ?? { key, ref, res, playerText: r.playerText, date: r.date, time: r.time, rows: [] };
     g.rows.push(r);
@@ -323,18 +378,35 @@ export async function planImport(db, { rows, testId, protocolId = null, resoluti
     plan.counts.nuevas++;
     plan.sessions.push({ ...base, status: 'nueva', dupRows });
   }
+  for (const b of bodyByRef.values()) {
+    const item = { ref: b.ref, resolution: b.resolution, playerText: b.playerText, rowNumbers: b.rowNumbers, weight: b.weight, heights: [...b.heights.values()], weightStatus: null, heightStatus: [] };
+    const existing = b.resolution.action === 'link' ? await db.players.get(b.resolution.playerId) : null;
+    const anth = b.resolution.action === 'link' ? await db.anthropometry.where('playerId').equals(b.resolution.playerId).toArray() : [];
+    if (b.weight != null) {
+      const rw = existing?.referenceWeight;
+      if (!rw) { item.weightStatus = 'nuevo'; plan.counts.pesosNuevos++; }
+      else if (rw.unit === 'kg' && rw.value === b.weight) { item.weightStatus = 'igual'; plan.counts.pesosIguales++; }
+      else { item.weightStatus = 'cambia'; item.previousWeight = `${rw.value} ${rw.unit}`; plan.counts.pesosCambiados++; }
+    }
+    for (const h of item.heights) {
+      const ya = anth.some((r) => r.date === h.date && r.height?.value === h.value && r.height?.unit === 'cm');
+      h.status = ya ? 'igual' : 'nueva';
+      if (ya) plan.counts.alturasIguales++; else plan.counts.alturasNuevas++;
+    }
+    plan.body.push(item);
+  }
   return plan;
 }
 
 // conflictChoices: { [session.key]: 'omitir' | 'nueva' } (por defecto «omitir»)
 export async function commitImport(db, { file, sheetName, mappingName = '', testId, protocolId = null, mapping, parsed, plan, conflictChoices = {}, rememberAlias = {}, source = IMPORT_SOURCE }) {
-  const tables = [db.players, db.playerAliases, db.sessions, db.importBatches, db.auditLog];
+  const tables = [db.players, db.playerAliases, db.sessions, db.importBatches, db.auditLog, db.anthropometry];
   return db.transaction('rw', tables, async () => {
     const now = new Date().toISOString();
     const report = { rowIssues: plan.rowErrors, pendingNames: [...new Set(plan.pending.map((p) => p.name))].map((name) => ({ name, rows: plan.pending.filter((p) => p.name === name).map((p) => p.row) })), sessionNotes: [...(parsed.notes ?? [])] };
     const batchId = await db.importBatches.add({ createdAt: now, source, fileName: file.name, fileHash: file.hash, fileSize: file.size, sheet: sheetName, testId, protocolId, mappingName, rowsRead: parsed.stats.read, rowsEmpty: parsed.stats.empty, status: 'en curso' });
     const playerIds = new Map(); // ref → id
-    const counts = { sesionesCreadas: 0, duplicadasOmitidas: 0, conflictosOmitidos: 0, conflictosGuardadosComoNuevas: 0, conflictosFichero: 0, jugadoresNuevos: 0, aliasGuardados: 0, aliasFijados: 0, filasNoImportadasFichero: parsed.stats?.skipped ?? 0, filasSinResolver: plan.counts.pendientes, filasConError: plan.counts.filasConError };
+    const counts = { sesionesCreadas: 0, duplicadasOmitidas: 0, conflictosOmitidos: 0, conflictosGuardadosComoNuevas: 0, conflictosFichero: 0, jugadoresNuevos: 0, aliasGuardados: 0, aliasFijados: 0, filasNoImportadasFichero: parsed.stats?.skipped ?? 0, filasSinResolver: plan.counts.pendientes, filasConError: plan.counts.filasConError, pesosGuardados: 0, pesosCambiados: 0, alturasGuardadas: 0, alturasOmitidas: 0 };
     const ensurePlayer = async (s) => {
       if (playerIds.has(s.ref)) return playerIds.get(s.ref);
       let id;
@@ -380,6 +452,20 @@ export async function commitImport(db, { file, sheetName, mappingName = '', test
       });
       counts.sesionesCreadas++;
     }
+    // Peso de referencia y altura (columnas de peso / altura del fichero). El peso sustituye al de referencia anterior (el resumen lo ha mostrado); la altura es una medición fechada.
+    for (const b of plan.body ?? []) {
+      const id = await ensurePlayer(b);
+      if (b.weight != null && b.weightStatus !== 'igual') {
+        await setReferenceWeight(db, id, b.weight, 'kg');
+        counts.pesosGuardados++;
+        if (b.weightStatus === 'cambia') { counts.pesosCambiados++; report.sessionNotes.push({ rows: b.rowNumbers, text: `Peso de referencia de «${b.playerText}»: ${b.previousWeight} → ${b.weight} kg.` }); }
+      }
+      for (const h of b.heights) {
+        if (h.status === 'igual') { counts.alturasOmitidas++; continue; }
+        try { await addAnthropometry(db, { playerId: id, date: h.date, source: 'Excel', height: { value: h.value, unit: 'cm' } }); counts.alturasGuardadas++; }
+        catch (e) { report.sessionNotes.push({ rows: b.rowNumbers, text: `Altura de «${b.playerText}» (${h.date}) no guardada: ${e.message}` }); }
+      }
+    }
     // Los nombres vinculados o nuevos sin ninguna sesión nueva también pueden guardar alias confirmado.
     await db.importBatches.update(batchId, { ...counts, status: 'completada', report });
     await audit(db, 'importacion-confirmada', { lote: batchId, testId, ...counts, filasLeidas: parsed.stats.read });
@@ -400,7 +486,7 @@ export function reportCsv(batch) {
   const lines = [['Apartado', 'Fila(s)', 'Detalle'].map(q).join(',')];
   const add = (a, r, d) => lines.push([a, r, d].map(q).join(','));
   add('Fichero', '', `${batch.fileName} · hoja ${batch.sheet} · importación del ${batch.createdAt}`);
-  add('Resumen', '', `Filas leídas ${batch.rowsRead}; vacías ${batch.rowsEmpty}; sesiones creadas ${batch.sesionesCreadas}; duplicadas omitidas ${batch.duplicadasOmitidas}; conflictos omitidos ${batch.conflictosOmitidos}; conflictos guardados como nuevas ${batch.conflictosGuardadosComoNuevas}; conflictos dentro del fichero ${batch.conflictosFichero}; jugadores nuevos ${batch.jugadoresNuevos}; alias guardados ${batch.aliasGuardados}; filas sin resolver ${batch.filasSinResolver}; filas con error ${batch.filasConError}${batch.source === 'VALD' ? `; filas del fichero no importadas por test sin perfil ${batch.filasNoImportadasFichero ?? 0}` : ''}`);
+  add('Resumen', '', `Filas leídas ${batch.rowsRead}; vacías ${batch.rowsEmpty}; sesiones creadas ${batch.sesionesCreadas}; duplicadas omitidas ${batch.duplicadasOmitidas}; conflictos omitidos ${batch.conflictosOmitidos}; conflictos guardados como nuevas ${batch.conflictosGuardadosComoNuevas}; conflictos dentro del fichero ${batch.conflictosFichero}; jugadores nuevos ${batch.jugadoresNuevos}; alias guardados ${batch.aliasGuardados}; filas sin resolver ${batch.filasSinResolver}; filas con error ${batch.filasConError}${batch.pesosGuardados || batch.alturasGuardadas ? `; pesos de referencia guardados ${batch.pesosGuardados ?? 0} (cambiados ${batch.pesosCambiados ?? 0}); alturas guardadas ${batch.alturasGuardadas ?? 0}` : ''}${batch.source === 'VALD' ? `; filas del fichero no importadas por test sin perfil ${batch.filasNoImportadasFichero ?? 0}` : ''}`);
   for (const i of batch.report?.rowIssues ?? []) add('Error de fila', i.row, i.text);
   for (const p of batch.report?.pendingNames ?? []) add('Jugador sin resolver', p.rows.join(' '), p.name);
   for (const n of batch.report?.sessionNotes ?? []) add('Aviso', (n.rows ?? []).join(' '), n.text);

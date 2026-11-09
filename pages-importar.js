@@ -36,6 +36,7 @@ function ImportarFicheros() {
   const [sheetIdx, setSheetIdx] = useState(0);
   const [headerRow, setHeaderRow] = useState(0);
   const [noHeader, setNoHeader] = useState(false);
+  const [subHeader, setSubHeader] = useState(false);
   const [testId, setTestId] = useState('');
   const [protocolId, setProtocolId] = useState('');
   const [cols, setCols] = useState([]);
@@ -54,12 +55,12 @@ function ImportarFicheros() {
 
   const sheet = file?.sheets[sheetIdx];
   const grid = sheet?.rows ?? [];
-  const headers = noHeader ? I.genericHeaders(grid, headerRow + 1) : (grid[headerRow] ?? []).map(show);
+  const headers = noHeader ? I.genericHeaders(grid, headerRow + 1) : I.effectiveHeaders(grid, headerRow, subHeader).map(show);
   const variables = cat && testId ? cat.variables.filter((v) => v.testId === Number(testId)) : [];
   const test = cat?.tests.find((t) => t.id === Number(testId));
   const importable = cat ? cat.tests.filter((t) => !t.archived && cat.variables.some((v) => v.testId === t.id && v.kind === 'raw' && !v.archived)) : [];
 
-  const reset = () => { setVald(null); setStep('archivo'); setFile(null); setDup(null); setAckDup(false); setSheetIdx(0); setHeaderRow(0); setNoHeader(false); setTestId(''); setProtocolId(''); setCols([]); setFixedDate(''); setMappingName(''); setParsed(null); setProposals([]); setResolutions({}); setRemember({}); setPlan(null); setChoices({}); setResult(null); setMsg(null); };
+  const reset = () => { setVald(null); setStep('archivo'); setFile(null); setDup(null); setAckDup(false); setSheetIdx(0); setHeaderRow(0); setNoHeader(false); setSubHeader(false); setTestId(''); setProtocolId(''); setCols([]); setFixedDate(''); setMappingName(''); setParsed(null); setProposals([]); setResolutions({}); setRemember({}); setPlan(null); setChoices({}); setResult(null); setMsg(null); };
 
   const onFile = (e) => {
     const f = e.target.files?.[0];
@@ -71,13 +72,14 @@ function ImportarFicheros() {
     setDup(await I.findBatchByHash(db, g.hash));
     setAckDup(false);
     setSheetIdx(0);
-    setHeaderRow(I.detectHeaderRow(g.sheets[0].rows));
+    { const h0 = I.detectHeaderRow(g.sheets[0].rows); setHeaderRow(h0); setSubHeader(I.detectSubHeader(g.sheets[0].rows, h0)); }
     setTestId(''); setCols([]); setParsed(null);
   })();
 
-  const chooseSheet = (i) => { setSheetIdx(i); setNoHeader(false); setHeaderRow(I.detectHeaderRow(file.sheets[i].rows)); setCols([]); };
-  const chooseNoHeader = (on) => { setNoHeader(on); setHeaderRow(on ? Math.max(headerRow - 1, -1) : I.detectHeaderRow(grid)); setCols([]); };
-  const chooseHeader = (n) => { setHeaderRow(n); setCols([]); };
+  const chooseSheet = (i) => { const h0 = I.detectHeaderRow(file.sheets[i].rows); setSheetIdx(i); setNoHeader(false); setHeaderRow(h0); setSubHeader(I.detectSubHeader(file.sheets[i].rows, h0)); setCols([]); };
+  const chooseNoHeader = (on) => { const h0 = I.detectHeaderRow(grid); setNoHeader(on); setHeaderRow(on ? Math.max(headerRow - 1, -1) : h0); setSubHeader(on ? false : I.detectSubHeader(grid, h0)); setCols([]); };
+  const chooseHeader = (n) => { setHeaderRow(n); setSubHeader(I.detectSubHeader(grid, n)); setCols([]); };
+  const chooseSub = (on) => { setSubHeader(on); setCols([]); };
   const chooseTest = (id) => {
     setTestId(id); setProtocolId('');
     if (id && cat) setCols(I.suggestMapping(headers, cat.variables.filter((v) => v.testId === Number(id))));
@@ -101,7 +103,7 @@ function ImportarFicheros() {
   });
 
   const toPreview = run(async () => {
-    const mapping = { headerRow, cols, fixedDate, noHeader };
+    const mapping = { headerRow, cols, fixedDate, noHeader, subHeader };
     const errors = I.validateMapping(mapping, variables);
     if (errors.length) throw new Error(errors.join(' '));
     setParsed(I.buildRows(grid, mapping, variables));
@@ -138,7 +140,7 @@ function ImportarFicheros() {
       setResult(rv); setStep('resultado'); bump();
       return;
     }
-    const r = await I.commitImport(db, { file, sheetName: sheet.name, mappingName, testId: Number(testId), protocolId: protocolId ? Number(protocolId) : null, mapping: { headerRow, cols, fixedDate, noHeader }, parsed, plan, conflictChoices: choices, rememberAlias: remember });
+    const r = await I.commitImport(db, { file, sheetName: sheet.name, mappingName, testId: Number(testId), protocolId: protocolId ? Number(protocolId) : null, mapping: { headerRow, cols, fixedDate, noHeader, subHeader }, parsed, plan, conflictChoices: choices, rememberAlias: remember });
     const batch = (await I.listBatches(db)).find((b) => b.id === r.batchId);
     setResult({ ...r, batch });
     setStep('resultado');
@@ -166,13 +168,14 @@ function ImportarFicheros() {
           <div class="fields">
             <label>Hoja <select value=${sheetIdx} onChange=${(e) => chooseSheet(Number(e.target.value))}>${file.sheets.map((s, i) => html`<option key=${i} value=${i}>${s.name}</option>`)}</select></label>
             <label class="check"><input type="checkbox" checked=${noHeader} onChange=${(e) => chooseNoHeader(e.target.checked)} /> Mi fichero no tiene fila de encabezados</label>
+            ${noHeader ? null : html`<label class="check"><input type="checkbox" checked=${subHeader} onChange=${(e) => chooseSub(e.target.checked)} /> La fila siguiente indica el lado (LEFT / RIGHT / ASYMMETRY…): usarla como segundo encabezado</label>`}
             ${noHeader
               ? html`<label>Primera fila de datos <input type="number" min="1" max=${Math.max(grid.length, 1)} value=${headerRow + 2} onInput=${(e) => { setHeaderRow(Math.max(-1, Number(e.target.value) - 2)); setCols([]); }} /></label>`
               : html`<label>Fila de encabezados <input type="number" min="1" max=${Math.max(grid.length, 1)} value=${headerRow + 1} onInput=${(e) => chooseHeader(Math.max(0, Number(e.target.value) - 1))} /></label>`}
           </div>
           ${!noHeader && I.looksLikeData(grid[headerRow]) ? html`<p class="banner warn" role="status">La fila elegida como encabezado contiene números: parece una fila de datos. Si tu fichero no tiene encabezados, marca «Mi fichero no tiene fila de encabezados» para no perder esa fila.</p>` : null}
-          <div class="table-wrap"><table><caption>Primeras filas de la hoja (${noHeader ? 'los datos empiezan en la fila marcada' : 'la fila de encabezados está marcada'})</caption>
-            <tbody>${grid.slice(0, 8).map((r, i) => html`<tr key=${i} class=${i === (noHeader ? headerRow + 1 : headerRow) ? 'hdr' : ''}><th scope="row" class="num">${i + 1}</th>${(r.length ? r : ['']).slice(0, 12).map((c, k) => html`<td key=${k}>${show(c)}</td>`)}</tr>`)}</tbody></table></div>
+          <div class="table-wrap"><table><caption>Primeras filas de la hoja (${noHeader ? 'los datos empiezan en la fila marcada' : subHeader ? 'las dos filas de encabezado están marcadas' : 'la fila de encabezados está marcada'})</caption>
+            <tbody>${grid.slice(0, 8).map((r, i) => html`<tr key=${i} class=${i === (noHeader ? headerRow + 1 : headerRow) || (subHeader && !noHeader && i === headerRow + 1) ? 'hdr' : ''}><th scope="row" class="num">${i + 1}</th>${(r.length ? r : ['']).slice(0, 12).map((c, k) => html`<td key=${k}>${show(c)}</td>`)}</tr>`)}</tbody></table></div>
           <div class="actions">${origin === 'atletas'
             ? html`<button type="button" disabled=${busy} onClick=${toAtletas}>Continuar: revisar atletas</button>`
             : origin === 'vald'
@@ -180,7 +183,7 @@ function ImportarFicheros() {
             : html`<button type="button" disabled=${(dup && !ackDup) || headers.filter(Boolean).length < 2} onClick=${() => setStep('mapeo')}>Continuar: asignar columnas</button>`}</div>
           ${headers.filter(Boolean).length < 2 ? html`<p class="muted">La fila de encabezados elegida debe tener al menos dos columnas con texto.</p>` : null}` : null}
       <//>` : null}
-    ${step === 'mapeo' ? html`<${PasoMapeo} ...${{ cat, importable, headers, grid, headerRow, testId, chooseTest, protocolId, setProtocolId, cols, setCol, setCols, fixedDate, setFixedDate, mappingName, setMappingName, variables, test, msg, toPreview, back: () => setStep('archivo'), busy, db }} />` : null}
+    ${step === 'mapeo' ? html`<${PasoMapeo} ...${{ cat, importable, headers, grid, headerRow, subHeader, testId, chooseTest, protocolId, setProtocolId, cols, setCol, setCols, fixedDate, setFixedDate, mappingName, setMappingName, variables, test, msg, toPreview, back: () => setStep('archivo'), busy, db }} />` : null}
     ${step === 'vista' && parsed ? html`<${PasoVista} ...${{ parsed, cols: origin === 'vald' ? [] : cols, headers: origin === 'vald' ? [] : headers, vald: origin === 'vald' ? vald : null, back: () => setStep(origin === 'vald' ? 'archivo' : 'mapeo'), next: toPlayers, busy, msg }} />` : null}
     ${step === 'jugadores' ? html`<${PasoJugadores} ...${{ proposals, resolutions, setResolutions, remember, setRemember, back: () => setStep('vista'), next: toSummary, busy, msg }} />` : null}
     ${step === 'resumen' && plan ? html`<${PasoResumen} ...${{ plan, choices, setChoices, variables, test, back: () => setStep('jugadores'), save, busy, msg }} />` : null}
@@ -189,12 +192,12 @@ function ImportarFicheros() {
   `;
 }
 
-function PasoMapeo({ cat, importable, headers, grid, headerRow, testId, chooseTest, protocolId, setProtocolId, cols, setCol, setCols, fixedDate, setFixedDate, mappingName, setMappingName, variables, test, msg, toPreview, back, busy, db }) {
+function PasoMapeo({ cat, importable, headers, grid, headerRow, subHeader, testId, chooseTest, protocolId, setProtocolId, cols, setCol, setCols, fixedDate, setFixedDate, mappingName, setMappingName, variables, test, msg, toPreview, back, busy, db }) {
   const { bump } = useApp();
   const { data: saved } = useLoad(async () => (testId ? I.listMappings(db, Number(testId)) : []), [db, testId]);
   const { data: protocols } = useLoad(async () => (testId ? db.protocols.where('testId').equals(Number(testId)).toArray() : []), [db, testId]);
   const raw = variables.filter((v) => v.kind === 'raw' && !v.archived);
-  const example = (i) => { for (let r = headerRow + 1; r < Math.min(grid.length, headerRow + 30); r++) { const v = grid[r]?.[i]; if (v !== null && v !== undefined && v !== '') return show(v); } return ''; };
+  const example = (i) => { for (let r = headerRow + 1 + (subHeader ? 1 : 0); r < Math.min(grid.length, headerRow + 31); r++) { const v = grid[r]?.[i]; if (v !== null && v !== undefined && v !== '') return show(v); } return ''; };
   const hasDate = cols.some((c) => c.role === 'fecha');
   const { msg: m2, setMsg: setM2, run } = useRunner();
   return html`<${Card} titulo="2. Asigna las columnas">
@@ -209,15 +212,15 @@ function PasoMapeo({ cat, importable, headers, grid, headerRow, testId, chooseTe
       ${saved?.length ? html`<div class="fields"><label>Mapeo guardado <select value="" onChange=${(e) => { const s = saved.find((x) => x.id === Number(e.target.value)); if (!s) return; const { cols: c, missing } = I.applyMapping(s, headers); setCols(c); setMappingName(s.name); setM2(missing.length ? { level: 'warn', text: `En este fichero faltan columnas del mapeo guardado: ${missing.join(', ')}.` } : { level: 'info', text: 'mapeo aplicado; revísalo.' }); }}><option value="">Usar uno guardado…</option>${saved.map((s) => html`<option key=${s.id} value=${s.id}>${s.name}</option>`)}</select></label></div>` : null}
       <p class="muted">La propuesta inicial solo usa coincidencias exactas de nombre; revísala columna por columna.</p>
       <div class="table-wrap"><table><caption>Columnas del fichero</caption>
-        <thead><tr><th scope="col" class="num">Col.</th><th scope="col">Encabezado</th><th scope="col">Ejemplo</th><th scope="col">¿Qué es?</th><th scope="col">Variable</th><th scope="col">Lado</th></tr></thead>
+        <thead><tr><th scope="col" class="num">Col.</th><th scope="col">Encabezado</th><th scope="col">Ejemplo</th><th scope="col">¿Qué es?</th><th scope="col">Variable y lado</th></tr></thead>
         <tbody>${headers.map((h, i) => {
           const c = cols[i] ?? { role: 'ignorar' };
           const v = raw.find((x) => x.id === Number(c.variableId));
           return html`<tr key=${i}>
             <td class="num">${i + 1}</td><td>${h || html`<span class="muted">(sin texto)</span>`}</td><td>${example(i)}</td>
             <td><select aria-label=${'Qué es la columna ' + (i + 1)} value=${c.role} onChange=${(e) => setCol(i, { role: e.target.value })}>${Object.entries(I.ROLES).map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select></td>
-            <td>${c.role === 'valor' ? html`<select aria-label=${'Variable de la columna ' + (i + 1)} value=${c.variableId ?? ''} onChange=${(e) => { const nv = raw.find((x) => x.id === Number(e.target.value)); setCol(i, { variableId: e.target.value, side: nv?.sides === 'single' ? 'S' : c.side === 'S' && nv?.sides === 'LR' ? '' : c.side }); }}><option value="">Elige…</option>${raw.map((x) => html`<option key=${x.id} value=${x.id}>${x.name}${x.unit ? ` (${x.unit})` : ''}</option>`)}</select>` : ''}</td>
-            <td>${c.role === 'valor' ? html`<select aria-label=${'Lado de la columna ' + (i + 1)} value=${c.side ?? ''} onChange=${(e) => setCol(i, { side: e.target.value })}><option value="">Elige…</option>${Object.entries(I.SIDE_LABELS).filter(([k]) => !v || (v.sides === 'LR' ? k !== 'S' : v.sides === 'single' ? k === 'S' : true)).map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select>` : ''}</td>
+            <td class="selpar">${c.role === 'valor' ? html`<select aria-label=${'Variable de la columna ' + (i + 1)} value=${c.variableId ?? ''} onChange=${(e) => { const nv = raw.find((x) => x.id === Number(e.target.value)); setCol(i, { variableId: e.target.value, side: nv?.sides === 'single' ? 'S' : c.side === 'S' && nv?.sides === 'LR' ? '' : c.side }); }}><option value="">Elige…</option>${raw.map((x) => html`<option key=${x.id} value=${x.id}>${x.name}${x.unit ? ` (${x.unit})` : ''}</option>`)}</select>` : ''}
+            ${c.role === 'valor' ? html`<select aria-label=${'Lado de la columna ' + (i + 1)} value=${c.side ?? ''} onChange=${(e) => setCol(i, { side: e.target.value })}><option value="">Elige…</option>${Object.entries(I.SIDE_LABELS).filter(([k]) => !v || (v.sides === 'LR' ? k !== 'S' : v.sides === 'single' ? k === 'S' : true)).map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select>` : ''}</td>
           </tr>`;
         })}</tbody></table></div>
       <div class="fields">
@@ -234,6 +237,7 @@ function PasoVista({ parsed, cols, headers, vald, back, next, busy, msg }) {
   const { rows, stats } = parsed;
   const bad = rows.filter((r) => !r.ok);
   const good = rows.filter((r) => r.ok);
+  const hasBody = good.some((r) => r.body && Object.keys(r.body).length);
   const unmapped = headers.map((h, i) => ({ h, i })).filter(({ h, i }) => h && (cols[i]?.role ?? 'ignorar') === 'ignorar');
   return html`<${Card} titulo="3. Vista previa">
     <p><strong>${stats.read}</strong> filas con datos · <strong>${good.length}</strong> válidas · <strong class=${bad.length ? 'warn-text' : ''}>${bad.length}</strong> con errores (no se importarán) · ${stats.empty} filas vacías omitidas.</p>
@@ -246,8 +250,8 @@ function PasoVista({ parsed, cols, headers, vald, back, next, busy, msg }) {
       <thead><tr><th scope="col" class="num">Fila</th><th scope="col">Problema</th></tr></thead>
       <tbody>${bad.slice(0, 50).map((r) => html`<tr key=${r.rowNumber}><td class="num">${r.rowNumber}</td><td>${r.issues.map((x) => x.text).join(' ')}</td></tr>`)}</tbody></table>${bad.length > 50 ? html`<p class="muted">Se muestran las 50 primeras de ${bad.length}; el informe final las incluye todas.</p>` : null}</div>` : null}
     <div class="table-wrap"><table><caption>Primeras filas válidas</caption>
-      <thead><tr><th scope="col" class="num">Fila</th>${vald ? html`<th scope="col">Test</th>` : null}<th scope="col">Jugador (como viene)</th><th scope="col">Fecha</th><th scope="col">Hora</th><th scope="col" class="num">Repeticiones</th><th scope="col" class="num">Valores</th></tr></thead>
-      <tbody>${good.slice(0, 10).map((r) => html`<tr key=${r.rowNumber}><td class="num">${r.rowNumber}</td>${vald ? html`<td>${r.testName}</td>` : null}<td>${r.playerText}</td><td>${fmtDay(r.date)}</td><td>${r.time || '—'}</td><td class="num">${r.reps.total ?? [r.reps.L && 'I ' + r.reps.L, r.reps.R && 'D ' + r.reps.R].filter(Boolean).join(' / ')}${r.reps.assumed ? '*' : ''}</td><td class="num">${Object.values(r.values).reduce((n, v) => n + Object.keys(v).length, 0)}</td></tr>`)}</tbody></table></div>
+      <thead><tr><th scope="col" class="num">Fila</th>${vald ? html`<th scope="col">Test</th>` : null}<th scope="col">Jugador (como viene)</th><th scope="col">Fecha</th><th scope="col">Hora</th><th scope="col" class="num">Repeticiones</th><th scope="col" class="num">Valores</th>${hasBody ? html`<th scope="col" class="num">Peso (kg)</th><th scope="col" class="num">Altura (cm)</th>` : null}</tr></thead>
+      <tbody>${good.slice(0, 10).map((r) => html`<tr key=${r.rowNumber}><td class="num">${r.rowNumber}</td>${vald ? html`<td>${r.testName}</td>` : null}<td>${r.playerText}</td><td>${fmtDay(r.date)}</td><td>${r.time || '—'}</td><td class="num">${r.reps.total ?? [r.reps.L && 'I ' + r.reps.L, r.reps.R && 'D ' + r.reps.R].filter(Boolean).join(' / ')}${r.reps.assumed ? '*' : ''}</td><td class="num">${Object.values(r.values).reduce((n, v) => n + Object.keys(v).length, 0)}</td>${hasBody ? html`<td class="num">${r.body?.weight ?? '—'}</td><td class="num">${r.body?.height ?? '—'}</td>` : null}</tr>`)}</tbody></table></div>
     <div class="actions"><button type="button" class="secondary" onClick=${back}>Atrás</button><button type="button" disabled=${busy || good.length === 0} onClick=${next}>Continuar: confirmar jugadores</button></div>
     <${Msg} msg=${msg} />
   <//>`;
@@ -349,6 +353,8 @@ function PasoResumen({ plan, choices, setChoices, back, save, busy, msg }) {
       <li><strong>${c.pendientes}</strong> filas de jugadores sin resolver: no se importan.</li>
       <li><strong>${c.filasConError}</strong> filas con errores: no se importan.</li>
       <li><strong>${newPlayers}</strong> jugadores nuevos se crearán.</li>
+      ${(c.pesosNuevos || c.pesosCambiados || c.pesosIguales) ? html`<li>Peso de referencia: <strong>${c.pesosNuevos}</strong> nuevos · <strong class=${c.pesosCambiados ? 'warn-text' : ''}>${c.pesosCambiados}</strong> sustituyen al anterior · ${c.pesosIguales} iguales (sin cambios).</li>` : null}
+      ${(c.alturasNuevas || c.alturasIguales) ? html`<li>Altura: <strong>${c.alturasNuevas}</strong> mediciones nuevas (con la fecha de la fila) · ${c.alturasIguales} ya existían.</li>` : null}
     </ul>
     ${conflicts.length ? html`<div class="table-wrap"><table><caption>Conflictos con sesiones ya guardadas</caption>
       <thead><tr><th scope="col">Jugador</th><th scope="col">Fecha</th><th scope="col">Qué hacer</th></tr></thead>
@@ -366,6 +372,7 @@ function PasoResultado({ result, again }) {
     <p class="status ok">${result.batchIds?.length > 1 ? `Lotes ${result.batchIds.join(', ')} guardados` : `Lote ${result.batchId} guardado`}: ${k.sesionesCreadas} sesiones creadas.</p>
     <ul>
       <li>${k.duplicadasOmitidas} duplicadas omitidas · ${k.conflictosOmitidos} conflictos omitidos · ${k.conflictosGuardadosComoNuevas} conflictos guardados como sesión nueva · ${k.conflictosFichero} grupos contradictorios del fichero sin importar.</li>
+      ${(k.pesosGuardados || k.alturasGuardadas) ? html`<li>${k.pesosGuardados} pesos de referencia guardados (${k.pesosCambiados} sustituyeron a uno anterior) · ${k.alturasGuardadas} alturas guardadas.</li>` : null}
       <li>${k.jugadoresNuevos} jugadores nuevos · ${k.aliasGuardados} alias guardados${k.aliasFijados ? ` · ${k.aliasFijados} alias (camiseta) fijados` : ''} · ${k.filasSinResolver} filas sin resolver · ${k.filasConError} filas con error.</li>
     </ul>
     <div class="actions">

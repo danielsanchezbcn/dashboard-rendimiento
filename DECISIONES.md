@@ -213,3 +213,10 @@ Estilo y biblioteca (D20) cerrados el 6 de noviembre de 2026. Ese mismo día se 
 - 2026-11-02: solo documentación (sin cambios de código; la versión de la aplicación sigue en 1b-0.1.1): requisitos funcionales RF-01 a RF-03 y criterios de aceptación (`REQUISITOS.md`), plan de fases actualizado (`PLAN_DE_FASES.md`), decisiones pendientes D9 a D13 y nota de datos previstos en el diccionario.
 - 2026-11-02: estructura plana para publicar con la subida web de GitHub. Versión de aplicación 1b-0.1.1 (solo cambian las rutas de importación, el punto de entrada y el número de versión; lógica, esquema 1, política de seguridad y copias, sin cambios).
 - 2026-11-01: fase 1b (esqueleto, navegación, copias de seguridad). Versión de aplicación 1b-0.1.0, esquema 1.
+
+## (69) Importador de Excel: segunda fila de encabezado, lado visible, peso y altura (9/11/2026)
+- Si la fila siguiente al encabezado contiene casi solo palabras de lado/asimetría (LEFT, RIGHT, ASYMMETRY, izq, der…), se propone usarla como segundo encabezado (casilla editable): el nombre se repite hacia la derecha y se compone «nombre + lado». Las columnas de asimetría se ignoran (se calculan).
+- Variable y lado van apilados en la misma celda de la tabla de mapeo, para que el lado no quede fuera de pantalla.
+- Nuevos roles de columna: «Peso de referencia del jugador (kg)» y «Altura del jugador (cm)». Peso → peso de referencia del jugador (sustituye al anterior; el resumen cuenta nuevos / sustituidos / iguales y el informe anota cada cambio). Altura → medición antropométrica fechada con la fecha de la fila (si ya existe igual, se omite). Rangos admitidos 45–130 kg y 140–215 cm: fuera de ellos la fila no se importa (suele ser otra unidad).
+- Una fila con solo peso/altura no crea sesión. Un fichero puede traer solo peso y altura.
+- Versión 7z.

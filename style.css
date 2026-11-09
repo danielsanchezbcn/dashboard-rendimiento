@@ -164,3 +164,6 @@ td a small, td a .cell-date { text-decoration: none; }
 .img-filas .img-fila { display: block; width: 420px; max-width: 45vw; border-radius: .3rem; background: #040612; }
 .img-filas td { vertical-align: middle; }
 .img-filas td.avisos { min-width: 14rem; }
+
+/* Asistente de importación: variable y lado apilados para que el lado siempre se vea sin desplazar la tabla. */
+td.selpar select { display: block; width: 100%; max-width: 26rem; margin-bottom: 0.3rem; }
