@@ -144,7 +144,7 @@ export function AntropPercentiles({ player }) {
       <td>${ev.sufficient && ev.percentileStat != null ? html`<${Banda} ev=${ev} /> <span class="muted" title=${`Mediana de la base ${nf(ev.p50, 1)} ${unidad}`}>(N = ${ev.n})</span>` : html`<span class="muted">${ev.reason}</span>`}</td></tr>`;
   };
   return html`<h3>Percentil de peso y altura</h3>
-    <div class="table-wrap"><table><thead><tr><th scope="col">Medida</th><th scope="col" class="num">Valor</th><th scope="col">Percentil La Liga</th></tr></thead><tbody>
+    <div class="table-wrap"><table><thead><tr><th scope="col">Medida</th><th scope="col" class="num">Valor</th><th scope="col">La Liga</th></tr></thead><tbody>
       ${fila('Peso', data.pesos, 'kg', (m) => (m.ref ? 'peso de referencia' : 'masa medida'))}${fila('Altura', data.alturas, 'cm', (m) => fmtDay(m.date))}</tbody></table></div>
     <p class="muted">Percentil con color de posición (ni más alto ni más bajo es «mejor»): un valor por jugador de la base, sin sintéticos ni este jugador; mínimo ${data.minN} jugadores (Configuración).</p>`;
 }

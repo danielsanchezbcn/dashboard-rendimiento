@@ -31,7 +31,7 @@ check('ORZ: empate exacto → sin ORZ (provisional)', R.orz({ rsi30: [P('a', 1.2
 const tests = [{ id: 1, name: 'CMJ' }, { id: 2, name: 'Squat Jump' }, { id: 3, name: 'SL CMJ' }, { id: 4, name: 'Run-Specific Knee Iso-Push' }, { id: 5, name: 'DL Drop Jump 30 cm' }, { id: 6, name: 'DL Drop Jump 45 cm' }];
 const variables = [{ id: 11, testId: 1, name: 'JH (imp-mom)' }, { id: 12, testId: 2, name: 'JH (imp-mom)' }, { id: 13, testId: 3, name: 'CONCENTRIC PEAK FORCE / BM' }, { id: 14, testId: 4, name: 'Peak Force' }, { id: 15, testId: 5, name: 'RSI (FLIGHT TIME / CONTACT TIME)' }, { id: 16, testId: 6, name: 'RSI (FLIGHT TIME / CONTACT TIME)' }];
 const loc = R.locate(tests, variables);
-check('locate: encuentra las 6 variables por nombre', Object.values(loc).every(Boolean));
+check('locate: encuentra las 6 variables por nombre', ['cmjJh', 'sjJh', 'slForce', 'kneeForce', 'rsi30', 'rsi45'].every((k) => loc[k]));
 const S = (id, playerId, testId, date, values, extra = {}) => ({ id, playerId, testId, date, time: '', values, reps: { total: 1, L: 1, R: 1 }, status: 'valid', ...extra });
 const sessions = []; const players = {}; const anth = [];
 let sid = 1;

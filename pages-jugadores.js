@@ -2,7 +2,7 @@ import { html, useState } from './libs.js';
 import { useApp } from './context.js';
 import { Card, Msg, Sintetico, useLoad, useRunner } from './componentes.js';
 import { fmtDay, todayIso, isIsoDay } from './fechas.js';
-import { normalizeName, playerLabel, baseName, SOURCES, createPlayer, updatePlayer, setPlayerActive, addAlias, removeAlias, duplicateNameWarning } from './jugadores.js';
+import { normalizeName, playerLabel, baseName, SOURCES, createPlayer, updatePlayer, setPlayerActive, addAlias, removeAlias, duplicateNameWarning, mergePlayers, deleteEmptyPlayer, playerDataCounts } from './jugadores.js';
 import { listPositions, playerHistory, positionOnDate, setMainPosition, clearMainPosition, addSecondaryPosition, deleteHistoryRecord } from './posiciones.js';
 import { METRICS, playerAnthropometry, addAnthropometry, updateAnthropometry, deleteAnthropometry, setReferenceWeight, clearReferenceWeight } from './antropometria.js';
 import { totalOf, countSynthetic } from './sinteticos.js';
@@ -236,6 +236,49 @@ function Antropometria({ player, records }) {
     <//>`;
 }
 
+function UnificarEliminar({ player }) {
+  const { db, bump } = useApp();
+  const [other, setOther] = useState('');
+  const [keepThis, setKeepThis] = useState('esta');
+  const { msg, run, busy } = useRunner();
+  const { data } = useLoad(async () => ({ players: (await db.players.toArray()).filter((p) => p.id !== player.id).sort((a, b) => baseName(a).localeCompare(baseName(b), 'es')), counts: await playerDataCounts(db, player.id) }), [db, player.id]);
+  if (!data) return null;
+  const o = data.players.find((p) => p.id === Number(other));
+  const c = data.counts;
+  const withData = c.sessions + c.fvProfiles + c.anthropometry + c.targets;
+  const merge = run(async () => {
+    if (!o) throw new Error('Elige el otro jugador.');
+    const keepId = keepThis === 'esta' ? player.id : o.id, dropId = keepThis === 'esta' ? o.id : player.id;
+    const keepName = keepThis === 'esta' ? playerLabel(player) : playerLabel(o), dropName = keepThis === 'esta' ? playerLabel(o) : playerLabel(player);
+    if (!confirm(`Se unificarán dos fichas:\n\n· Se conserva: ${keepName}\n· Desaparece: ${dropName}\n\nTodas las sesiones, alias, posiciones, mediciones y targets de la segunda pasan a la primera. Es permanente: haz antes una copia de seguridad. ¿Continuar?`)) throw new Error('Unificación cancelada.');
+    const r = await mergePlayers(db, keepId, dropId);
+    bump();
+    if (r.posiblesDuplicadas) alert(`Fichas unificadas. Atención: hay ${r.posiblesDuplicadas} sesión(es) del mismo test, fecha y hora repetidas (venían de las dos fichas). Se han conservado todas; revísalas en el perfil.`);
+    window.location.hash = '#jugador-' + keepId;
+    return r;
+  });
+  const mergeAndReport = async (e) => { await merge(e); };
+  const del = run(async () => {
+    if (!confirm(`¿Eliminar definitivamente a «${playerLabel(player)}»? No tiene datos guardados.`)) throw new Error('Eliminación cancelada.');
+    await deleteEmptyPlayer(db, player.id);
+    bump();
+    window.location.hash = '#jugadores';
+  });
+  return html`<${Card} titulo="Unificar o eliminar">
+    <p>¿Es el mismo jugador que otra ficha (por ejemplo, «Bernardo» de un Excel y «Bernardo Espinosa» de VALD)? Unifícalas: todo pasa a la ficha que conserves y los nombres de la otra quedan como alias para las próximas importaciones.</p>
+    <form class="fields" onSubmit=${mergeAndReport}>
+      <label>Otra ficha <select value=${other} onChange=${(e) => setOther(e.target.value)}><option value="">Elige un jugador…</option>${data.players.map((p) => html`<option key=${p.id} value=${p.id}>${playerLabel(p)}${p.active ? '' : ' (inactivo)'}</option>`)}</select></label>
+      <label>Ficha que se conserva <select value=${keepThis} onChange=${(e) => setKeepThis(e.target.value)}><option value="esta">Esta (${playerLabel(player)})</option><option value="otra">La otra${o ? ` (${playerLabel(o)})` : ''}</option></select></label>
+      <div class="actions"><button type="submit" class="secondary" disabled=${busy || !other}>Unificar fichas</button></div>
+    </form>
+    <p class="muted">Las sesiones no se fusionan: si tras unificar hubiera dos del mismo test, fecha y hora, se conservan las dos y se te avisa. Los datos del jugador que desaparece no se sobrescriben sobre los del que se conserva.</p>
+    <h4>Eliminar este jugador</h4>
+    ${withData === 0 ? html`<p>Esta ficha no tiene sesiones, mediciones, perfiles ni targets: se puede eliminar.</p><div class="actions"><button type="button" class="secondary" disabled=${busy} onClick=${del}>Eliminar jugador</button></div>`
+      : html`<p class="muted">No se puede eliminar porque tiene datos (${c.sessions} sesiones, ${c.anthropometry} mediciones, ${c.fvProfiles} perfiles carga-velocidad, ${c.targets} targets). Puedes desactivarlo en «Datos básicos» o unificarlo con otra ficha.</p>`}
+    <${Msg} msg=${msg} />
+  <//>`;
+}
+
 export function PerfilJugador({ id, query = {} }) {
   const { db, version } = useApp();
   const { data, error } = useLoad(async () => {
@@ -254,6 +297,7 @@ export function PerfilJugador({ id, query = {} }) {
     <${ResultadosJugador} key=${'r' + player.id} player=${player} query=${query} />
     <${Basicos} key=${'b' + player.id + player.updatedAt} player=${player} />
     <${Alias} player=${player} aliases=${data.aliases} />
+    <${UnificarEliminar} key=${'u' + player.id} player=${player} />
     <${Posiciones} player=${player} history=${data.history} positions=${data.positions} />
     <${Antropometria} key=${'a' + player.id} player=${player} records=${data.records} />
     <${FvPanel} key=${'fv' + player.id} player=${player} />

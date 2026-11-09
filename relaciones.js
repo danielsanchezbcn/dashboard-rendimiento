@@ -4,6 +4,7 @@
 
 import { buildSeries, personalAverage, personalBest } from './evolucion.js';
 import { evaluate, median, MIN_N_DEFAULT } from './percentiles.js';
+import { asymmetryPct } from './catalogo.js';
 import { daysBetween } from './fechas.js';
 
 export const G = 9.80665;
@@ -33,6 +34,23 @@ export function massNearest(records, date) {
   if (best) return { kg: best.kg, date: best.date, daysAway: best.daysAway, reference: false };
   const ref = records.find((r) => r.reference && toKg(r.bodyMass) !== null);
   return ref ? { kg: toKg(ref.bodyMass), date: null, daysAway: null, reference: true } : null;
+}
+// Longitud de pierna / palanca en metros de una medición ({value, unit}); solo m, cm y mm.
+export function toM(m) {
+  if (!m || typeof m.value !== 'number' || !(m.value > 0)) return null;
+  const u = lc(m.unit);
+  return u === 'm' ? m.value : u === 'cm' ? m.value / 100 : u === 'mm' ? m.value / 1000 : null;
+}
+// Misma regla que la masa: la longitud medida más cercana a la fecha (anterior o posterior; a igual distancia, la anterior). Sin medición no hay valor.
+export function legNearest(records, date) {
+  let best = null;
+  for (const r of records) {
+    const m = toM(r.legLength);
+    if (m === null || !r.date) continue;
+    const d = Math.abs(daysBetween(r.date, date));
+    if (!best || d < best.daysAway || (d === best.daysAway && r.date < best.date)) best = { m, date: r.date, daysAway: d };
+  }
+  return best;
 }
 // Añade a las mediciones el peso de referencia de cada jugador (campo referenceWeight del jugador) como registro sin fecha.
 export function withReferenceWeights(anthropometry, players) {
@@ -80,7 +98,16 @@ export function orz({ rsi30, rsi45 }) {
 }
 
 // ---- Localización de tests y variables en el catálogo
-const T = { cmj: 'CMJ', sj: 'Squat Jump', sl: 'SL CMJ', knee: 'Run-Specific Knee Iso-Push', dj30: 'DL Drop Jump 30 cm', dj45: 'DL Drop Jump 45 cm' };
+// Ratios del Excel del usuario (9/11/2026): Personal Best ÷ Personal Best (el Excel usa el valor máximo). Cadera: aducción 0° ÷ abducción 0° (palanca larga, fuerza absoluta en N,
+// valor único). Tobillo: inversión ÷ eversión, por lado. La asimetría del ratio es la de siempre (D25) entre el ratio izquierdo y el derecho.
+export function ratioPB(numPoints, denPoints) {
+  if (!numPoints.length) return { defined: false, reason: 'Faltan sesiones válidas del test del numerador.' };
+  if (!denPoints.length) return { defined: false, reason: 'Faltan sesiones válidas del test del denominador.' };
+  const a = personalBest(numPoints, 'higher'), b = personalBest(denPoints, 'higher');
+  if (!a.defined || !b.defined || !(b.value > 0)) return { defined: false, reason: 'El Personal Best del denominador es 0 o no existe.' };
+  return { defined: true, value: a.value / b.value, num: a.value, den: b.value };
+}
+const T = { hipAdd: 'Hip Adduction 0° (Long Lever)', hipAbd: 'Hip Abduction 0° (Long Lever)', ankInv: 'Supine Isometric Ankle Inversion', ankEv: 'Supine Isometric Ankle Eversion', cmj: 'CMJ', sj: 'Squat Jump', sl: 'SL CMJ', knee: 'Run-Specific Knee Iso-Push', dj30: 'DL Drop Jump 30 cm', dj45: 'DL Drop Jump 45 cm' };
 export function locate(tests, variables) {
   const find = (testName, varName) => {
     const t = tests.find((x) => lc(x.name) === lc(testName));
@@ -89,6 +116,7 @@ export function locate(tests, variables) {
   };
   return {
     cmjJh: find(T.cmj, 'JH (imp-mom)'), sjJh: find(T.sj, 'JH (imp-mom)'), slForce: find(T.sl, 'CONCENTRIC PEAK FORCE / BM'), kneeForce: find(T.knee, 'Peak Force'),
+    hipAdd: find(T.hipAdd, 'Peak Force'), hipAbd: find(T.hipAbd, 'Peak Force'), ankInv: find(T.ankInv, 'Peak Force'), ankEv: find(T.ankEv, 'Peak Force'),
     rsi30: find(T.dj30, 'RSI (FLIGHT TIME / CONTACT TIME)'), rsi45: find(T.dj45, 'RSI (FLIGHT TIME / CONTACT TIME)'),
   };
 }
@@ -107,8 +135,11 @@ export function relationsFor({ loc, sessions, anthropometry, playerId }) {
     const rel = kp.length ? relativeBWPoints(kp, an) : { points: [] };
     knee[side] = rel.points.length ? { defined: true, value: personalAverage(rel.points).value } : { defined: false };
   }
+  const ankle = {};
+  for (const side of ['L', 'R']) ankle[side] = ratioPB(pts(loc.ankInv, sessions, playerId, side), pts(loc.ankEv, sessions, playerId, side));
+  const ankleAsym = ankle.L.defined && ankle.R.defined ? asymmetryPct(ankle.L.value, ankle.R.value) : null;
   return {
-    dsi, knee,
+    dsi, knee, ankle, ankleAsym, hip: ratioPB(pts(loc.hipAdd, sessions, playerId, 'S'), pts(loc.hipAbd, sessions, playerId, 'S')),
     eur: eur({ cmjPoints: pts(loc.cmjJh, sessions, playerId, 'S'), sjPoints: pts(loc.sjJh, sessions, playerId, 'S') }),
     orz: orz({ rsi30: pts(loc.rsi30, sessions, playerId, 'S'), rsi45: pts(loc.rsi45, sessions, playerId, 'S') }),
   };
@@ -117,7 +148,7 @@ export function relationsFor({ loc, sessions, anthropometry, playerId }) {
 // Percentil estadístico frente a «La Liga» (sin sintéticos, sin el propio jugador, mínimo N). El color solo indica la posición en la distribución, no «mejor/peor».
 export function ratioReferences({ loc, sessions, anthropometry, players, playerId, minN = MIN_N_DEFAULT, includeSynthetic = false }) {
   const ids = Object.keys(players).map(Number).filter((id) => includeSynthetic || !players[id].synthetic);
-  const entries = { dsi: [], knee: [], eur: [] }; // DSI y Knee: un único conjunto con ambos lados (un P50 para las dos piernas; cada pierna se compara con el total)
+  const entries = { dsi: [], knee: [], eur: [], hip: [], ankle: [] }; // DSI y Knee: un único conjunto con ambos lados (un P50 para las dos piernas; cada pierna se compara con el total)
   for (const id of ids) {
     if (id === playerId) continue;
     const r = relationsFor({ loc, sessions, anthropometry, playerId: id });
@@ -126,11 +157,17 @@ export function ratioReferences({ loc, sessions, anthropometry, players, playerI
       if (r.knee[k].defined) entries.knee.push({ playerId: id, value: r.knee[k].value });
     }
     if (r.eur.defined) entries.eur.push({ playerId: id, value: r.eur.value });
+    if (r.hip.defined) entries.hip.push({ playerId: id, value: r.hip.value });
+    for (const k of ['L', 'R']) if (r.ankle[k].defined) entries.ankle.push({ playerId: id, value: r.ankle[k].value });
   }
   const mine = relationsFor({ loc, sessions, anthropometry, playerId });
   // direction 'higher': solo para colocar el percentil en las seis bandas de color (posición en la distribución). DSI y EUR no tienen sentido «mejor/peor».
   const ev = (e, v) => (v.defined ? evaluate(e, { playerId, value: v.value, direction: 'higher', minN }) : null);
-  return { mine, dsiL: ev(entries.dsi, mine.dsi.L), dsiR: ev(entries.dsi, mine.dsi.R), eur: ev(entries.eur, mine.eur), kneeL: ev(entries.knee, mine.knee.L), kneeR: ev(entries.knee, mine.knee.R) };
+  return { mine, dsiL: ev(entries.dsi, mine.dsi.L), dsiR: ev(entries.dsi, mine.dsi.R), eur: ev(entries.eur, mine.eur), kneeL: ev(entries.knee, mine.knee.L), kneeR: ev(entries.knee, mine.knee.R),
+    // ratios de cadera y tobillo: sin dirección de rendimiento → color de posición (no «mejor/peor»); tobillo con las dos piernas juntas
+    hip: mine.hip.defined ? evaluate(entries.hip, { playerId, value: mine.hip.value, direction: null, minN }) : null,
+    ankleL: mine.ankle.L.defined ? evaluate(entries.ankle, { playerId, value: mine.ankle.L.value, direction: null, minN }) : null,
+    ankleR: mine.ankle.R.defined ? evaluate(entries.ankle, { playerId, value: mine.ankle.R.value, direction: null, minN }) : null };
 }
 
 // ---- Cuadrantes (9/11/2026): uno para el DSI y otro para el EUR, cada uno con sus dos componentes como ejes.

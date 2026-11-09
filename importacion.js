@@ -24,6 +24,7 @@ export const ROLES = {
   repsR: 'Repeticiones derecha',
   peso: 'Peso de referencia del jugador (kg)',
   altura: 'Altura del jugador (cm)',
+  pierna: 'Longitud de pierna / palanca (m)',
   valor: 'Valor de una variable',
 };
 export const SIDE_LABELS = { L: 'Izquierdo', R: 'Derecho', S: 'Único' };
@@ -31,6 +32,7 @@ export const IMPORT_SOURCE = 'Excel';
 // Rangos de plausibilidad de peso y altura de jugadores adultos: fuera de ellos la fila no se importa (suele ser otra unidad: g, lb, m).
 export const RANGO_PESO = [45, 130]; // kg
 export const RANGO_ALTURA = [140, 215]; // cm
+export const RANGO_PIERNA = [0.4, 1.4]; // m (longitud de extremidad inferior / palanca de las pruebas de cadera)
 
 const blank = (v) => v === null || v === undefined || (typeof v === 'string' && v.trim() === '');
 const txt = (v) => (blank(v) ? '' : v instanceof Date ? v.toISOString().slice(0, 10) : String(v).trim());
@@ -138,7 +140,8 @@ const ROLE_WORDS = {
   fecha: ['fecha', 'date'],
   hora: ['hora', 'time'],
   reps: ['reps', 'repeticiones', 'repeticiones totales', 'n reps'],
-  peso: ['peso', 'peso kg', 'peso (kg)', 'weight', 'weight kg', 'weight (kg)', 'body mass', 'peso referencia', 'peso de referencia', 'reference weight', 'bw', 'masa', 'masa corporal'],
+  peso: ['peso', 'peso corporal', 'bodyweight', 'bodyweight kg', 'bodyweight (kg)', 'body weight', 'peso kg', 'peso (kg)', 'weight', 'weight kg', 'weight (kg)', 'body mass', 'peso referencia', 'peso de referencia', 'reference weight', 'bw', 'masa', 'masa corporal'],
+  pierna: ['palanca', 'lever', 'lever length', 'lever lenght', 'longitud de palanca', 'longitud pierna', 'longitud de pierna', 'leg length', 'longitud extremidad inferior'],
   altura: ['altura', 'altura cm', 'altura (cm)', 'height', 'height cm', 'height (cm)', 'estatura', 'talla'],
 };
 
@@ -181,7 +184,7 @@ export function validateMapping(mapping, variables) {
   if (count('jugador') !== 1) errors.push('Elige exactamente una columna de «Jugador».');
   if (count('fecha') > 1) errors.push('Solo puede haber una columna de «Fecha».');
   if (count('fecha') === 0 && !isIsoDay(mapping.fixedDate ?? '')) errors.push('Elige una columna de «Fecha» o indica una fecha única para todo el fichero.');
-  for (const r of ['hora', 'reps', 'repsL', 'repsR', 'peso', 'altura']) if (count(r) > 1) errors.push(`Solo puede haber una columna de «${ROLES[r]}».`);
+  for (const r of ['hora', 'reps', 'repsL', 'repsR', 'peso', 'altura', 'pierna']) if (count(r) > 1) errors.push(`Solo puede haber una columna de «${ROLES[r]}».`);
   const byId = new Map(variables.map((v) => [v.id, v]));
   const seen = new Set();
   const sidesByVar = new Map();
@@ -204,7 +207,7 @@ export function validateMapping(mapping, variables) {
     sidesByVar.set(v.id, set);
   });
   for (const [id, set] of sidesByVar) if (set.has('S') && (set.has('L') || set.has('R'))) errors.push(`«${byId.get(id).name}»: no se puede mezclar un valor único con valores por lado.`);
-  if (nValues === 0 && count('peso') + count('altura') === 0) errors.push('Asigna al menos una columna a una variable del test (o una de peso / altura).');
+  if (nValues === 0 && count('peso') + count('altura') + count('pierna') === 0) errors.push('Asigna al menos una columna a una variable del test (o una de peso / altura / pierna).');
   return errors;
 }
 
@@ -216,7 +219,7 @@ export function buildRows(grid, mapping, variables) {
   const header = mapping.noHeader ? [] : effectiveHeaders(grid, mapping.headerRow, mapping.subHeader);
   const colName = (i) => (txt(header[i]) ? `«${txt(header[i])}»` : `columna ${i + 1}`);
   const idx = (role) => cols.findIndex((c) => c.role === role);
-  const iPlayer = idx('jugador'), iDate = idx('fecha'), iTime = idx('hora'), iReps = idx('reps'), iRepsL = idx('repsL'), iRepsR = idx('repsR'), iPeso = idx('peso'), iAltura = idx('altura');
+  const iPlayer = idx('jugador'), iDate = idx('fecha'), iTime = idx('hora'), iReps = idx('reps'), iRepsL = idx('repsL'), iRepsR = idx('repsR'), iPeso = idx('peso'), iAltura = idx('altura'), iPierna = idx('pierna');
   const rows = [];
   const stats = { read: 0, empty: 0 };
   for (let r = dataStartRow(mapping); r < grid.length; r++) {
@@ -251,7 +254,7 @@ export function buildRows(grid, mapping, variables) {
       row.values[vid] = { ...(row.values[vid] ?? {}), [c.side]: n.value };
     });
     row.body = {};
-    for (const [key, i, rango, nombre, unidad] of [['weight', iPeso, RANGO_PESO, 'Peso', 'kg'], ['height', iAltura, RANGO_ALTURA, 'Altura', 'cm']]) {
+    for (const [key, i, rango, nombre, unidad] of [['weight', iPeso, RANGO_PESO, 'Peso', 'kg'], ['height', iAltura, RANGO_ALTURA, 'Altura', 'cm'], ['legLength', iPierna, RANGO_PIERNA, 'Longitud de pierna', 'm']]) {
       if (i < 0) continue;
       const n = parseNumber(line[i]);
       if (n.empty) continue;
@@ -338,7 +341,7 @@ export function sameValues(a, b) {
 
 // resolutions: { [playerText]: { action: 'link', playerId } | { action: 'new', jerseyName } | { action: 'skip' } }
 export async function planImport(db, { rows, testId, protocolId = null, resolutions }) {
-  const plan = { sessions: [], pending: [], rowErrors: [], body: [], counts: { nuevas: 0, duplicadas: 0, conflictos: 0, conflictosFichero: 0, pendientes: 0, filasConError: 0, pesosNuevos: 0, pesosCambiados: 0, pesosIguales: 0, alturasNuevas: 0, alturasIguales: 0 } };
+  const plan = { sessions: [], pending: [], rowErrors: [], body: [], counts: { nuevas: 0, duplicadas: 0, conflictos: 0, conflictosFichero: 0, pendientes: 0, filasConError: 0, pesosNuevos: 0, pesosCambiados: 0, pesosIguales: 0, alturasNuevas: 0, alturasIguales: 0, piernasNuevas: 0, piernasIguales: 0 } };
   const groups = new Map();
   const bodyByRef = new Map(); // ref → { weight (la de la fecha más reciente), heights: Map(fecha|valor) }
   for (const r of rows) {
@@ -347,10 +350,11 @@ export async function planImport(db, { rows, testId, protocolId = null, resoluti
     if (!res || res.action === 'skip') { plan.counts.pendientes++; plan.pending.push({ row: r.rowNumber, name: r.playerText }); continue; }
     const ref = res.action === 'link' ? `p${res.playerId}` : `n${r.playerText}`;
     if (r.body && Object.keys(r.body).length) {
-      const b = bodyByRef.get(ref) ?? { ref, resolution: res, playerText: r.playerText, rowNumbers: [], weight: null, weightDate: '', heights: new Map() };
+      const b = bodyByRef.get(ref) ?? { ref, resolution: res, playerText: r.playerText, rowNumbers: [], weight: null, weightDate: '', heights: new Map(), legs: new Map() };
       b.rowNumbers.push(r.rowNumber);
       if (r.body.weight != null && (r.date >= b.weightDate)) { b.weight = r.body.weight; b.weightDate = r.date; }
       if (r.body.height != null) b.heights.set(`${r.date}|${r.body.height}`, { date: r.date, value: r.body.height });
+      if (r.body.legLength != null) b.legs.set(`${r.date}|${r.body.legLength}`, { date: r.date, value: r.body.legLength });
       bodyByRef.set(ref, b);
     }
     if (Object.keys(r.values).length === 0) continue; // fila solo de peso / altura: no crea sesión
@@ -379,7 +383,7 @@ export async function planImport(db, { rows, testId, protocolId = null, resoluti
     plan.sessions.push({ ...base, status: 'nueva', dupRows });
   }
   for (const b of bodyByRef.values()) {
-    const item = { ref: b.ref, resolution: b.resolution, playerText: b.playerText, rowNumbers: b.rowNumbers, weight: b.weight, heights: [...b.heights.values()], weightStatus: null, heightStatus: [] };
+    const item = { ref: b.ref, resolution: b.resolution, playerText: b.playerText, rowNumbers: b.rowNumbers, weight: b.weight, heights: [...b.heights.values()], legs: [...b.legs.values()], weightStatus: null, heightStatus: [] };
     const existing = b.resolution.action === 'link' ? await db.players.get(b.resolution.playerId) : null;
     const anth = b.resolution.action === 'link' ? await db.anthropometry.where('playerId').equals(b.resolution.playerId).toArray() : [];
     if (b.weight != null) {
@@ -392,6 +396,11 @@ export async function planImport(db, { rows, testId, protocolId = null, resoluti
       const ya = anth.some((r) => r.date === h.date && r.height?.value === h.value && r.height?.unit === 'cm');
       h.status = ya ? 'igual' : 'nueva';
       if (ya) plan.counts.alturasIguales++; else plan.counts.alturasNuevas++;
+    }
+    for (const h of item.legs) {
+      const ya = anth.some((r) => r.date === h.date && r.legLength?.value === h.value && r.legLength?.unit === 'm');
+      h.status = ya ? 'igual' : 'nueva';
+      if (ya) plan.counts.piernasIguales++; else plan.counts.piernasNuevas++;
     }
     plan.body.push(item);
   }
@@ -406,7 +415,7 @@ export async function commitImport(db, { file, sheetName, mappingName = '', test
     const report = { rowIssues: plan.rowErrors, pendingNames: [...new Set(plan.pending.map((p) => p.name))].map((name) => ({ name, rows: plan.pending.filter((p) => p.name === name).map((p) => p.row) })), sessionNotes: [...(parsed.notes ?? [])] };
     const batchId = await db.importBatches.add({ createdAt: now, source, fileName: file.name, fileHash: file.hash, fileSize: file.size, sheet: sheetName, testId, protocolId, mappingName, rowsRead: parsed.stats.read, rowsEmpty: parsed.stats.empty, status: 'en curso' });
     const playerIds = new Map(); // ref → id
-    const counts = { sesionesCreadas: 0, duplicadasOmitidas: 0, conflictosOmitidos: 0, conflictosGuardadosComoNuevas: 0, conflictosFichero: 0, jugadoresNuevos: 0, aliasGuardados: 0, aliasFijados: 0, filasNoImportadasFichero: parsed.stats?.skipped ?? 0, filasSinResolver: plan.counts.pendientes, filasConError: plan.counts.filasConError, pesosGuardados: 0, pesosCambiados: 0, alturasGuardadas: 0, alturasOmitidas: 0 };
+    const counts = { sesionesCreadas: 0, duplicadasOmitidas: 0, conflictosOmitidos: 0, conflictosGuardadosComoNuevas: 0, conflictosFichero: 0, jugadoresNuevos: 0, aliasGuardados: 0, aliasFijados: 0, filasNoImportadasFichero: parsed.stats?.skipped ?? 0, filasSinResolver: plan.counts.pendientes, filasConError: plan.counts.filasConError, pesosGuardados: 0, pesosCambiados: 0, alturasGuardadas: 0, alturasOmitidas: 0, piernasGuardadas: 0, piernasOmitidas: 0 };
     const ensurePlayer = async (s) => {
       if (playerIds.has(s.ref)) return playerIds.get(s.ref);
       let id;
@@ -459,6 +468,11 @@ export async function commitImport(db, { file, sheetName, mappingName = '', test
         await setReferenceWeight(db, id, b.weight, 'kg');
         counts.pesosGuardados++;
         if (b.weightStatus === 'cambia') { counts.pesosCambiados++; report.sessionNotes.push({ rows: b.rowNumbers, text: `Peso de referencia de «${b.playerText}»: ${b.previousWeight} → ${b.weight} kg.` }); }
+      }
+      for (const h of b.legs ?? []) {
+        if (h.status === 'igual') { counts.piernasOmitidas++; continue; }
+        try { await addAnthropometry(db, { playerId: id, date: h.date, source: 'Excel', legLength: { value: h.value, unit: 'm' } }); counts.piernasGuardadas++; }
+        catch (e) { report.sessionNotes.push({ rows: b.rowNumbers, text: `Longitud de pierna de «${b.playerText}» (${h.date}) no guardada: ${e.message}` }); }
       }
       for (const h of b.heights) {
         if (h.status === 'igual') { counts.alturasOmitidas++; continue; }

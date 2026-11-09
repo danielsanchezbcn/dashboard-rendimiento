@@ -98,7 +98,7 @@ export function zoneOf(cuts, value) {
 export const ZONE_BANDS = ['rojo', 'naranja', 'amarillo-suave', 'amarillo', 'verde-suave', 'verde'];
 // Referencias que el usuario confirmó por lado (7/11): Iso-Push (Hip, Knee, Ankle) y SL CMJ.
 export const isPerSide = (ref) => !!ref && ref.tests.every((t) => /Iso-Push$/.test(t) || t === 'SL CMJ');
-export const ZONE_TEXT = ['más allá del P5 (extremo bajo de la tabla)', 'entre P5 y P25', 'entre P25 y la mediana', 'entre la mediana y P75', 'entre P75 y P95', 'en el P95 o más allá (extremo alto de la tabla)'];
+export const ZONE_TEXT = ['≤P5', 'P5-P25', 'P25-P50', 'P50-P75', 'P75-P95', '≥P95'];
 
 export function placeAgainstPremier(ref, value) {
   if (!ref || !Number.isFinite(value)) return null;

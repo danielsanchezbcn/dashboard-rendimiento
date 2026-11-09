@@ -6,7 +6,7 @@ import { Card, useLoad, Msg } from './componentes.js';
 import { fmtDay } from './fechas.js';
 import { getSetting, setSetting, clearSetting } from './db.js';
 import { listCatalog } from './catalogo.js';
-import { listPositions } from './posiciones.js';
+import { listPositions, positionOnDate } from './posiciones.js';
 import { MIN_N_DEFAULT } from './percentiles.js';
 import { buildRadar, profileFromSetting, RADAR_MIN_AXES, RADAR_MAX_AXES, RADAR_REFS, radarRefsFromSetting } from './radar.js';
 import { downloadBlob } from './io.js';
@@ -19,7 +19,7 @@ const digits = (v) => (Math.abs(v) >= 100 ? 0 : Math.abs(v) >= 10 ? 1 : 2);
 import { FUENTE_GRAFICOS } from './fuentes.js';
 const FONT = FUENTE_GRAFICOS;
 const LILA = '#ffffff'; /* valores del jugador: blanco (9/11/2026) */ const MORADO = '#b8a2c9'; const AMARILLO = '#fec900'; const BLANCO = '#ffffff';
-const W = 1000; const H = 490; const CX = 500; const CY = 276; const RREF = 130;
+const W = 1000; const H = 484; const CX = 500; const CY = 260; const RREF = 130;
 
 function wrap(label) {
   if (label.length <= 14 || !label.includes(' ')) return [label];
@@ -52,29 +52,32 @@ export function RadarSvg({ profile, radar, playerName, shown = ['p50', 'premier5
   return html`<svg ref=${svgRef} xmlns="http://www.w3.org/2000/svg" viewBox=${`0 0 ${W} ${HH}`} width="100%" role="img" class="radar-svg"
       aria-label=${`Radar ${profile.title} de ${playerName}: ${radar.axes.map((a) => `${a.label}${val(a) != null ? ` ${fx(val(a))} ${a.unit}` : ''}`).join('; ')}. Referencias dibujadas: ${draw.map((k) => refLabel(k, posName)).join(', ')}`}>
     <rect width=${W} height=${HH} fill="#000" />
-    <rect x="230" y="26" width="540" height="40" rx="8" fill="none" stroke=${LILA} stroke-width="3" />
-    <text x=${CX} y="56" text-anchor="middle" font-family=${FONT} font-size="32" font-weight="700" fill=${LILA}>${profile.title}</text>
-    <text x="985" y="42" text-anchor="end" font-family=${FONT} font-size="18" fill=${LILA}>${playerName.length > 24 ? playerName.slice(0, 23) + '…' : playerName}</text>
-    <text x="985" y="62" text-anchor="end" font-family=${FONT} font-size="15" fill=${LILA}>${basisText}</text>
     ${draw.map((k) => { const st = REF_STYLE[k]; return html`<polygon key=${k} points=${poly(radar.axes.map((a) => a.ratios[k]))} fill="none" stroke=${st.color} stroke-width=${st.w} stroke-dasharray=${st.dash ?? null} stroke-linecap=${st.cap ?? 'butt'} stroke-linejoin="round" />`; })}
     <text x=${CX} y=${CY + 12} text-anchor="middle" font-family=${FONT} font-size="34" font-weight="700" fill=${BLANCO}>${profile.center}</text>
     ${radar.axes.map((a, i) => {
       const c = Math.cos(ang(i)); const s = Math.sin(ang(i));
       const top = s < -0.9; const bottom = s > 0.9;
-      const lines = wrap(a.label); const wid = Math.max(...lines.map((l) => l.length)) * 11.5;
-      const vtxX = CX + c * RREF; const vtxY = CY + s * RREF;
+      const lines = wrap(a.label); const wid = Math.max(...lines.map((l) => l.length)) * 13;
+      // el rótulo se separa del vértice de La Liga y de la línea más alejada del jugador/referencias en ese eje (que no toque el polígono)
+      const ext = unit * Math.max(1, ...draw.map((k) => a.ratios[k] ?? 0)); const RR = Math.max(RREF, ext + 16);
+      const vtxX = CX + c * RR; const vtxY = CY + s * RR;
       const v = val(a); const vtxt = v == null ? '' : `${fx(v)} ${a.unit}`;
       if (top || bottom) {
         const y0 = top ? vtxY - 20 - (lines.length - 1) * 22 : vtxY + 32;
         return html`<g key=${i}>${lines.map((l, k) => html`<text key=${k} x=${vtxX} y=${y0 + k * 22} text-anchor="middle" font-family=${FONT} font-size="21" font-weight="700" fill=${BLANCO}>${l}</text>`)}
-          <text x=${vtxX} y=${top ? y0 - 30 : y0 + (lines.length - 1) * 22 + 34} text-anchor="middle" font-family=${FONT} font-size="26" fill=${LILA}>${vtxt}</text></g>`;
+          <text x=${vtxX} y=${top ? y0 - 28 : y0 + (lines.length - 1) * 22 + 28} text-anchor="middle" font-family=${FONT} font-size="20" fill=${LILA}>${vtxt}</text></g>`;
       }
       const right = c > 0; const lx = vtxX + (right ? 10 : -10); const y0 = vtxY + (s < 0 ? -2 : 6) - (lines.length - 1) * 11;
       return html`<g key=${i}>${lines.map((l, k) => html`<text key=${k} x=${lx} y=${y0 + k * 22} text-anchor=${right ? 'start' : 'end'} font-family=${FONT} font-size="21" font-weight="700" fill=${BLANCO}>${l}</text>`)}
-        <text x=${lx + (right ? wid + 22 : -wid - 22)} y=${vtxY + 6} text-anchor=${right ? 'start' : 'end'} font-family=${FONT} font-size="26" fill=${LILA}>${vtxt}</text></g>`;
+        <text x=${lx + (right ? wid + 26 : -wid - 26)} y=${vtxY + 5} text-anchor=${right ? 'start' : 'end'} font-family=${FONT} font-size="20" fill=${LILA}>${vtxt}</text></g>`;
     })}
-    <g font-family=${FONT} font-size="19">${draw.map((k, i) => { const st = REF_STYLE[k]; const x = 40 + (i % 2) * 480; const y = H + Math.floor(i / 2) * 26;
-      return html`<g key=${k}><line x1=${x} x2=${x + 60} y1=${y} y2=${y} stroke=${st.color} stroke-width=${st.w} stroke-dasharray=${st.dash ?? null} stroke-linecap=${st.cap ?? 'butt'} /><text x=${x + 72} y=${y + 6} fill=${st.color === GRIS ? GRIS : st.color}>${refLabel(k, posName)}</text></g>`; })}</g>
+    <g font-family=${FONT} font-size="19">${(() => {
+      const itemW = (k) => 72 + refLabel(k, posName).length * 9; const GAP = 60;
+      const rowsK = []; for (let q = 0; q < draw.length; q += 2) rowsK.push(draw.slice(q, q + 2));
+      return rowsK.map((row, r) => { const total = row.reduce((a, k) => a + itemW(k), 0) + GAP * (row.length - 1); let x = (W - total) / 2; const y = H + r * 26;
+        return row.map((k) => { const st = REF_STYLE[k]; const x0 = x; x += itemW(k) + GAP;
+          return html`<g key=${k}><line x1=${x0} x2=${x0 + 60} y1=${y} y2=${y} stroke=${st.color} stroke-width=${st.w} stroke-dasharray=${st.dash ?? null} stroke-linecap=${st.cap ?? 'butt'} /><text x=${x0 + 72} y=${y + 6} fill=${st.color}>${refLabel(k, posName)}</text></g>`; }); });
+    })()}</g>
   </svg>`;
 }
 
@@ -119,7 +122,7 @@ function RadarEditor({ cfg, tests, variables, onSaved, onCancel }) {
 
 export function RadarPanel({ player, testName }) {
   const { db, version } = useApp();
-  const [rp, setRp] = useState('all');
+  const [rpSel, setRp] = useState(null);
   const [shownLocal, setShownLocal] = useState(null);
   const [msg, setMsg] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -143,6 +146,9 @@ export function RadarPanel({ player, testName }) {
     <button type="button" class="secondary" onClick=${async () => { await clearSetting(db, 'radarConfig'); setTick((t) => t + 1); }}>Volver al perfil por defecto</button><//>`;
   const playersById = Object.fromEntries(data.players.map((p) => [p.id, p]));
   const histories = {}; for (const r of data.records) (histories[r.playerId] ??= []).push(r);
+  // por defecto, la posición principal actual del jugador (así las referencias «por posición» están disponibles sin tener que elegirla)
+  const mainPos = positionOnDate(data.records.filter((r) => r.playerId === player.id)).principal?.positionId ?? null;
+  const rp = rpSel ?? (mainPos != null ? String(mainPos) : 'all');
   const positionId = rp === 'all' ? null : Number(rp);
   const radar = buildRadar({ profile, test: data.test, variables: data.variables, sessions: data.sessions, players: playersById, histories, playerId: player.id, basis: 'pa', positionId, minN: data.minN, multi: true });
   const shown = shownLocal ?? data.refsSaved;
@@ -154,7 +160,7 @@ export function RadarPanel({ player, testName }) {
     <p><button type="button" class="secondary" aria-expanded=${editing} onClick=${() => setEditing(!editing)}>${editing ? 'Cerrar selección' : 'Elegir variables del radar'}</button></p>
     ${editing ? html`<${RadarEditor} cfg=${{ test: profile.test, variables: profile.axes.map((a) => a.variable) }} tests=${data.pickable} variables=${data.variables} onSaved=${() => { setEditing(false); setTick((t) => t + 1); }} onCancel=${() => setEditing(false)} />` : null}
     <div class="filters">
-      <label>Posición para las referencias por posición <select value=${rp} onChange=${(e) => setRp(e.target.value)}><option value="all">Ninguna</option>${data.positions.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label>
+      <label>Posición para las referencias por posición <select value=${rp} onChange=${(e) => setRp(e.target.value)}><option value="all">Ninguna (sin referencias por posición)</option>${data.positions.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label>
     </div>
     <fieldset class="modes"><legend>Referencias del radar</legend>${RADAR_REFS.map((r) => { const why = radar.axes.length ? unavailable(r) : null; return html`<label class="check" key=${r.key} title=${why ?? ''}><input type="checkbox" checked=${shown.includes(r.key)} disabled=${!!why} onChange=${() => toggleRef(r.key)} /> ${r.label}${why ? html` <span class="muted">(no disponible)</span>` : null}</label>`; })}</fieldset>
     ${radar.drawable ? html`<${Copiable} nombre=${`radar-${profile.center}-${baseName(player)}`}><${RadarSvg} profile=${profile} radar=${radar} playerName=${playerLabel(player)} shown=${shown} posName=${posName} svgRef=${svgRef} /><//>

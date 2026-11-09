@@ -213,3 +213,69 @@ export async function findCandidates(db, text, { source } = {}) {
   const sure = altas.length === 1 && !altas[0].matches.some((m) => m.changesEnye);
   return { candidates, requiresManual: !sure, reasons, autoLink: false };
 }
+
+// ---------- Unificar y eliminar jugadores ----------
+const PLAYER_TABLES = ['sessions', 'fvProfiles', 'anthropometry', 'targets', 'playerPositions', 'playerAliases'];
+
+// Cuántos registros cuelgan de un jugador (para decidir si se puede eliminar y para avisar al unificar).
+export async function playerDataCounts(db, id) {
+  const out = {};
+  for (const t of PLAYER_TABLES) out[t] = await db[t].where('playerId').equals(id).count();
+  return out;
+}
+
+// Elimina un jugador SOLO si no tiene sesiones, perfiles carga-velocidad, antropometría ni targets. Sus alias y su historial de posiciones se borran con él.
+export async function deleteEmptyPlayer(db, id) {
+  return db.transaction('rw', [db.players, ...PLAYER_TABLES.map((t) => db[t]), db.auditLog], async () => {
+    if (!(await db.players.get(id))) throw new Error('El jugador no existe.');
+    const c = await playerDataCounts(db, id);
+    const withData = c.sessions + c.fvProfiles + c.anthropometry + c.targets;
+    if (withData > 0) throw new Error(`No se puede eliminar: tiene datos guardados (${c.sessions} sesiones, ${c.anthropometry} mediciones antropométricas, ${c.fvProfiles} perfiles carga-velocidad, ${c.targets} targets). Para conservarlo sin usarlo, desactívalo; si es un duplicado, unifícalo con el otro.`);
+    await db.playerAliases.where('playerId').equals(id).delete();
+    await db.playerPositions.where('playerId').equals(id).delete();
+    await db.players.delete(id);
+    await audit(db, 'jugador-eliminado', { jugadorId: id });
+  });
+}
+
+// Unifica dos fichas del mismo jugador: todo lo de «dropId» pasa a «keepId» y «dropId» desaparece. Nada se sobrescribe: si ambos tienen peso de referencia o nombre completo, gana el de keepId.
+// Los nombres de la ficha eliminada quedan como alias de la que se conserva (para que futuras importaciones la encuentren). Las sesiones no se fusionan: si hay dos del mismo test, protocolo, fecha y hora
+// se conservan ambas y se devuelven en «posiblesDuplicadas» para que las revises.
+export async function mergePlayers(db, keepId, dropId) {
+  if (keepId === dropId) throw new Error('Elige dos jugadores distintos.');
+  return db.transaction('rw', [db.players, ...PLAYER_TABLES.map((t) => db[t]), db.auditLog], async () => {
+    const keep = await db.players.get(keepId), drop = await db.players.get(dropId);
+    if (!keep || !drop) throw new Error('Alguno de los jugadores no existe.');
+    const moved = {};
+    for (const t of PLAYER_TABLES.filter((x) => x !== 'playerAliases')) moved[t] = await db[t].where('playerId').equals(dropId).modify({ playerId: keepId });
+    // alias: se mueven; si ya hay uno igual (misma fuente y texto) se descarta el repetido
+    const mine = await db.playerAliases.where('playerId').equals(keepId).toArray();
+    const theirs = await db.playerAliases.where('playerId').equals(dropId).toArray();
+    moved.playerAliases = 0;
+    for (const a of theirs) {
+      if (mine.some((m) => m.source === a.source && m.rawText === a.rawText)) await db.playerAliases.delete(a.id);
+      else { await db.playerAliases.update(a.id, { playerId: keepId }); moved.playerAliases++; }
+    }
+    // los nombres de la ficha eliminada, como alias (fuente «Otra») si todavía no los tiene ninguna ficha
+    const all = await db.playerAliases.toArray();
+    for (const text of [cleanName(drop.jerseyName), cleanName(drop.fullName)].filter(Boolean)) {
+      if (text === cleanName(keep.jerseyName) || text === cleanName(keep.fullName)) continue;
+      if (all.some((a) => a.rawText === text && a.playerId === keepId)) continue;
+      if (all.some((a) => a.source === 'Otra' && a.rawText === text)) continue;
+      await db.playerAliases.add({ playerId: keepId, source: 'Otra', rawText: text, normalizedKey: normalizeName(text).key, confirmedAt: new Date().toISOString(), ...(keep.synthetic ? { synthetic: 1 } : {}) });
+      moved.playerAliases++;
+    }
+    const patch = { updatedAt: new Date().toISOString() };
+    if (!cleanName(keep.fullName) && cleanName(drop.fullName)) patch.fullName = cleanName(drop.fullName);
+    if (!keep.referenceWeight && drop.referenceWeight) patch.referenceWeight = drop.referenceWeight;
+    if (!keep.active && drop.active) patch.active = true;
+    if (!String(keep.notes ?? '').trim() && String(drop.notes ?? '').trim()) patch.notes = drop.notes;
+    await db.players.update(keepId, patch);
+    await db.players.delete(dropId);
+    const sess = await db.sessions.where('playerId').equals(keepId).toArray();
+    const seen = new Map(); let posiblesDuplicadas = 0;
+    for (const s of sess) { const k = `${s.testId}|${s.protocolId ?? ''}|${s.date}|${s.time ?? ''}`; if (seen.has(k)) posiblesDuplicadas++; else seen.set(k, 1); }
+    await audit(db, 'jugadores-unificados', { conservado: keepId, eliminado: dropId, movidos: moved, posiblesDuplicadas });
+    return { moved, posiblesDuplicadas };
+  });
+}

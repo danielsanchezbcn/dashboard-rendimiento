@@ -106,7 +106,7 @@ export function Catalogo() {
   const fuerza = data.manifestations.filter((m) => m.blockKey === 'fuerza');
   return html`
     <h2 class="page-title">Catálogo de tests</h2>
-    <p class="muted">Aquí se añaden, editan y archivan los tests, sus protocolos y sus variables sin tocar el código. Un test o una variable con datos no se borra: se archiva. Lo que no hayas definido (unidades, dirección de interpretación, fórmulas) aparece como «No definido»: no se supone nada.</p>
+    <details class="notas"><summary>Cómo funciona el catálogo</summary><p class="muted">Aquí se añaden, editan y archivan los tests, sus protocolos y sus variables sin tocar el código. Un test o una variable con datos no se borra: se archiva. Lo que no hayas definido (unidades, dirección de interpretación, fórmulas) aparece como «No definido»: no se supone nada.</p></details>
     <${TestsCard} data=${data} />
     <${NameList} titulo="Manifestaciones de la fuerza" etiqueta="Manifestación" intro="La manifestación es atributo de cada variable; el test conserva la de su listado. Se pueden añadir, renombrar y archivar."
       items=${fuerza} usosDe=${(m) => data.tests.filter((t) => t.manifestationId === m.id).length}
@@ -264,7 +264,7 @@ export function TestDetalle({ id }) {
     <${TestDatos} key=${'d' + test.id + test.updatedAt} test=${test} data=${cat} />
     <${Protocolos} test=${test} protocols=${protocols} />
     <${Card} titulo="Variables">
-      <p class="muted">Cada variable tiene su unidad, su dirección de interpretación y, si es calculada, su fórmula. El dato absoluto y el relativo son variables separadas. La unidad, la dirección y las fórmulas que no hayas definido aparecen como «No definido».</p>
+      <details class="notas"><summary>Cómo funcionan las variables</summary><p class="muted">Cada variable tiene su unidad, su dirección de interpretación y, si es calculada, su fórmula. El dato absoluto y el relativo son variables separadas. La unidad, la dirección y las fórmulas que no hayas definido aparecen como «No definido».</p></details>
       ${vars.length === 0 ? html`<p class="muted">Este test aún no tiene variables definidas.</p>` : html`<div class="table-wrap"><table>
         <thead><tr><th scope="col">Variable</th><th scope="col">Unidad</th><th scope="col">Valores</th><th scope="col">Dirección</th><th scope="col">Manifestación</th><th scope="col">Origen / fórmula</th><th scope="col"><span class="sr">Acciones</span></th></tr></thead>
         <tbody>${vars.map((v) => html`<${VariableRow} key=${v.id} v=${v} test=${test} rawVars=${rawVars} data=${cat} history=${history.filter((h) => h.variableId === v.id).sort((a, b) => a.version - b.version)} />`)}</tbody></table></div>`}

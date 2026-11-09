@@ -9,6 +9,8 @@
 //    (Iso-Push, SL CMJ…) las asimetrías y la media sin sufijo no se importan: la asimetría se calcula (D25).
 //  · Las filas con un código o una altura sin perfil, y las que llevan carga adicional, NO se importan y se listan en el informe.
 //    Hop, Drop Jump y CMJ traen asimetrías con texto («11 L»): NO se importan hasta que el usuario confirme el significado de la letra.
+//  · NordBord (Nordic Hamstring, 9/11/2026): exportación con otro formato (columnas «Test», «Date UTC», «Time UTC», «L Max Force (N)»…). Se importan Max Force y Torque por lado;
+//    la asimetría («Max Imbalance (%)» de VALD) se calcula con la regla D25, que coincide con la columna en las 62 filas del fichero aportado.
 // Todo lo demás (jugadores, duplicados, conflictos, informe) lo hace importacion.js, igual que con el Excel propio.
 
 import { normalizeName } from './jugadores.js';
@@ -57,7 +59,15 @@ export const VALD_PROFILES = {
   'Double-Leg Hop Test': { mode: 'S', cols: HOP },
   'DL Drop Jump 30 cm': { mode: 'S', cols: DJ },
   'DL Drop Jump 45 cm': { mode: 'S', cols: DJ },
+  // NordBord: columnas con nombre propio por lado; la asimetría (valor único, con signo) se calcula con D25 a partir del Max Force de la sesión (también tras fusionar).
+  'Nordic Hamstring Exercise': { mode: 'LR', format: 'nordbord', reps: { L: 'L Reps', R: 'R Reps' }, asym: 'Max Force Asymmetry', asymFrom: 'Max Force',
+    cols: [{ h: 'Max Force', v: 'Max Force', u: 'N', names: { L: 'L Max Force (N)', R: 'R Max Force (N)' } }, { h: 'Torque', v: 'Torque', u: 'Nm', names: { L: 'L Max Torque (Nm)', R: 'R Max Torque (Nm)' } }] },
 };
+const FORMATS = {
+  forcedecks: { fixed: ['Name', 'Test Type', 'Date', 'Time'], name: 'Name', code: 'Test Type', date: 'Date', time: 'Time' },
+  nordbord: { fixed: ['Name', 'Test', 'Date UTC', 'Time UTC', 'L Max Force (N)', 'R Max Force (N)'], name: 'Name', code: 'Test', date: 'Date UTC', time: 'Time UTC' },
+};
+const formatOf = (header) => (FORMATS.forcedecks.fixed.every((c) => header.includes(c)) ? 'forcedecks' : FORMATS.nordbord.fixed.every((c) => header.includes(c)) ? 'nordbord' : null);
 // Códigos de «Test Type» de VALD. Una función decide el test según la fila (altura de caída, carga) o devuelve el motivo de omisión.
 const fixed = (name) => () => ({ test: name });
 // Asimetría de VALD en tests de un solo valor: «11 L» / «3.8 R» (la letra es el lado con el valor MÁS ALTO; confirmado por el usuario,
@@ -77,7 +87,7 @@ export function parseAsym(v) {
 export const VALD_CODES = {
   RSHIP: fixed('Run-Specific Hip Iso-Push'), RSKIP: fixed('Run-Specific Knee Iso-Push'), RSAIP: fixed('Run-Specific Ankle Iso-Push'),
   SLHNNI: fixed('Supine Isometric 90°/90° Leg Curl Test'), SLSEICR: fixed('Single-Leg Seated Calf Raise'),
-  SLJ: fixed('SL CMJ'), CMJ: fixed('CMJ'), SJ: fixed('Squat Jump'), HJ: fixed('Double-Leg Hop Test'),
+  Nordic: fixed('Nordic Hamstring Exercise'), SLJ: fixed('SL CMJ'), CMJ: fixed('CMJ'), SJ: fixed('Squat Jump'), HJ: fixed('Double-Leg Hop Test'),
   DJ: (r) => (r.dropHeight === 30 ? { test: 'DL Drop Jump 30 cm' } : r.dropHeight === 45 ? { test: 'DL Drop Jump 45 cm' } : { skip: `altura de caída ${r.dropHeight === null ? 'sin dato' : r.dropHeight + ' cm'} (el catálogo solo tiene 30 y 45 cm)` }),
 };
 
@@ -90,8 +100,7 @@ const nu = (u) => String(u ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
 const lc = (x) => String(x ?? '').trim().toLowerCase();
 
 export function looksLikeVald(grid) {
-  const h = (grid[0] ?? []).map(norm);
-  return FIXED_COLS.every((c) => h.includes(c));
+  return formatOf((grid[0] ?? []).map(norm)) !== null;
 }
 
 const repsOf = (row, side) => (side === 'S' ? row.reps.total : row.reps[side]);
@@ -123,13 +132,14 @@ export function parseValdGrid(grid, catalog) {
   const fail = (error) => ({ ok: false, error });
   if (!grid.length) return fail('El fichero está vacío.');
   const header = (grid[0] ?? []).map(norm);
-  const missing = FIXED_COLS.filter((c) => !header.includes(c));
-  if (missing.length) return fail(`No parece una exportación de VALD ForceDecks: faltan las columnas ${missing.map((m) => `«${m}»`).join(', ')}.`);
+  const fmtKey = formatOf(header);
+  if (!fmtKey) return fail(`No parece una exportación de VALD (ForceDecks o NordBord): faltan las columnas ${FORMATS.forcedecks.fixed.filter((c) => !header.includes(c)).map((m) => `«${m}»`).join(', ')}.`);
+  const FMT = FORMATS[fmtKey];
   const col = (name) => header.indexOf(name);
   const body = grid.slice(1).map((r, i) => ({ r, n: i + 2 })).filter(({ r }) => r.some((c) => cell(c) !== ''));
   const stats = { read: body.length, empty: grid.length - 1 - body.length, skipped: 0 };
   if (!body.length) return fail('El fichero no tiene filas con datos.');
-  const cCode = col('Test Type'), cLoad = col('Additional Load [kg]'), cDrop = col('Drop Height [cm]');
+  const cCode = col(FMT.code), cLoad = col('Additional Load [kg]'), cDrop = col('Drop Height [cm]');
   const codes = [...new Set(body.map(({ r }) => cell(r[cCode])).filter(Boolean))];
   if (!codes.some((c) => VALD_CODES[c])) return fail(`Ningún código de test del fichero (${codes.join(', ') || 'ninguno'}) está en el perfil de importación (conocidos: ${Object.keys(VALD_CODES).join(', ')}).`);
 
@@ -151,22 +161,23 @@ export function parseValdGrid(grid, catalog) {
 
   const notes = [];
   for (const [reason, rows] of skipped) notes.push({ rows, level: 'aviso', text: `${rows.length} fila(s) no importadas: ${reason}.` });
-  const usedHeaders = new Set(FIXED_COLS);
+  const usedHeaders = new Set(FMT.fixed);
   const groups = [];
   const problems = [];
   for (const [testName, items] of byTest) {
     const prof = VALD_PROFILES[testName];
+    if ((prof.format ?? 'forcedecks') !== fmtKey) { problems.push(`${testName}: el perfil no corresponde a este formato de fichero.`); continue; }
     const test = catalog.tests.find((t) => t.name === testName && !t.archived);
     if (!test) { problems.push(`El test «${testName}» no existe en el catálogo (o está archivado).`); continue; }
     const vars = catalog.variables.filter((v) => v.testId === test.id && v.kind === 'raw' && !v.archived);
     const sides = prof.mode === 'LR' ? ['L', 'R'] : ['S'];
-    const repCols = prof.mode === 'LR' ? { L: col('Reps (L)'), R: col('Reps (R)') } : { S: col('Reps') };
-    if (Object.values(repCols).some((c) => c < 0)) { problems.push(`${testName}: faltan las columnas de repeticiones («${prof.mode === 'LR' ? 'Reps (L)» y «Reps (R)' : 'Reps'}»).`); continue; }
+    const repCols = prof.reps ? { L: col(prof.reps.L), R: col(prof.reps.R) } : prof.mode === 'LR' ? { L: col('Reps (L)'), R: col('Reps (R)') } : { S: col('Reps') };
+    if (Object.values(repCols).some((c) => c < 0)) { problems.push(`${testName}: faltan las columnas de repeticiones («${prof.reps ? `${prof.reps.L}» y «${prof.reps.R}` : prof.mode === 'LR' ? 'Reps (L)» y «Reps (R)' : 'Reps'}»).`); continue; }
     Object.values(repCols).forEach((c) => usedHeaders.add(header[c]));
     const spec = [], absent = [];
     let bad = null;
     for (const sp of prof.cols) {
-      const cols = prof.mode === 'LR' ? { L: col(`${sp.h} (L)`), R: col(`${sp.h} (R)`) } : { S: col(sp.h) };
+      const cols = sp.names ? { L: col(sp.names.L), R: col(sp.names.R) } : prof.mode === 'LR' ? { L: col(`${sp.h} (L)`), R: col(`${sp.h} (R)`) } : { S: col(sp.h) };
       if (Object.values(cols).some((c) => c < 0)) { absent.push(sp.v); continue; }
       const v = vars.find((x) => lc(x.name) === lc(sp.v));
       if (!v) { bad = `${testName}: falta la variable «${sp.v}» en el catálogo (actualiza la base: se añade sola al abrir la aplicación nueva).`; break; }
@@ -182,12 +193,12 @@ export function parseValdGrid(grid, catalog) {
 
     // 2) interpretar las filas del test
     const rows = items.map(({ r, n }) => {
-      const row = { rowNumber: n, playerText: norm(r[col('Name')]), date: null, time: '', reps: { total: null, L: null, R: null, assumed: false }, values: {}, issues: [] };
+      const row = { rowNumber: n, playerText: norm(r[col(FMT.name)]), date: null, time: '', reps: { total: null, L: null, R: null, assumed: false }, values: {}, issues: [] };
       const err = (t) => row.issues.push({ level: 'error', text: t });
       if (!row.playerText) err('Falta el nombre del jugador.');
-      const d = parseDateCell(r[col('Date')]);
+      const d = parseDateCell(r[col(FMT.date)]);
       if (d.empty) err('Falta la fecha.'); else if (d.error) err(`Fecha: ${d.error}.`); else row.date = d.value;
-      const t = parseTimeCell(r[col('Time')]);
+      const t = parseTimeCell(r[col(FMT.time)]);
       if (t.error) err(`Hora: ${t.error}.`); else if (t.value) row.time = t.value;
       for (const side of sides) {
         const p = parseReps(r[repCols[side]]);
@@ -243,11 +254,20 @@ export function parseValdGrid(grid, catalog) {
     }
     const finalRows = [];
     for (const row of rows) { if (replace.has(row)) finalRows.push(replace.get(row)); else if (!drop.has(row)) finalRows.push(row); }
+    if (prof.asym) {
+      const av = vars.find((x) => lc(x.name) === lc(prof.asym)), fv = vars.find((x) => lc(x.name) === lc(prof.asymFrom));
+      if (!av || av.sides !== 'single' || !fv) { problems.push(`${testName}: falta la variable «${prof.asym}» (valor único) o «${prof.asymFrom}» en el catálogo.`); continue; }
+      for (const row of finalRows) {
+        const f = row.values[fv.id];
+        if (row.ok && Number.isFinite(f?.L) && Number.isFinite(f?.R) && Math.max(f.L, f.R) > 0) row.values[av.id] = { S: r2(((f.R - f.L) / Math.max(f.L, f.R)) * 100) };
+      }
+      gNotes.push({ rows: [], level: 'info', text: `${testName}: «${prof.asym}» se calcula como (derecha − izquierda) ÷ máx × 100 (D25), igual que «Max Imbalance (%)» de VALD; positivo = domina la derecha.` });
+    }
     groups.push({ testId: test.id, testName, mode: prof.mode, rows: finalRows, notes: gNotes, readRows: items.length, mergedCount: replace.size });
   }
   if (!groups.length) return fail(problems.join(' ') || 'No hay filas importables.');
   for (const p of problems) notes.push({ rows: [], level: 'error', text: p });
-  const ignored = header.filter((h) => h && !usedHeaders.has(h));
+  const ignored = header.filter((h) => h && !usedHeaders.has(h) && !h.startsWith('Unnamed'));
   return { ok: true, codes, groups, notes, stats, ignored, mergedCount: groups.reduce((a, g) => a + g.mergedCount, 0), testNames: groups.map((g) => g.testName) };
 }
 

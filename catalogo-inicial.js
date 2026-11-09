@@ -12,7 +12,7 @@ import { audit } from './db.js';
 import { SW_FACTOR_DEFAULT, testUsage } from './catalogo.js';
 import { ISO_PAIRS, RM12_TESTS, RM_EST_FACTOR_DEFAULT, pairFactor } from './isohold.js';
 
-export const CATALOG_SEED_VERSION = 8;
+export const CATALOG_SEED_VERSION = 9;
 
 const BLOCKS = [
   { key: 'fuerza', name: 'Manifestaciones de la fuerza' },
@@ -163,6 +163,7 @@ export async function seedInitialCatalog(db) {
       }
       for (const [test, vars] of Object.entries(VARIABLES_BY_TEST)) for (const x of vars) await addVar(testIds[test], { ...x, manifestationId: x.manifestation ? manId[x.manifestation] : x.manifestationId });
       await ensureDerived(db, ts, counts);
+      await ensureGroinAnkle(db, ts, counts);
     }
     await ensurePerimeters(db, ts, counts);
     counts.direccionesAsignadas = await defaultDirections(db, ts);
@@ -244,6 +245,40 @@ async function ensureDerived(db, ts, counts) {
     else await make(hold, 'Carga externa (kg)', '%BW', 'ISO_LOAD_BW', MAXISO, {}, 'Carga externa ÷ masa corporal; masa medida más cercana a hoy.');
   }
   for (const n of RM12_TESTS) { const t = tByName(n); if (t) await make(t, 'Carga máxima (kg)', '1RM estimado (kg)', 'RM_EST', HDS, { factor: RM_EST_FACTOR_DEFAULT }, '(carga + masa corporal) × 1,4, solo en 12RM. Estimado, no medido. 1,4 coincide con Epley a 12 repeticiones (inferencia no verificada con fuente).'); }
+}
+
+
+// 9/11/2026: pruebas de cadera (aducción 0° y 45°, abducción 0°; valor único, el sistema asigna un lado) y de tobillo (inversión y eversión supina; por lado).
+// Solo dos variables por test, como pidió el usuario: Peak Force (N) y Peak Force relativo. Cadera: N × longitud de pierna/palanca (m) ÷ masa (kg) = N·m/kg (fórmula de su Excel);
+// tobillo: relativo al peso corporal (BW). Idempotente: crea solo lo que falte, por nombre.
+export const GROIN_TESTS = ['Hip Adduction 0° (Long Lever)', 'Hip Abduction 0° (Long Lever)', 'Hip Adduction 45° (Short Lever)'];
+export const ANKLE_TESTS = ['Supine Isometric Ankle Inversion', 'Supine Isometric Ankle Eversion'];
+async function ensureGroinAnkle(db, ts, counts) {
+  const lc = (x) => String(x ?? '').trim().toLowerCase();
+  const tests = await db.tests.toArray();
+  const man = (await db.manifestations.toArray()).find((m) => lc(m.name) === lc(MAXISO))?.id ?? null;
+  let order = (await db.variables.orderBy('order').last())?.order ?? 0;
+  const bump = () => { counts.variablesAnadidas = (counts.variablesAnadidas ?? 0) + 1; counts.variables = (counts.variables ?? 0) + (counts.tests !== undefined ? 1 : 0); };
+  for (const [names, single] of [[GROIN_TESTS, true], [ANKLE_TESTS, false]]) {
+    for (const name of names) {
+      const t = tests.find((x) => lc(x.name) === lc(name));
+      if (!t) continue;
+      const vars = await db.variables.where('testId').equals(t.id).toArray();
+      let peak = vars.find((x) => lc(x.name) === 'peak force');
+      const sides = single ? 'single' : 'LR';
+      if (!peak) {
+        const id = await db.variables.add({ testId: t.id, name: 'Peak Force', unit: 'N', sides, direction: 'higher', manifestationId: man, kind: 'raw', formula: null, formulaVersion: 0, notes: '', archived: false, order: ++order, createdAt: ts, updatedAt: ts, source: 'inicial' });
+        peak = { id }; bump();
+      }
+      const relName = single ? 'Peak Force relativo (N·m/kg)' : 'Peak Force relativo (BW)';
+      if (!vars.some((x) => lc(x.name) === lc(relName))) {
+        const formula = { op: single ? 'REL_LEVER' : 'REL_BW', operands: [peak.id], params: {}, text: '' };
+        const id = await db.variables.add({ testId: t.id, name: relName, unit: single ? 'N·m/kg' : 'BW', sides, direction: 'higher', manifestationId: man, kind: 'derived', formula, formulaVersion: 1, notes: single ? 'Peak Force (N) × longitud de pierna / palanca (m) ÷ masa corporal (kg).' : '', archived: false, order: ++order, createdAt: ts, updatedAt: ts, source: 'inicial' });
+        await db.formulaHistory.add({ variableId: id, version: 1, formula, at: ts, reason: 'Catálogo inicial (9/11/2026)' });
+        bump();
+      }
+    }
+  }
 }
 
 // Actualiza un catálogo ya cargado con una versión anterior de la semilla, sin pisar nada que el usuario haya editado:
@@ -339,6 +374,7 @@ async function migrateCatalog(db, prev) {
     if (rsiMal.length) await audit(db, 'catalogo-direccion-rsi-corregida', { cantidad: rsiMal.length, de: 'lower', a: 'higher' });
     res.rsiCorregidos = rsiMal.length;
     await ensureDerived(db, ts, res);
+    await ensureGroinAnkle(db, ts, res);
     await ensurePerimeters(db, ts, res);
     res.direccionesAsignadas = await defaultDirections(db, ts);
     await db.meta.put({ key: 'catalogSeeded', value: { ...(cur?.value ?? {}), version: CATALOG_SEED_VERSION, actualizadoEn: ts } });

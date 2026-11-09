@@ -178,7 +178,7 @@ details.notas[open] > summary { margin-bottom: 0.3rem; }
 .test-sticky h3 { margin: 0; }
 
 /* Cuadrantes DSI y EUR (sin estilos en línea: la política de seguridad no los admite). */
-svg.cuadrante { display: block; max-width: 720px; }
+svg.cuadrante { display: block; max-width: 720px; border-radius: 6px; }
 .q-marco { fill: none; stroke: var(--line); } .q-rejilla { stroke: var(--line); stroke-width: 0.5; }
 .q-tick { font-size: 12px; fill: var(--muted); } .q-eje { font-size: 13px; fill: var(--text); } .q-etiqueta { font-size: 13px; font-weight: 700; fill: var(--text); }
 .q-liga { fill: var(--muted); opacity: 0.55; } .q-corte { stroke: var(--text); stroke-dasharray: 6 4; } .q-jugador { fill: var(--accent); }

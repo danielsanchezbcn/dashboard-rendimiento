@@ -8,7 +8,10 @@ import { MIN_N_DEFAULT } from './percentiles.js';
 import { locate, ratioReferences, G, withReferenceWeights, strengthOrientation, componentQuadrants, quadrantSide } from './relaciones.js';
 import { Copiable } from './copiar.js';
 import { playerLabel } from './jugadores.js';
+import { PAL } from './colores.js';
+import { FUENTE_GRAFICOS } from './fuentes.js';
 import { BANDS } from './percentiles.js';
+import { asymText } from './catalogo.js';
 
 const nf = (n, d = 2) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 
@@ -38,9 +41,9 @@ function useRatios(player) {
 }
 
 
-// Cuadrante con dos ejes (los componentes del ratio). Gris: La Liga; punto de color: el jugador; líneas discontinuas: medianas de La Liga.
+// Cuadrante con dos ejes (los componentes del ratio), con el mismo diseño que los demás gráficos: fondo negro, La Liga en amarillo.
 function Cuadrante({ titulo, xLabel, yLabel, bg, cutX, cutY, mine, n, minN, nombre, playerLabel }) {
-  const W = 640, H = 400, L = 64, R = 16, T = 16, B = 52;
+  const W = 640, H = 440, L = 64, R = 16, T = 40, B = 56;
   const xs = bg.map((p) => p.x).concat(mine.map((p) => p.x), cutX ?? []), ys = bg.map((p) => p.y).concat(mine.map((p) => p.y), cutY ?? []);
   if (!mine.length) return html`<p class="muted">Faltan datos de este jugador para dibujar el cuadrante.</p>`;
   const pad = (a) => { const lo = Math.min(...a), hi = Math.max(...a), d = (hi - lo) || 0.2; return [lo - d * 0.08, hi + d * 0.08]; };
@@ -49,18 +52,20 @@ function Cuadrante({ titulo, xLabel, yLabel, bg, cutX, cutY, mine, n, minN, nomb
   const ticks = (a, b) => Array.from({ length: 5 }, (_, i) => a + ((b - a) * i) / 4);
   const noCut = cutX === null || cutY === null;
   return html`<div>
-    <h5>${titulo}</h5>
-    <${Copiable} nombre=${nombre}><svg viewBox=${`0 0 ${W} ${H}`} width="100%" class="cuadrante" role="img" aria-label=${`${titulo} de ${playerLabel}: ${mine.map((p) => `${p.label} ${xLabel} ${nf(p.x)}, ${yLabel} ${nf(p.y)}`).join('; ')}`}>
-      <rect x=${L} y=${T} width=${W - L - R} height=${H - T - B} class="q-marco" />
-      ${ticks(x0, x1).map((v) => html`<g key=${'x' + v}><line x1=${px(v)} x2=${px(v)} y1=${T} y2=${H - B} class="q-rejilla" /><text x=${px(v)} y=${H - B + 16} text-anchor="middle" class="q-tick">${nf(v)}</text></g>`)}
-      ${ticks(y0, y1).map((v) => html`<g key=${'y' + v}><line x1=${L} x2=${W - R} y1=${py(v)} y2=${py(v)} class="q-rejilla" /><text x=${L - 6} y=${py(v) + 4} text-anchor="end" class="q-tick">${nf(v)}</text></g>`)}
-      ${bg.map((p, i) => html`<circle key=${i} cx=${px(p.x)} cy=${py(p.y)} r="3" class="q-liga" />`)}
-      ${cutX !== null ? html`<line x1=${px(cutX)} x2=${px(cutX)} y1=${T} y2=${H - B} class="q-corte" />` : null}
-      ${cutY !== null ? html`<line x1=${L} x2=${W - R} y1=${py(cutY)} y2=${py(cutY)} class="q-corte" />` : null}
-      ${mine.map((p, i) => html`<g key=${i}><circle cx=${px(p.x)} cy=${py(p.y)} r="8" class="q-jugador" />${p.label ? html`<text x=${px(p.x) + 12} y=${py(p.y) + 4} class="q-etiqueta">${p.short ?? ''}</text>` : null}</g>`)}
-      <text x=${(L + W - R) / 2} y=${H - 10} text-anchor="middle" class="q-eje">${xLabel}</text>
-      <text transform=${`translate(16 ${(T + H - B) / 2}) rotate(-90)`} text-anchor="middle" class="q-eje">${yLabel}</text></svg><//>
-    <p class="muted">Gris: otros jugadores de La Liga (sin sintéticos). Punto de color: ${playerLabel}. Líneas discontinuas: mediana de La Liga de cada eje${noCut ? ` (sin mediana: N = ${n} < ${minN})` : ` (N = ${n})`}. No hay zona neutra: un valor igual al corte cuenta como «por encima» y no se conoce el error de medida.</p>
+
+    <${Copiable} nombre=${nombre}><svg viewBox=${`0 0 ${W} ${H}`} width="100%" class="cuadrante" font-family=${FUENTE_GRAFICOS} role="img" aria-label=${`${titulo} de ${playerLabel}: ${mine.map((p) => `${p.label} ${xLabel} ${nf(p.x)}, ${yLabel} ${nf(p.y)}`).join('; ')}`}>
+      <rect width=${W} height=${H} fill=${PAL.fondo} />
+      <text x=${W / 2} y="26" text-anchor="middle" font-size="20" font-weight="700" fill=${PAL.texto}>${titulo}</text>
+      <rect x=${L} y=${T} width=${W - L - R} height=${H - T - B} fill="none" stroke=${PAL.rejilla} />
+      ${ticks(x0, x1).map((v) => html`<g key=${'x' + v}><line x1=${px(v)} x2=${px(v)} y1=${T} y2=${H - B} stroke=${PAL.rejilla} stroke-width="0.5" /><text x=${px(v)} y=${H - B + 18} text-anchor="middle" font-size="14" fill=${PAL.texto}>${nf(v)}</text></g>`)}
+      ${ticks(y0, y1).map((v) => html`<g key=${'y' + v}><line x1=${L} x2=${W - R} y1=${py(v)} y2=${py(v)} stroke=${PAL.rejilla} stroke-width="0.5" /><text x=${L - 8} y=${py(v) + 5} text-anchor="end" font-size="14" fill=${PAL.texto}>${nf(v)}</text></g>`)}
+      ${bg.map((p, i) => html`<circle key=${i} cx=${px(p.x)} cy=${py(p.y)} r="3.5" fill=${PAL.laLiga} opacity="0.6" />`)}
+      ${cutX !== null ? html`<line x1=${px(cutX)} x2=${px(cutX)} y1=${T} y2=${H - B} stroke=${PAL.laLiga} stroke-width="2" stroke-dasharray="6 4" />` : null}
+      ${cutY !== null ? html`<line x1=${L} x2=${W - R} y1=${py(cutY)} y2=${py(cutY)} stroke=${PAL.laLiga} stroke-width="2" stroke-dasharray="6 4" />` : null}
+      ${mine.map((p, i) => html`<g key=${i}><circle cx=${px(p.x)} cy=${py(p.y)} r="9" fill=${p.short === 'D' ? PAL.der : p.short === 'I' ? PAL.izq : PAL.jugador} stroke=${PAL.fondo} stroke-width="2" />${p.label ? html`<text x=${px(p.x) + 14} y=${py(p.y) + 5} font-size="16" font-weight="700" fill=${PAL.texto}>${p.short ?? ''}</text>` : null}</g>`)}
+      <text x=${(L + W - R) / 2} y=${H - 8} text-anchor="middle" font-size="15" fill=${PAL.texto}>${xLabel}</text>
+      <text transform=${`translate(18 ${(T + H - B) / 2}) rotate(-90)`} text-anchor="middle" font-size="15" fill=${PAL.texto}>${yLabel}</text></svg><//>
+    <details class="notas"><summary>Cómo se lee el gráfico</summary><p class="muted">Puntos amarillos: otros jugadores de La Liga (sin sintéticos). Punto grande: ${playerLabel} (azul = izquierda, naranja = derecha, blanco = valor único). Líneas amarillas discontinuas: mediana de La Liga de cada eje${noCut ? ` (sin mediana: N = ${n} < ${minN})` : ` (N = ${n})`}. No hay zona neutra: un valor igual al corte cuenta como «por encima» y no se conoce el error de medida.</p></details>
     <ul>${mine.map((p, i) => { const q = quadrantSide(p, cutX, cutY); return html`<li key=${i}>${p.label}: ${q ? `${xLabel} ${q.xHigh ? 'por encima' : 'por debajo'} de la mediana · ${yLabel} ${q.yHigh ? 'por encima' : 'por debajo'} de la mediana` : 'sin cortes: faltan jugadores con dato'}</li>`; })}</ul>
   </div>`;
 }
@@ -107,6 +112,41 @@ function RelacionTestCarga({ player, isDsi }) {
     </tbody></table></div>
     <${Cuadrante} titulo="Cuadrante EUR: Squat Jump frente a CMJ" xLabel="Squat Jump JH imp-mom, Personal Best (cm)" yLabel="CMJ JH imp-mom, Personal Average (cm)" bg=${q.eur.bg} cutX=${q.eur.cutX} cutY=${q.eur.cutY} n=${q.eur.n} minN=${data.minN} nombre="cuadrante-EUR" playerLabel=${playerLabel(player)}
       mine=${q.mine.eur ? [{ x: q.mine.eur.x, y: q.mine.eur.y, label: playerLabel(player), short: '' }] : []} />
+  </section>`;
+}
+
+// Ratios del Excel del usuario (9/11/2026): Personal Best ÷ Personal Best. Tobillo (inversión÷eversión, izquierda, derecha y asimetría) en las pantallas de inversión y eversión;
+// cadera (aducción 0° ÷ abducción 0°, palanca larga, valor único) en las de aducción 0° y abducción 0°. Color de posición en La Liga (sin dirección «mejor/peor»).
+const ANKLE_TESTS = ['supine isometric ankle inversion', 'supine isometric ankle eversion'];
+const HIP_TESTS = ['hip adduction 0° (long lever)', 'hip abduction 0° (long lever)'];
+export function RatioTest({ player, test }) {
+  const name = String(test.name ?? '').trim().toLowerCase();
+  const isAnkle = ANKLE_TESTS.includes(name), isHip = HIP_TESTS.includes(name);
+  if (!isAnkle && !isHip) return null;
+  return html`<${RatioTestCarga} player=${player} isAnkle=${isAnkle} />`;
+}
+function RatioTestCarga({ player, isAnkle }) {
+  const { data, r } = useRatios(player);
+  if (!data) return null;
+  const m = r.mine;
+  const det = (x) => (x.defined ? `Personal Best ${nf(x.num, 1)} N ÷ Personal Best ${nf(x.den, 1)} N` : x.reason);
+  if (isAnkle) {
+    const rows = [['L', 'Izquierda', m.ankle.L, r.ankleL], ['R', 'Derecha', m.ankle.R, r.ankleR]];
+    return html`<section class="refs"><h4>Ratio inversión : eversión (tobillo)</h4>
+      <details class="notas"><summary>Cómo se calcula</summary><p class="muted">Peak Force Personal Best de Supine Isometric Ankle Inversion ÷ Peak Force Personal Best de Supine Isometric Ankle Eversion, por lado (como en tu Excel, que usa el valor máximo). La asimetría es la del ratio izquierdo frente al derecho (positiva si domina la derecha, D25). El color indica la posición en La Liga (las dos piernas juntas), no «mejor/peor».</p></details>
+      <div class="table-wrap"><table><thead><tr><th scope="col">Lado</th><th scope="col" class="num">Ratio</th><th scope="col">La Liga</th></tr></thead><tbody>
+        ${rows.map(([k, nm, x, ev]) => html`<tr key=${k}><th scope="row">${nm}</th><td class="num" title=${det(x)}>${x.defined ? nf(x.value) : html`<span class="muted" title=${det(x)}>—</span>`}</td><td><${Chip} ev=${ev} detail=${det(x)} /></td></tr>`)}
+        <tr><th scope="row">Asimetría</th><td class="num">${m.ankleAsym === null ? '—' : asymText(m.ankleAsym, 1)}</td><td class="muted">—</td></tr>
+      </tbody></table></div>
+    </section>`;
+  }
+  const x = m.hip;
+  return html`<section class="refs"><h4>Ratio aducción : abducción (cadera, palanca larga)</h4>
+    <details class="notas"><summary>Cómo se calcula</summary><p class="muted">Peak Force Personal Best de Hip Adduction 0° (Long Lever) ÷ Peak Force Personal Best de Hip Abduction 0° (Long Lever), en N (como en tu Excel, que usa el valor máximo). Valor único. El color indica la posición en La Liga, no «mejor/peor».</p></details>
+    <div class="table-wrap"><table><thead><tr><th scope="col" class="num">Ratio</th><th scope="col">La Liga</th></tr></thead><tbody>
+      <tr><td class="num" title=${det(x)}>${x.defined ? nf(x.value) : html`<span class="muted" title=${det(x)}>—</span>`}</td><td><${Chip} ev=${r.hip} detail=${det(x)} /></td></tr>
+    </tbody></table></div>
+    ${x.defined ? null : html`<p class="muted">${x.reason}</p>`}
   </section>`;
 }
 

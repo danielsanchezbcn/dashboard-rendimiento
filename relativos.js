@@ -3,12 +3,12 @@
 // Masa (regla del 8/11/2026, común a todos los cálculos): la masa corporal MEDIDA más cercana a la fecha de la sesión, anterior o posterior, o el peso de
 // referencia del jugador si no tiene ninguna medición. Sin masa ni peso de referencia no hay valor relativo (se cuenta y se avisa); el valor absoluto no se toca.
 // También calcula, al vuelo, las variables del Iso-Hold y el 1RM estimado de 12RM (D5): ver isohold.js.
-import { G, massNearest } from './relaciones.js';
+import { G, massNearest, legNearest } from './relaciones.js';
 import { isIsoDerived, isoHoldValues, rmEstimate } from './isohold.js';
 import { todayIso } from './fechas.js';
 import { SW_FACTOR_DEFAULT } from './catalogo.js';
 
-export const REL_OPS = ['REL_BW', 'REL_SW'];
+export const REL_OPS = ['REL_BW', 'REL_SW', 'REL_LEVER'];
 export const isRelative = (v) => v?.kind === 'derived' && REL_OPS.includes(v.formula?.op) && v.formula.operands?.length === 1;
 export const isViewable = (v) => !v.archived && (v.kind === 'raw' || isRelative(v) || isIsoDerived(v));
 // ¿Hay datos para mostrar la variable? Una relativa se ofrece si hay dato de origen, aunque falte la masa (entonces se explica por qué no hay valor).
@@ -58,8 +58,10 @@ export function expandRelative(variables, testId, sessions, anthropometry, ctx =
       if (!(f > 0)) continue;
       const m = massNearest(byPlayer.get(s.playerId) ?? [], s.date);
       if (!m) { omitted[r.id]++; continue; }
+      const lever = r.formula.op === 'REL_LEVER' ? legNearest(byPlayer.get(s.playerId) ?? [], s.date) : null;
+      if (r.formula.op === 'REL_LEVER' && !lever) { omitted[r.id]++; continue; }
       const rel = {};
-      for (const k of ['L', 'R', 'S']) if (Number.isFinite(src[k])) rel[k] = src[k] / (f * m.kg * G);
+      for (const k of ['L', 'R', 'S']) if (Number.isFinite(src[k])) rel[k] = lever ? (src[k] * lever.m) / m.kg : src[k] / (f * m.kg * G);
       values ??= { ...s.values };
       values[r.id] = rel;
     }

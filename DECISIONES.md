@@ -266,3 +266,25 @@ Estilo y biblioteca (D20) cerrados el 6 de noviembre de 2026. Ese mismo día se 
 
 ## (76) Natera en el mismo cuadro de percentiles (9/11/2026)
 - La clasificación de Natera (Run-Specific Iso-Push, Peak Force relativo) deja de ser una tabla aparte: es una tercera columna por lado («Natera») en el cuadro junto al percentil de La Liga y la zona de la Premier, para las tres filas (Resultado actual, Personal Best, Personal Average). Umbrales y fuente pasan a las notas desplegables. Sin cambios en los cálculos.
+
+## (77) Ajustes de lectura, radar, cuadrantes y fichas de jugador (9/11/2026)
+- Premier League: zonas con texto corto (≤P5, P5-P25, P25-P50, P50-P75, P75-P95, ≥P95). Cabecera «La Liga» en lugar de «Percentil La Liga».
+- Cuadro de percentiles: filas Personal Best, Personal Average y, abajo, el último resultado rotulado con su fecha.
+- Radar: sin texto de jugador/medida arriba a la derecha; valores en letra más pequeña; rótulos separados de la línea más alejada de cada eje; leyenda centrada abajo; la posición para las referencias «por posición» se preselecciona con la posición principal actual del jugador (si no tiene, siguen deshabilitadas hasta elegir una).
+- Cuadrantes DSI y EUR con el diseño de los demás gráficos (fondo negro, La Liga en amarillo, título dentro de la imagen).
+- Textos largos de método/notas, desplegables y cerrados por defecto en todas las pantallas.
+- Jugadores: «Unificar fichas» (todo pasa a la ficha que se conserva; nada se sobrescribe; los nombres de la eliminada quedan como alias; si hay sesiones repetidas se conservan y se avisa) y «Eliminar jugador» solo si no tiene sesiones, mediciones, perfiles ni targets. Auditoría con ids, sin valores.
+- Versión 8g.
+
+## (78) Cadera y tobillo: variables, fórmula relativa y longitud de pierna (9/11/2026)
+- Excel aportado por el usuario (hojas GROIN y ANKLE). Fórmula de cadera del Excel: relativo = (Peak Force N × longitud de palanca m) ÷ masa corporal kg (unidad N·m/kg). Se comprobó con el primer jugador de la hoja (356 × 0,84 ÷ 78 = 3,8338, igual que en el Excel).
+- Catálogo (versión de semilla 9): Hip Adduction 0° (Long Lever), Hip Abduction 0° (Long Lever) y Hip Adduction 45° (Short Lever) con «Peak Force» (N, valor único) y «Peak Force relativo (N·m/kg)» (nueva operación REL_LEVER); Supine Isometric Ankle Inversion y Eversion con «Peak Force» (N, por lado) y «Peak Force relativo (BW)» (N ÷ (masa × 9,80665); el Excel no trae fórmula relativa del tobillo: se aplica la misma que a los demás tests en BW). Dirección «más alto es mejor» (percentiles con color habitual).
+- La longitud de pierna / palanca es la medida «Longitud de extremidad inferior» de la antropometría (más cercana a la fecha, como la masa). Sin ella no hay valor relativo (se cuenta y se explica). La importación de Excel tiene un rol nuevo «Longitud de pierna / palanca (m)» (rango 0,4–1,4 m, fuera de rango no se importa) y reconoce «BODYWEIGHT».
+- Pendiente: perfil de importación VALD (necesita los CSV) y los ratios Add:Abd (cadera, palanca larga) e Inversión:Eversión (tobillo) del Excel: sin implementar hasta que el usuario indique en qué pantalla y con qué medida (el Excel usa el valor máximo).
+- Radar: sin el título del perfil (cuadro y texto); layout ajustado. Versión 8h.
+
+## (79) Importación VALD NordBord y ratios de cadera y tobillo (9/11/2026)
+- NordBord (Nordic Hamstring): VALD no exporta tobillo ni cadera, que siguen entrando siempre desde el Excel propio. El CSV de NordBord (columnas «Test», «Date UTC», «Time UTC», «L/R Max Force (N)»…) se reconoce junto a ForceDecks (misma pantalla «fichero VALD»). Se importan Max Force y Torque por lado con sus repeticiones; fecha dd/mm/aaaa y hora AM/PM. Misma fusión por jugador y día que en ForceDecks (D29).
+- «Max Force Asymmetry» se calcula (D25: (D − I) ÷ máx × 100, positivo si domina la derecha); coincide con «Max Imbalance (%)» de VALD en las 62 filas del fichero aportado, también tras fusionar sesiones. El resto de columnas (fuerza media, impulso, RFD, tiempo al pico, por kg) no se importan.
+- Ratios del Excel (Personal Best ÷ Personal Best, el Excel usa el valor máximo): cadera aducción 0° ÷ abducción 0° (palanca larga, N, valor único; comprobado: 297 ÷ 244 = 1,21721 igual que el Excel); tobillo inversión ÷ eversión por lado, con asimetría entre ratios (D25). Se muestran en la pantalla del test (inversión, eversión, aducción 0°, abducción 0°) con percentil de La Liga y color de posición (sin dirección «mejor/peor»; tobillo con las dos piernas juntas). Interpretación mía de «tercera columna Left / Right / Asimetría»: bloque propio bajo los percentiles, con filas Izquierda, Derecha y Asimetría.
+- Versión 8i.

@@ -8,7 +8,7 @@ import { addManualLoad, LOAD_VARIABLE_NAMES } from './isohold.js';
 import { listCatalog, SIDES } from './catalogo.js';
 import { replaceQuery, buildHash } from './rutas.js';
 import { Migas, KEEP, NotaRelativa } from './pages-test.js';
-import { RelacionTest, OrzTest } from './pages-relaciones.js';
+import { RelacionTest, OrzTest, RatioTest } from './pages-relaciones.js';
 import { expandRelative, isViewable, hasData, orderVars, isRelative, defaultVar } from './relativos.js';
 import { PercentilesPanel, useRefData, refContext } from './pages-percentiles.js';
 import { positionOnDate } from './posiciones.js';
@@ -294,6 +294,7 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
     <${PercentilesPanel} key=${variable.id} player=${player} test=${test} variable=${variable} mine=${sessions} q=${q} setQ=${setQ} filters=${f} targets=${tg} refData=${refData} abs=${abs} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} />
     <${RelacionTest} key=${'rel' + test.id + player.id} player=${player} test=${test} />
     <${OrzTest} key=${'orz' + test.id + player.id} player=${player} test=${test} />
+    <${RatioTest} key=${'rat' + test.id + player.id} player=${player} test=${test} />
     <${RadarPanel} key=${'radar' + test.id + player.id} player=${player} testName=${test.name} />
     <${TablaSesiones} sessions=${sessions.filter((s) => s.values?.[variable.id] && (protocolId === undefined || (s.protocolId ?? null) === protocolId) && (!f.from || s.date >= f.from) && (!f.to || s.date <= f.to))} variable=${variable} player=${player} test=${test} reload=${reload} />
     <details class="notas"><summary>Notas sobre los datos del gráfico y la tabla</summary>

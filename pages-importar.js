@@ -263,8 +263,8 @@ function PasoVista({ parsed, cols, headers, vald, back, next, busy, msg }) {
       <thead><tr><th scope="col" class="num">Fila</th><th scope="col">Problema</th></tr></thead>
       <tbody>${bad.slice(0, 50).map((r) => html`<tr key=${r.rowNumber}><td class="num">${r.rowNumber}</td><td>${r.issues.map((x) => x.text).join(' ')}</td></tr>`)}</tbody></table>${bad.length > 50 ? html`<p class="muted">Se muestran las 50 primeras de ${bad.length}; el informe final las incluye todas.</p>` : null}</div>` : null}
     <div class="table-wrap"><table><caption>Primeras filas válidas</caption>
-      <thead><tr><th scope="col" class="num">Fila</th>${vald ? html`<th scope="col">Test</th>` : null}<th scope="col">Jugador (como viene)</th><th scope="col">Fecha</th><th scope="col">Hora</th><th scope="col" class="num">Repeticiones</th><th scope="col" class="num">Valores</th>${hasBody ? html`<th scope="col" class="num">Peso (kg)</th><th scope="col" class="num">Altura (cm)</th>` : null}</tr></thead>
-      <tbody>${good.slice(0, 10).map((r) => html`<tr key=${r.rowNumber}><td class="num">${r.rowNumber}</td>${vald ? html`<td>${r.testName}</td>` : null}<td>${r.playerText}</td><td>${fmtDay(r.date)}</td><td>${r.time || '—'}</td><td class="num">${r.reps.total ?? [r.reps.L && 'I ' + r.reps.L, r.reps.R && 'D ' + r.reps.R].filter(Boolean).join(' / ')}${r.reps.assumed ? '*' : ''}</td><td class="num">${Object.values(r.values).reduce((n, v) => n + Object.keys(v).length, 0)}</td>${hasBody ? html`<td class="num">${r.body?.weight ?? '—'}</td><td class="num">${r.body?.height ?? '—'}</td>` : null}</tr>`)}</tbody></table></div>
+      <thead><tr><th scope="col" class="num">Fila</th>${vald ? html`<th scope="col">Test</th>` : null}<th scope="col">Jugador (como viene)</th><th scope="col">Fecha</th><th scope="col">Hora</th><th scope="col" class="num">Repeticiones</th><th scope="col" class="num">Valores</th>${hasBody ? html`<th scope="col" class="num">Peso (kg)</th><th scope="col" class="num">Altura (cm)</th><th scope="col" class="num">Pierna (m)</th>` : null}</tr></thead>
+      <tbody>${good.slice(0, 10).map((r) => html`<tr key=${r.rowNumber}><td class="num">${r.rowNumber}</td>${vald ? html`<td>${r.testName}</td>` : null}<td>${r.playerText}</td><td>${fmtDay(r.date)}</td><td>${r.time || '—'}</td><td class="num">${r.reps.total ?? [r.reps.L && 'I ' + r.reps.L, r.reps.R && 'D ' + r.reps.R].filter(Boolean).join(' / ')}${r.reps.assumed ? '*' : ''}</td><td class="num">${Object.values(r.values).reduce((n, v) => n + Object.keys(v).length, 0)}</td>${hasBody ? html`<td class="num">${r.body?.weight ?? '—'}</td><td class="num">${r.body?.height ?? '—'}</td><td class="num">${r.body?.legLength ?? '—'}</td>` : null}</tr>`)}</tbody></table></div>
     <div class="actions"><button type="button" class="secondary" onClick=${back}>Atrás</button><button type="button" disabled=${busy || good.length === 0} onClick=${next}>Continuar: confirmar jugadores</button></div>
     <${Msg} msg=${msg} />
   <//>`;
@@ -367,6 +367,7 @@ function PasoResumen({ plan, choices, setChoices, missing = [], delIds = {}, set
       <li><strong>${c.filasConError}</strong> filas con errores: no se importan.</li>
       <li><strong>${newPlayers}</strong> jugadores nuevos se crearán.</li>
       ${(c.pesosNuevos || c.pesosCambiados || c.pesosIguales) ? html`<li>Peso de referencia: <strong>${c.pesosNuevos}</strong> nuevos · <strong class=${c.pesosCambiados ? 'warn-text' : ''}>${c.pesosCambiados}</strong> sustituyen al anterior · ${c.pesosIguales} iguales (sin cambios).</li>` : null}
+      ${(c.piernasNuevas || c.piernasIguales) ? html`<li>Longitud de pierna / palanca: <strong>${c.piernasNuevas}</strong> mediciones nuevas (con la fecha de la fila) · ${c.piernasIguales} ya existían.</li>` : null}
       ${(c.alturasNuevas || c.alturasIguales) ? html`<li>Altura: <strong>${c.alturasNuevas}</strong> mediciones nuevas (con la fecha de la fila) · ${c.alturasIguales} ya existían.</li>` : null}
     </ul>
     ${conflicts.length ? html`<div class="table-wrap"><table><caption>Conflictos con sesiones ya guardadas</caption>
@@ -391,6 +392,7 @@ function PasoResultado({ result, again }) {
     <ul>
       <li>${k.duplicadasOmitidas} duplicadas omitidas · ${k.conflictosOmitidos} conflictos omitidos · ${k.conflictosGuardadosComoNuevas} conflictos guardados como sesión nueva · ${k.conflictosFichero} grupos contradictorios del fichero sin importar.</li>
       ${result.eliminadas ? html`<li><strong>${result.eliminadas}</strong> sesiones ausentes del fichero eliminadas por tu decisión.</li>` : null}
+      ${k.piernasGuardadas ? html`<li>${k.piernasGuardadas} longitudes de pierna guardadas.</li>` : null}
       ${(k.pesosGuardados || k.alturasGuardadas) ? html`<li>${k.pesosGuardados} pesos de referencia guardados (${k.pesosCambiados} sustituyeron a uno anterior) · ${k.alturasGuardadas} alturas guardadas.</li>` : null}
       <li>${k.jugadoresNuevos} jugadores nuevos · ${k.aliasGuardados} alias guardados${k.aliasFijados ? ` · ${k.aliasFijados} alias (camiseta) fijados` : ''} · ${k.filasSinResolver} filas sin resolver · ${k.filasConError} filas con error.</li>
     </ul>
