@@ -33,6 +33,7 @@ export function Importar() {
   const [ackDup, setAckDup] = useState(false);
   const [sheetIdx, setSheetIdx] = useState(0);
   const [headerRow, setHeaderRow] = useState(0);
+  const [noHeader, setNoHeader] = useState(false);
   const [testId, setTestId] = useState('');
   const [protocolId, setProtocolId] = useState('');
   const [cols, setCols] = useState([]);
@@ -51,12 +52,12 @@ export function Importar() {
 
   const sheet = file?.sheets[sheetIdx];
   const grid = sheet?.rows ?? [];
-  const headers = (grid[headerRow] ?? []).map(show);
+  const headers = noHeader ? I.genericHeaders(grid, headerRow + 1) : (grid[headerRow] ?? []).map(show);
   const variables = cat && testId ? cat.variables.filter((v) => v.testId === Number(testId)) : [];
   const test = cat?.tests.find((t) => t.id === Number(testId));
   const importable = cat ? cat.tests.filter((t) => !t.archived && cat.variables.some((v) => v.testId === t.id && v.kind === 'raw' && !v.archived)) : [];
 
-  const reset = () => { setVald(null); setStep('archivo'); setFile(null); setDup(null); setAckDup(false); setSheetIdx(0); setHeaderRow(0); setTestId(''); setProtocolId(''); setCols([]); setFixedDate(''); setMappingName(''); setParsed(null); setProposals([]); setResolutions({}); setRemember({}); setPlan(null); setChoices({}); setResult(null); setMsg(null); };
+  const reset = () => { setVald(null); setStep('archivo'); setFile(null); setDup(null); setAckDup(false); setSheetIdx(0); setHeaderRow(0); setNoHeader(false); setTestId(''); setProtocolId(''); setCols([]); setFixedDate(''); setMappingName(''); setParsed(null); setProposals([]); setResolutions({}); setRemember({}); setPlan(null); setChoices({}); setResult(null); setMsg(null); };
 
   const onFile = (e) => {
     const f = e.target.files?.[0];
@@ -72,7 +73,8 @@ export function Importar() {
     setTestId(''); setCols([]); setParsed(null);
   })();
 
-  const chooseSheet = (i) => { setSheetIdx(i); setHeaderRow(I.detectHeaderRow(file.sheets[i].rows)); setCols([]); };
+  const chooseSheet = (i) => { setSheetIdx(i); setNoHeader(false); setHeaderRow(I.detectHeaderRow(file.sheets[i].rows)); setCols([]); };
+  const chooseNoHeader = (on) => { setNoHeader(on); setHeaderRow(on ? Math.max(headerRow - 1, -1) : I.detectHeaderRow(grid)); setCols([]); };
   const chooseHeader = (n) => { setHeaderRow(n); setCols([]); };
   const chooseTest = (id) => {
     setTestId(id); setProtocolId('');
@@ -97,7 +99,7 @@ export function Importar() {
   });
 
   const toPreview = run(async () => {
-    const mapping = { headerRow, cols, fixedDate };
+    const mapping = { headerRow, cols, fixedDate, noHeader };
     const errors = I.validateMapping(mapping, variables);
     if (errors.length) throw new Error(errors.join(' '));
     setParsed(I.buildRows(grid, mapping, variables));
@@ -134,7 +136,7 @@ export function Importar() {
       setResult(rv); setStep('resultado'); bump();
       return;
     }
-    const r = await I.commitImport(db, { file, sheetName: sheet.name, mappingName, testId: Number(testId), protocolId: protocolId ? Number(protocolId) : null, mapping: { headerRow, cols, fixedDate }, parsed, plan, conflictChoices: choices, rememberAlias: remember });
+    const r = await I.commitImport(db, { file, sheetName: sheet.name, mappingName, testId: Number(testId), protocolId: protocolId ? Number(protocolId) : null, mapping: { headerRow, cols, fixedDate, noHeader }, parsed, plan, conflictChoices: choices, rememberAlias: remember });
     const batch = (await I.listBatches(db)).find((b) => b.id === r.batchId);
     setResult({ ...r, batch });
     setStep('resultado');
@@ -161,10 +163,14 @@ export function Importar() {
             <label class="check"><input type="checkbox" checked=${ackDup} onChange=${(e) => setAckDup(e.target.checked)} /> Entendido, quiero continuar con este fichero</label></div>` : null}
           <div class="fields">
             <label>Hoja <select value=${sheetIdx} onChange=${(e) => chooseSheet(Number(e.target.value))}>${file.sheets.map((s, i) => html`<option key=${i} value=${i}>${s.name}</option>`)}</select></label>
-            <label>Fila de encabezados <input type="number" min="1" max=${Math.max(grid.length, 1)} value=${headerRow + 1} onInput=${(e) => chooseHeader(Math.max(0, Number(e.target.value) - 1))} /></label>
+            <label class="check"><input type="checkbox" checked=${noHeader} onChange=${(e) => chooseNoHeader(e.target.checked)} /> Mi fichero no tiene fila de encabezados</label>
+            ${noHeader
+              ? html`<label>Primera fila de datos <input type="number" min="1" max=${Math.max(grid.length, 1)} value=${headerRow + 2} onInput=${(e) => { setHeaderRow(Math.max(-1, Number(e.target.value) - 2)); setCols([]); }} /></label>`
+              : html`<label>Fila de encabezados <input type="number" min="1" max=${Math.max(grid.length, 1)} value=${headerRow + 1} onInput=${(e) => chooseHeader(Math.max(0, Number(e.target.value) - 1))} /></label>`}
           </div>
-          <div class="table-wrap"><table><caption>Primeras filas de la hoja (la fila de encabezados está marcada)</caption>
-            <tbody>${grid.slice(0, 8).map((r, i) => html`<tr key=${i} class=${i === headerRow ? 'hdr' : ''}><th scope="row" class="num">${i + 1}</th>${(r.length ? r : ['']).slice(0, 12).map((c, k) => html`<td key=${k}>${show(c)}</td>`)}</tr>`)}</tbody></table></div>
+          ${!noHeader && I.looksLikeData(grid[headerRow]) ? html`<p class="banner warn" role="status">La fila elegida como encabezado contiene números: parece una fila de datos. Si tu fichero no tiene encabezados, marca «Mi fichero no tiene fila de encabezados» para no perder esa fila.</p>` : null}
+          <div class="table-wrap"><table><caption>Primeras filas de la hoja (${noHeader ? 'los datos empiezan en la fila marcada' : 'la fila de encabezados está marcada'})</caption>
+            <tbody>${grid.slice(0, 8).map((r, i) => html`<tr key=${i} class=${i === (noHeader ? headerRow + 1 : headerRow) ? 'hdr' : ''}><th scope="row" class="num">${i + 1}</th>${(r.length ? r : ['']).slice(0, 12).map((c, k) => html`<td key=${k}>${show(c)}</td>`)}</tr>`)}</tbody></table></div>
           <div class="actions">${origin === 'atletas'
             ? html`<button type="button" disabled=${busy} onClick=${toAtletas}>Continuar: revisar atletas</button>`
             : origin === 'vald'

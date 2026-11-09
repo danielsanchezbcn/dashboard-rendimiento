@@ -97,6 +97,7 @@ export async function pairContext(db, tests, test) {
   return { tests, allSessions: pair ? await db.sessions.where('testId').equals(pair.id).toArray() : [] };
 }
 
+// Carga 0 = sin carga añadida (solo el peso corporal): es un dato válido, igual que en los Excel del usuario.
 // Alta manual de la carga (D5, mejora del 8/11/2026): crea UNA sesión con la variable de carga del test (Carga externa o Carga máxima).
 // Sin repeticiones ni protocolo; origen «manual». Rechaza duplicados exactos de jugador, test, fecha y hora.
 export const LOAD_VARIABLE_NAMES = ['Carga externa (kg)', 'Carga máxima (kg)'];
@@ -111,8 +112,9 @@ export async function addManualLoad(db, { playerId, testId, date, time = '', loa
   const d = String(date ?? '').trim(); const t = String(time ?? '').trim();
   if (!isIsoDay(d)) throw new Error('La fecha no es válida (AAAA-MM-DD).');
   if (t && !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) throw new Error('La hora no es válida (HH:MM).');
-  const x = typeof load === 'number' ? load : Number(String(load ?? '').trim().replace(',', '.'));
-  if (!Number.isFinite(x) || x <= 0 || x > 1000) throw new Error('La carga debe ser un número entre 0 y 1000 kg.');
+  const txtLoad = String(load ?? '').trim();
+  const x = typeof load === 'number' ? load : txtLoad === '' ? NaN : Number(txtLoad.replace(',', '.'));
+  if (!Number.isFinite(x) || x < 0 || x > 1000) throw new Error('La carga debe ser un número entre 0 y 1000 kg (0 = sin carga añadida).');
   const clash = (await db.sessions.where('playerId').equals(playerId).toArray()).find((s) => s.testId === testId && s.date === d && (s.time ?? '') === t);
   if (clash) throw new Error('Ya hay una sesión de ese jugador y test en esa fecha y hora. Corrígela desde su tabla de sesiones.');
   const id = await db.sessions.add({ playerId, testId, protocolId: null, date: d, time: t, values: { [v.id]: { S: x } }, reps: {}, status: 'valid', excludedReason: '', source: 'manual', createdAt: new Date().toISOString(), ...(player.synthetic ? { synthetic: 1 } : {}) });

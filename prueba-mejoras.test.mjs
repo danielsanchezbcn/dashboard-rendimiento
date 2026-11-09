@@ -39,7 +39,7 @@ check('alta manual Iso-Hold: sesión con Carga externa, origen manual y sin repe
 const id2 = await addManualLoad(db, { playerId: p, testId: rm.id, date: '2026-03-20', load: 60 });
 check('alta manual RM: Carga máxima', (await db.sessions.get(id2)).values[V('Single-Leg Standing Calf Raise 12RM', 'Carga máxima (kg)').id].S === 60);
 check('alta manual: duplicado exacto rechazado', /Ya hay una sesión/.test(await rejects(() => addManualLoad(db, { playerId: p, testId: hold.id, date: '2026-03-20', load: 10 }))));
-check('alta manual: carga negativa, cero o no numérica', (await Promise.all([-5, 0, 'abc', ''].map((x) => rejects(() => addManualLoad(db, { playerId: p, testId: hold.id, date: '2026-03-21', load: x }))))).every((m) => /carga/.test(m)));
+check('alta manual: carga negativa o no numérica', (await Promise.all([-5, 'abc', ''].map((x) => rejects(() => addManualLoad(db, { playerId: p, testId: hold.id, date: '2026-03-21', load: x }))))).every((m) => /carga/.test(m)));
 check('alta manual: fecha inválida', /fecha/.test(await rejects(() => addManualLoad(db, { playerId: p, testId: hold.id, date: '21/03/2026', load: 10 }))));
 check('alta manual: test sin variable de carga (CMJ)', /variable de carga/.test(await rejects(() => addManualLoad(db, { playerId: p, testId: T('CMJ').id, date: '2026-03-21', load: 10 }))));
 check('alta manual: jugador inexistente', /jugador/.test(await rejects(() => addManualLoad(db, { playerId: 999, testId: hold.id, date: '2026-03-21', load: 10 }))));
@@ -58,4 +58,6 @@ check('otro test: etiqueta = nombre de variable, sin duplicados', other2.center 
 check(`máximo ${RADAR_MAX_AXES} ejes`, makeProfile('CMJ', Array.from({ length: 12 }, (_, i) => 'v' + i)).axes.length === RADAR_MAX_AXES);
 await setSetting(db, 'radarConfig', { test: 'CMJ', variables: ['A', 'B', 'C'] });
 check('ajuste guardado se recupera', (await getSetting(db, 'radarConfig')).variables.length === 3);
+const zero = await addManualLoad(db, { playerId: p, testId: hold.id, date: '2026-04-01', load: 0 });
+check('alta manual: carga 0 (sin carga añadida) es válida', (await db.sessions.get(zero)).values[V('Hip Iso-Hold 20 s', 'Carga externa (kg)').id].S === 0);
 process.exit(fail);

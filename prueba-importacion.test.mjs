@@ -185,4 +185,13 @@ check('informe CSV: neutraliza fórmulas en nombres y ficheros (=, +, -, @)', !/
   check('misma fecha con horas distintas = dos sesiones', pl.counts.nuevas === 2 && pl.counts.conflictosFichero === 0);
 }
 
+// Fichero sin encabezados (Hip Iso-Hold del usuario): títulos en C1/C2, datos desde la fila 3 (jugador, nº, carga)
+const hold = [[null, null, 'HIP ISO HOLD'], [null, null, 'ADDED EXTERNAL LOAD'], ['SERGI PUIG', 1, 12.5], ['A. MUMIN', 2, 10], ['MATE', 3, null], ['STUANI', 7, 0], [null, 14, null]];
+check('sin encabezados: letras de columna', M.colLetter(0) === 'A' && M.colLetter(25) === 'Z' && M.colLetter(26) === 'AA' && M.colLetter(701) === 'ZZ');
+check('sin encabezados: títulos genéricos del ancho de los datos', JSON.stringify(M.genericHeaders(hold, 2)) === JSON.stringify(['Columna A', 'Columna B', 'Columna C']));
+check('detectHeaderRow toma la primera fila de datos como encabezado (y looksLikeData avisa)', M.detectHeaderRow(hold) === 2 && M.looksLikeData(hold[2]) && !M.looksLikeData(hold[1]));
+const vHold = [{ id: 1, name: 'Carga externa (kg)', kind: 'raw', sides: 'single', archived: false }];
+const rH = M.buildRows(hold, { headerRow: 1, noHeader: true, fixedDate: '2026-11-08', cols: [{ role: 'jugador' }, { role: 'ignorar' }, { role: 'valor', variableId: 1, side: 'S' }] }, vHold);
+check('sin encabezados: Sergi Puig entra con 12,5 y la carga 0 de Stuani es un valor válido', rH.rows.length === 5 && rH.rows[0].playerText === 'SERGI PUIG' && rH.rows[0].values[1].S === 12.5 && rH.rows[3].values[1].S === 0 && rH.rows[3].ok);
+check('sin encabezados: filas con carga válida = 3, sin carga o sin jugador = no válidas', rH.rows.filter((r) => r.ok).length === 3 && rH.rows.filter((r) => !r.ok).length === 2 && rH.rows[2].issues.some((x) => /ningún valor/.test(x.text)), JSON.stringify(rH.rows.map((r) => r.ok)));
 process.exit(failed ? 1 : 0);

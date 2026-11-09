@@ -230,7 +230,8 @@ En la ficha del jugador, tarjeta «Perfil radial: FAST DYNAMIC STRENGTH (CMJ)»,
 ## Mejoras de la versión 7d
 
 - **Corregir una sesión guardada:** en la tabla de sesiones de cada variable, botón «Corregir…» (no aparece en variables calculadas). Cambia fecha, hora, el valor (o los dos lados) de la variable que ves y las repeticiones, sobre la misma sesión; no crea otra. Se rechaza una fecha u hora inválida, un valor no numérico y una colisión con otra sesión del mismo jugador, test, protocolo, fecha y hora. Las demás variables de la sesión no cambian (si todo el fichero estaba mal, elimina la sesión y vuelve a importar). El registro de auditoría anota qué campos cambian, nunca los valores.
-- **Alta manual de la carga (Iso-Hold y RM):** tarjeta «Alta manual de carga» en la ficha del jugador: test, fecha, hora opcional y carga en kg (admite coma). Crea una sesión con origen «manual», sin repeticiones; MVIC, %PIMA, %BW/%SW y 1RM estimado se calculan solos. Se rechaza un duplicado exacto (jugador, test, fecha y hora) y una carga ≤ 0 o > 1000 kg.
+- **Ficheros sin encabezados (Excel propio):** en el paso de la hoja, casilla «Mi fichero no tiene fila de encabezados» e indicas la primera fila de datos; las columnas se llaman «Columna A, B, C…». La app avisa si la fila elegida como encabezado contiene números. Las celdas vacías no se leen como 0, y un 0 escrito sí es un valor (p. ej. 0 kg de carga añadida).
+- **Alta manual de la carga (Iso-Hold y RM):** tarjeta «Alta manual de carga» en la ficha del jugador: test, fecha, hora opcional y carga en kg (admite coma). Crea una sesión con origen «manual», sin repeticiones; MVIC, %PIMA, %BW/%SW y 1RM estimado se calculan solos. Se rechaza un duplicado exacto (jugador, test, fecha y hora) y una carga negativa, vacía o mayor de 1000 kg (0 = sin carga añadida).
 - **Variables del radar elegibles:** ver la sección del radar.
 
 ## Fase 8 (G6): perfil carga-velocidad (versión 7f-0.1.0, esquema 6)
@@ -244,7 +245,7 @@ Tarjeta «Perfil carga-velocidad (VBT)» en la ficha del jugador, con el aspecto
 - **Diferencias con tu Excel:** tu «Vo» es a + b (velocidad con 1 kg); aquí es el intercepto b (D17): para Ansu 1,3588 frente a 1,3498 m/s, y la potencia óptima sale 51,1 frente a 50,8. La línea «Balanced» es la tuya (8 puntos) y es fija para todos los jugadores; se edita en la tarjeta.
 - **Copias:** tabla nueva `fvProfiles` (esquema 6); una copia antigua se restaura con el aviso habitual de tabla ausente.
 
-## Fase 8 (G8): cuadrantes DSI × EUR (versión 7g-0.1.0)
+## Fase 8 (G8): cuadrantes DSI × EUR (versión 7i-0.1.0)
 
 Dentro de la tarjeta «Relaciones: DSI, EUR y ORZ» de la ficha del jugador. Eje horizontal EUR, vertical DSI, con un punto por lado (I y D) para el jugador y un punto gris por jugador y lado del resto de La Liga (sin sintéticos).
 - **Cortes:** por defecto la mediana de La Liga (el DSI con los dos lados juntos; hace falta el mínimo de jugadores de tus ajustes de percentiles; si no, no hay corte automático). Puedes fijar un valor propio para cada eje («Guardar cortes», que valen aunque la muestra sea pequeña) o volver a la mediana.

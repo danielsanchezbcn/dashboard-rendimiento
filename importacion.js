@@ -82,6 +82,17 @@ export function parseReps(v) {
 }
 
 // ---------- Encabezados y propuesta de mapeo ----------
+// Letras de columna (A, B, … Z, AA…) para ficheros sin encabezados.
+export const colLetter = (i) => { let n = i + 1, s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+// Encabezados genéricos «Columna A…» para un fichero sin fila de encabezados (ancho = la fila más larga de las filas de datos).
+export function genericHeaders(rows, firstDataRow = 0) {
+  let w = 0;
+  for (let r = firstDataRow; r < Math.min(rows.length, firstDataRow + 500); r++) { const line = rows[r] ?? []; for (let i = line.length - 1; i >= w; i--) if (!blank(line[i])) { w = i + 1; break; } }
+  return Array.from({ length: Math.min(w, 60) }, (_, i) => `Columna ${colLetter(i)}`);
+}
+// ¿La fila elegida como encabezado parece una fila de datos (tiene números)? Solo sirve para avisar; nunca decide.
+export const looksLikeData = (row) => (row ?? []).some((c) => typeof c === 'number');
+
 export function detectHeaderRow(rows) {
   const i = rows.findIndex((r) => r.filter((c) => !blank(c)).length >= 2);
   return i < 0 ? 0 : i;
@@ -165,7 +176,7 @@ export function validateMapping(mapping, variables) {
 export function buildRows(grid, mapping, variables) {
   const byId = new Map(variables.map((v) => [v.id, v]));
   const cols = mapping.cols ?? [];
-  const header = grid[mapping.headerRow] ?? [];
+  const header = mapping.noHeader ? [] : grid[mapping.headerRow] ?? [];
   const colName = (i) => (txt(header[i]) ? `«${txt(header[i])}»` : `columna ${i + 1}`);
   const idx = (role) => cols.findIndex((c) => c.role === role);
   const iPlayer = idx('jugador'), iDate = idx('fecha'), iTime = idx('hora'), iReps = idx('reps'), iRepsL = idx('repsL'), iRepsR = idx('repsR');
