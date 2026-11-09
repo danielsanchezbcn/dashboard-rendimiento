@@ -16,8 +16,9 @@ import { Copiable } from './copiar.js';
 const nf = (n, d = 2) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 const fx = (v) => Number(v).toLocaleString('es-ES', { minimumFractionDigits: digits(v), maximumFractionDigits: digits(v) });
 const digits = (v) => (Math.abs(v) >= 100 ? 0 : Math.abs(v) >= 10 ? 1 : 2);
-const FONT = "'Bebas Neue','Oswald','Arial Narrow','Liberation Sans Narrow',Impact,sans-serif";
-const LILA = '#b8a2c9'; const AMARILLO = '#ffc000'; const BLANCO = '#ffffff';
+import { FUENTE_GRAFICOS } from './fuentes.js';
+const FONT = FUENTE_GRAFICOS;
+const LILA = '#ffffff'; /* valores del jugador: blanco (9/11/2026) */ const MORADO = '#b8a2c9'; const AMARILLO = '#fec900'; const BLANCO = '#ffffff';
 const W = 1000; const H = 490; const CX = 500; const CY = 276; const RREF = 130;
 
 function wrap(label) {
@@ -42,7 +43,7 @@ export function RadarSvg({ profile, radar, playerName, basisText, svgRef }) {
     <text x="985" y="42" text-anchor="end" font-family=${FONT} font-size="18" fill=${LILA}>${playerName.length > 24 ? playerName.slice(0, 23) + '…' : playerName}</text>
     <text x="985" y="62" text-anchor="end" font-family=${FONT} font-size="15" fill=${LILA}>${basisText}</text>
     <polygon points=${poly(radar.axes.map(() => 1))} fill="none" stroke=${AMARILLO} stroke-width="3.5" stroke-linejoin="round" />
-    ${radar.premierComplete ? html`<polygon points=${poly(radar.axes.map((a) => a.ratioPremier))} fill="none" stroke=${BLANCO} stroke-width="4" stroke-dasharray="0.1 9" stroke-linecap="round" stroke-linejoin="round" />` : null}
+    ${radar.premierComplete ? html`<polygon points=${poly(radar.axes.map((a) => a.ratioPremier))} fill="none" stroke=${MORADO} stroke-width="4" stroke-dasharray="0.1 9" stroke-linecap="round" stroke-linejoin="round" />` : null}
     <polygon points=${poly(radar.axes.map((a) => a.ratioPlayer))} fill="none" stroke=${LILA} stroke-width="3.5" stroke-linejoin="round" />
     <text x=${CX} y=${CY + 12} text-anchor="middle" font-family=${FONT} font-size="34" font-weight="700" fill=${BLANCO}>${profile.center}</text>
     ${radar.axes.map((a, i) => {
@@ -62,7 +63,7 @@ export function RadarSvg({ profile, radar, playerName, basisText, svgRef }) {
     })}
     <g font-family=${FONT} font-size="20" text-anchor="end">
       <text x="985" y=${H - 36} fill=${AMARILLO}>‘LA LIGA’ 50<tspan font-size="12" dy="-7">TH</tspan><tspan dy="7"> PERCENTILE</tspan></text>
-      ${radar.premierComplete ? html`<text x="985" y=${H - 12} fill=${BLANCO}>PREMIER LEAGUE 50<tspan font-size="12" dy="-7">TH</tspan><tspan dy="7"> PERCENTILE</tspan></text>` : null}
+      ${radar.premierComplete ? html`<text x="985" y=${H - 12} fill=${MORADO}>PREMIER LEAGUE 50<tspan font-size="12" dy="-7">TH</tspan><tspan dy="7"> PERCENTILE</tspan></text>` : null}
       <text x="985" y=${H - 60} fill=${LILA}>JUGADOR (${basisText.toUpperCase()})</text>
     </g></svg>`;
 }

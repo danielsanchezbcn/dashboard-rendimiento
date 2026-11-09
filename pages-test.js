@@ -12,7 +12,7 @@ import { getSetting } from './db.js';
 import { MIN_N_DEFAULT, buildReference, evaluate } from './percentiles.js';
 import { CeldaPercentil } from './pages-percentiles.js';
 import { buildCsv } from './exportar.js';
-import { expandRelative, isViewable, isRelative, relFactor, hasData } from './relativos.js';
+import { expandRelative, isViewable, isRelative, relFactor, hasData, orderVars } from './relativos.js';
 import { pairContext, isIsoDerived } from './isohold.js';
 import { withReferenceWeights } from './relaciones.js';
 import { downloadBlob } from './io.js';
@@ -86,7 +86,7 @@ export function VistaTest({ id, query = {} }) {
   const { test, catalog, sessions, omitted, players, records, positions, minN } = data;
   const path = `test-${id}`;
   const set = (patch) => replaceQuery(path, { ...query, ...patch });
-  const vars = catalog.variables.filter((v) => v.testId === id && isViewable(v) && hasData(v, sessions));
+  const vars = orderVars(catalog.variables.filter((v) => v.testId === id && isViewable(v) && hasData(v, sessions)));
   const variable = vars.find((v) => String(v.id) === String(query.v)) ?? vars[0];
   const protocols = catalog.protocols.filter((p) => p.testId === id);
   const mode = MODES.some(([k]) => k === query.m) ? query.m : 'pa';
@@ -136,7 +136,7 @@ export function VistaTest({ id, query = {} }) {
   return html`<${Card} titulo=${`${test.name} · todos los jugadores`}>
     <${Migas} items=${crumbs} />
     <div class="filters">
-      <label>Variable <select value=${variable.id} onChange=${(e) => set({ v: e.target.value })}>${vars.map((v) => html`<option key=${v.id} value=${v.id}>${v.name}${v.unit ? ` (${v.unit})` : ''}${v.sides === 'LR' ? ' · I/D' : ''}</option>`)}</select></label>
+      <label>Variable <select value=${variable.id} onChange=${(e) => set({ v: e.target.value })}>${vars.map((v) => html`<option key=${v.id} value=${v.id}>${v.name}${v.unit && !v.name.includes(`(${v.unit})`) ? ` (${v.unit})` : ''}${v.sides === 'LR' ? ' · I/D' : ''}</option>`)}</select></label>
       ${protocols.length ? html`<label>Protocolo <select value=${proto} onChange=${(e) => set({ p: e.target.value })}><option value="all">Todos</option><option value="none">Sin protocolo</option>${protocols.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label>` : null}
       <label>Posición <select value=${posQ} onChange=${(e) => set({ pos: e.target.value })}><option value="all">Todas</option><option value="none">Sin posición</option>${positions.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label>
       <label>Desde <input type="date" value=${query.from ?? ''} onInput=${(e) => set({ from: e.target.value })} /></label>

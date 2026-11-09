@@ -1,5 +1,6 @@
 // pages-fv.js — G6 (D17): perfil carga-velocidad en la ficha del jugador, con el aspecto del gráfico aportado por el usuario
 // (fondo negro; verde = jugador, con su recta de regresión y la ecuación; amarillo = perfil «Balanced» de referencia). Entrada manual o desde su Excel.
+import './fuentes.js';
 import { html, useState, useEffect, useRef, Chart } from './libs.js';
 import { useApp } from './context.js';
 import { Card, useLoad, useRunner, Msg } from './componentes.js';
@@ -29,9 +30,9 @@ export function fvChartConfig({ fit, reference, name }) {
   return {
     type: 'line',
     data: { datasets: [
-      { label: 'Balanced (referencia)', data: reference.map((p) => ({ x: p.load, y: p.velocity })), borderColor: AMARILLO, backgroundColor: AMARILLO, borderWidth: 3, pointRadius: 0, tension: 0 },
-      { label: `${name}`, data: pts.map((p) => ({ x: p.load, y: p.velocity })), borderColor: BLANCO, backgroundColor: VERDE, pointBackgroundColor: VERDE, pointBorderColor: VERDE, pointRadius: 5, borderWidth: 2.5, tension: 0.3 },
-      { label: 'Recta de regresión', data: trend, borderColor: VERDE, borderWidth: 2, pointRadius: 0, tension: 0, borderDash: [] },
+      { label: 'Balanced (referencia)', data: reference.map((p) => ({ x: p.load, y: p.velocity })), borderColor: '#9A9A9A', backgroundColor: '#9A9A9A', borderDash: [8, 5], borderWidth: 3, pointRadius: 0, tension: 0 },
+      { label: `${name}`, data: pts.map((p) => ({ x: p.load, y: p.velocity })), borderColor: BLANCO, backgroundColor: BLANCO, pointBackgroundColor: BLANCO, pointBorderColor: BLANCO, pointRadius: 5, borderWidth: 2.5, tension: 0.3 },
+      { label: 'Recta de regresión', data: trend, borderColor: BLANCO, borderWidth: 2, pointRadius: 0, tension: 0, borderDash: [3, 4] },
     ] },
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
@@ -116,7 +117,7 @@ function Comparacion({ data, cur, player }) {
     <thead><tr><th>Métrica</th><th class="num">Jugador</th><th class="num">P50 La Liga (N)</th><th>Percentil</th></tr></thead>
     <tbody>${rows.map((r) => html`<tr key=${r.key}><th scope="row">${r.label}${r.unit ? html` <small class="cell-date">${r.unit}</small>` : null}</th>
       <td class="num">${r.value === null ? '—' : d(r.value)}</td><td class="num">${r.ev && r.ev.p50 !== null ? `${d(r.ev.p50)} (${r.ev.n})` : r.ev ? `— (${r.ev.n})` : '—'}</td>
-      <td>${!r.ev ? html`<span class="muted">Sin dato</span>` : r.ev.band !== null ? html`<span class=${'band band-' + BANDS[r.ev.band].key} title=${`${BANDS[r.ev.band].name} (P${BANDS[r.ev.band].range})`}>${nf(r.ev.percentilePerf, 0)} · ${BANDS[r.ev.band].name}</span>` : r.ev.percentileStat !== null ? html`<span title=${r.direction === null ? 'La pendiente no tiene «mejor» o «peor»: solo percentil estadístico, sin color' : ''}>P${nf(r.ev.percentileStat, 0)} estadístico (sin color)</span>` : html`<span class="muted">${r.ev.reason}</span>`}</td></tr>`)}</tbody></table></div>
+      <td>${!r.ev ? html`<span class="muted">Sin dato</span>` : r.ev.band !== null ? html`<span class=${'band band-' + BANDS[r.ev.band].key} title=${`${BANDS[r.ev.band].name} (P${BANDS[r.ev.band].range})`}>${nf(r.ev.percentilePerf, 0)}</span>` : r.ev.percentileStat !== null ? html`<span title=${r.direction === null ? 'La pendiente no tiene «mejor» o «peor»: solo percentil estadístico, sin color' : ''}>P${nf(r.ev.percentileStat, 0)} estadístico (sin color)</span>` : html`<span class="muted">${r.ev.reason}</span>`}</td></tr>`)}</tbody></table></div>
     <p class="muted">Percentil por rango medio, sin el propio jugador, mínimo de muestra el de tus ajustes de percentiles. Vo, Fo ÷ masa y potencia óptima llevan color («más alto es mejor»); la pendiente solo el percentil estadístico porque no hay mejor ni peor.</p>`;
 }
 

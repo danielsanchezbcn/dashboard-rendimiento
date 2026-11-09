@@ -13,6 +13,18 @@ export const isRelative = (v) => v?.kind === 'derived' && REL_OPS.includes(v.for
 export const isViewable = (v) => !v.archived && (v.kind === 'raw' || isRelative(v) || isIsoDerived(v));
 // ¿Hay datos para mostrar la variable? Una relativa se ofrece si hay dato de origen, aunque falte la masa (entonces se explica por qué no hay valor).
 export const hasData = (v, sessions) => sessions.some((s) => s.values?.[v.id] || ((isRelative(v) || isIsoDerived(v)) && s.values?.[v.formula.operands[0]]));
+// En los tests isométricos (los únicos con variables relativas BW/SW) la medida relativa va ANTES que su valor absoluto y es la que se muestra por defecto.
+export function orderVars(vars) {
+  const rel = vars.filter(isRelative);
+  const bySrc = new Map(rel.map((r) => [r.formula.operands[0], r]));
+  const out = [];
+  for (const v of vars) {
+    if (isRelative(v) && vars.some((x) => x.id === v.formula.operands[0])) continue; // ya se coloca junto a su origen
+    if (bySrc.has(v.id)) out.push(bySrc.get(v.id));
+    out.push(v);
+  }
+  return out;
+}
 export const relFactor = (v) => (v.formula.op === 'REL_SW' ? Number(v.formula.params?.factor ?? SW_FACTOR_DEFAULT) : 1);
 
 // Devuelve { sessions, omitted: { [variableRelativaId]: nº de sesiones sin masa previa } }. Añade values[relId] = {L,R,S} a copias de las sesiones.

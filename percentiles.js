@@ -7,7 +7,7 @@
 // (más bajo es mejor → 100 − percentil estadístico). Con rango objetivo o sin dirección no hay percentil de rendimiento ni color.
 // No se cubren variables derivadas (relativas): las sesiones solo guardan valores originales.
 
-import { buildSeries, personalAverage } from './evolucion.js';
+import { buildSeries, personalAverage, personalBest } from './evolucion.js';
 import { positionOnDate } from './posiciones.js';
 
 export const MIN_N_DEFAULT = 10;
@@ -37,14 +37,24 @@ export function median(values) {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
+// Cuantil con interpolación lineal (q entre 0 y 1); con q = 0,5 coincide con la mediana.
+export function quantile(values, q) {
+  if (!values.length) return null;
+  const s = [...values].sort((a, b) => a - b), h = (s.length - 1) * q, i = Math.floor(h);
+  return i + 1 < s.length ? s[i] + (h - i) * (s[i + 1] - s[i]) : s[i];
+}
+// Valor de la referencia que deja al percentil de RENDIMIENTO p (0–1): con «más bajo es mejor» es el cuantil estadístico 1 − p.
+export const perfQuantile = (values, p, direction) => quantile(values, direction === 'lower' ? 1 - p : p);
+
 const timeKey = (p) => p.date + (p.time || '');
 const posOf = (histories, playerId) => positionOnDate(histories[playerId] ?? []).principal?.positionId ?? null; // posición única, sin fechas
 
-// Valor de un jugador para la base elegida: 'pa' = Personal Average; 'last' = Average de su última sesión válida.
+// Valor de un jugador para la base elegida: 'pa' = Personal Average; 'last' = Average de su última sesión válida; 'pb' = Personal Best (solo con dirección más alto/más bajo).
 export function playerValue(sessions, variable, side, { basis, positionId = null, histories = {}, playerId, from = null, to = null, protocolId } = {}) {
   let pts = buildSeries(sessions, variable.id, side, { from, to, protocolId }).valid;
   if (positionId !== null && posOf(histories, playerId) !== positionId) pts = [];
   if (!pts.length) return null;
+  if (basis === 'pb') { const pb = personalBest(pts, variable.direction); return pb.defined ? { value: pb.value, date: pb.date, reps: pb.reps, sessions: pts.length } : null; }
   if (basis === 'last') { const l = [...pts].sort((a, b) => timeKey(a).localeCompare(timeKey(b)) || a.sessionId - b.sessionId).at(-1); return { value: l.value, date: l.date, reps: l.reps, sessions: 1 }; }
   const pa = personalAverage(pts);
   return { value: pa.value, date: pa.to, from: pa.from, reps: pa.reps, sessions: pa.sessions };

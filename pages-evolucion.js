@@ -1,4 +1,5 @@
 // pages-evolucion.js — fase 5a: resultados del jugador por bloque, gráfico de evolución (G1), asimetría (G5) y gestión de sesiones.
+import './fuentes.js';
 import { html, useState, useEffect, useRef, Chart } from './libs.js';
 import { useApp } from './context.js';
 import { Card, Msg, useLoad, useRunner } from './componentes.js';
@@ -7,8 +8,8 @@ import { addManualLoad, LOAD_VARIABLE_NAMES } from './isohold.js';
 import { listCatalog, SIDES } from './catalogo.js';
 import { replaceQuery, buildHash } from './rutas.js';
 import { Migas, KEEP, NotaRelativa } from './pages-test.js';
-import { expandRelative, isViewable, hasData } from './relativos.js';
-import { PercentilesPanel } from './pages-percentiles.js';
+import { expandRelative, isViewable, hasData, orderVars, isRelative } from './relativos.js';
+import { PercentilesPanel, useRefData, refContext } from './pages-percentiles.js';
 import { positionOnDate } from './posiciones.js';
 import { withReferenceWeights } from './relaciones.js';
 import { isAsymVariable, asymText } from './catalogo.js';
@@ -53,7 +54,7 @@ function Grafico({ build, label, deps, nombre = 'grafico', alto }) {
   const ref = useRef(null);
   useEffect(() => {
     if (!ref.current || !Chart) return undefined;
-    const colors = { text: PAL.texto, muted: PAL.texto, line: PAL.rejilla, accent: PAL.jugador, ok: PAL.lila, fail: PAL.jugador, warn: PAL.texto };
+    const colors = { text: PAL.texto, muted: PAL.texto, line: PAL.rejilla, accent: PAL.jugador, ok: PAL.texto, fail: PAL.jugador, warn: PAL.texto };
     let chart;
     try { chart = new Chart(ref.current, { plugins: [flagPlugin], ...build(colors) }); } catch (e) { /* sin gráfico: la tabla de datos sigue disponible */ }
     return () => chart?.destroy();
@@ -63,43 +64,38 @@ function Grafico({ build, label, deps, nombre = 'grafico', alto }) {
 
 const baseOptions = (c, unit, yMin, yMax) => ({
   responsive: true, maintainAspectRatio: false, animation: false,
-  plugins: { legend: { labels: { color: c.text, usePointStyle: true } }, tooltip: { callbacks: { title: (items) => fmtDay(dayFromNum(items[0].parsed.x)) } } },
+  plugins: { legend: { labels: { color: c.text, usePointStyle: false, boxWidth: 28 } }, tooltip: { callbacks: { title: (items) => fmtDay(dayFromNum(items[0].parsed.x)) } } },
   scales: {
     x: { type: 'linear', ticks: { color: c.muted, maxTicksLimit: 8, callback: (v) => fmtDay(dayFromNum(v)) }, grid: { color: c.line } },
     y: { min: yMin, max: yMax, title: { display: !!unit, text: unit ?? '', color: c.muted }, ticks: { color: c.muted }, grid: { color: c.line } },
   },
 });
 
-function lineConfig(c, { series, pa, pb, unit, yMin, yMax, target, side }) {
-  const col = colorLado(side);
-  const pts = series.valid.map((p) => ({ x: dayNum(p.date), y: p.value, p }));
-  const x0 = pts.length ? pts[0].x : 0, x1 = pts.length ? pts[pts.length - 1].x : 1;
-  const datasets = [{ label: 'Average de sesión', data: pts, borderColor: col, backgroundColor: col, pointRadius: 4, tension: 0, borderWidth: 2 }];
-  if (series.excluded.length) datasets.push({ label: 'Sesión excluida (no cuenta)', data: series.excluded.map((p) => ({ x: dayNum(p.date), y: p.value })), showLine: false, borderColor: PAL.texto, backgroundColor: 'transparent', pointStyle: 'crossRot', pointRadius: 6, borderWidth: 2 });
-  if (pa.defined) datasets.push({ label: 'Personal Average', data: [{ x: x0, y: pa.value }, { x: x1, y: pa.value }], borderColor: PAL.texto, borderDash: [6, 4], pointRadius: 0, borderWidth: 2 });
-  if (pb.defined) datasets.push({ label: 'Personal Best', data: [{ x: x0, y: pb.value }, { x: x1, y: pb.value }], borderColor: PAL.lila, borderDash: [2, 3], pointRadius: 0, borderWidth: 2 });
-  if (target) datasets.push({ label: `Target (${target.origin})`, data: [{ x: x0, y: target.value }, { x: x1 === x0 ? x0 + 1 : x1, y: target.value }], borderColor: PAL.target, borderDash: [10, 4], pointRadius: 0, borderWidth: 2, bandera: true });
+// Gráfico único con los dos lados (azul = izquierda, naranja = derecha): sesiones, Personal Average (discontinua), Personal Best (punteada) y Target (verde con bandera).
+function lineConfig(c, { sides, series, stats, unit, yMin, yMax, tg, refLines = [], info }) {
+  const lr = sides.length === 2;
+  const sfx = (sd) => (lr ? ` (${sd === 'L' ? 'I' : 'D'})` : '');
+  const all = sides.flatMap((sd) => series[sd].valid.map((p) => dayNum(p.date)));
+  const x0 = all.length ? Math.min(...all) : 0, x1 = all.length ? Math.max(...all) : 1;
+  const datasets = [];
+  for (const sd of sides) {
+    const col = colorLado(sd);
+    datasets.push({ side: sd, label: `Average de sesión${sfx(sd)}`, data: series[sd].valid.map((p) => ({ x: dayNum(p.date), y: p.value, p })), borderColor: col, backgroundColor: col, pointRadius: 4, tension: 0, borderWidth: 2 });
+    if (series[sd].excluded.length) datasets.push({ label: `Sesión excluida${sfx(sd)}`, data: series[sd].excluded.map((p) => ({ x: dayNum(p.date), y: p.value })), showLine: false, borderColor: PAL.texto, backgroundColor: 'transparent', pointStyle: 'crossRot', pointRadius: 6, borderWidth: 2 });
+    const { pa, pb } = stats[sd];
+    if (pa.defined) datasets.push({ label: `Personal Average${sfx(sd)}`, data: [{ x: x0, y: pa.value }, { x: x1, y: pa.value }], borderColor: lr ? col : PAL.texto, borderDash: [6, 4], pointRadius: 0, borderWidth: 2 });
+    if (pb.defined) datasets.push({ label: `Personal Best${sfx(sd)}`, data: [{ x: x0, y: pb.value }, { x: x1, y: pb.value }], borderColor: lr ? col : PAL.texto, borderDash: [2, 3], pointRadius: 0, borderWidth: 2 });
+  }
+  refLines.forEach((r) => datasets.push({ label: r.label, data: [{ x: x0, y: r.value }, { x: x1 === x0 ? x0 + 1 : x1, y: r.value }], borderColor: r.color, borderDash: r.dash, pointRadius: 0, borderWidth: r.w }));
+  const tgs = sides.map((sd) => tg[sd]).filter(Boolean).filter((t, i, a) => a.findIndex((u) => u.value === t.value) === i);
+  tgs.forEach((t) => datasets.push({ label: `Target (${t.origin})`, data: [{ x: x0, y: t.value }, { x: x1 === x0 ? x0 + 1 : x1, y: t.value }], borderColor: PAL.target, borderDash: [10, 4], pointRadius: 0, borderWidth: 2, bandera: true }));
   const o = baseOptions(c, unit, yMin, yMax);
   o.plugins.tooltip.callbacks.label = (it) => {
     const p = it.raw?.p;
-    return p ? `${nf(p.value)} ${unit ?? ''} · ${p.reps ?? '?'} rep.` : `${it.dataset.label}: ${nf(it.parsed.y)} ${unit ?? ''}`;
+    return p ? `${it.dataset.label}: ${nf(p.value)} ${unit ?? ''} · ${p.reps ?? '?'} rep.` : `${it.dataset.label}: ${nf(it.parsed.y)} ${unit ?? ''}`;
   };
+  o.plugins.tooltip.callbacks.afterLabel = (it) => (it.raw?.p && info ? info(it.raw.p.value) : []); // percentil de La Liga y zona de la Premier League del punto
   return { type: 'line', data: { datasets }, options: o };
-}
-
-function Resumen({ series, pa, pb, unit, variable }) {
-  const cur = currentResult(series.valid);
-  const u = unit ? ` ${unit}` : '';
-  const asy = isAsymVariable(variable);
-  const vt = (x) => (asy ? asymText(x) : `${nf(x)}${u}`);
-  const tip = (txt, detail) => html`<span title=${detail} tabindex="0" aria-label=${`${txt}. ${detail}`}>${txt}</span>`;
-  const pbTip = pb.defined ? `${fmtDay(pb.date)}${pb.tied ? (pb.sameDayTie ? ', empate el mismo día' : ', empate: se muestra la más reciente') : ''}` : '';
-  const paTip = pa.defined ? `${fmtDay(pa.from)} a ${fmtDay(pa.to)}, ${pa.sessions} sesión(es)${pa.reps !== null ? `, ${pa.reps} rep.` : ', sin repeticiones en alguna sesión: pesa 1'}` : '';
-  return html`<dl class="stats">
-    <div><dt>Resultado actual</dt><dd>${cur ? tip(vt(cur.value), fmtDay(cur.date)) : '—'}</dd></div>
-    <div><dt>Personal Best</dt><dd>${pb.defined ? tip(vt(pb.value), pbTip) : html`<span class="muted" title=${pb.reason}>no definido</span>`}</dd></div>
-    <div><dt>Personal Average</dt><dd>${pa.defined ? tip(vt(pa.value), paTip) : '—'}</dd></div>
-  </dl>${!pb.defined && pb.reason && series.valid.length ? html`<p class="muted">${pb.reason}${/catálogo/.test(pb.reason) ? html` <a href=${'#catalogo-test-' + variable.testId}>Abrir el test en el catálogo</a>.` : null}</p>` : null}`;
 }
 
 const numIn = (t) => { const x = String(t ?? '').trim(); return x === '' ? null : Number(x.replace(',', '.')); };
@@ -245,8 +241,9 @@ function asymConfig(c, asym, variable) {
 }
 
 function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, setQ, targets = [], positions = [], positionId = null }) {
+  const refData = useRefData(test);
   const protocols = catalog.protocols.filter((p) => p.testId === test.id);
-  const vars = catalog.variables.filter((v) => v.testId === test.id && isViewable(v) && hasData(v, sessions));
+  const vars = orderVars(catalog.variables.filter((v) => v.testId === test.id && isViewable(v) && hasData(v, sessions)));
   const proto = q.p ?? 'all';
   const from = q.from ?? '', to = q.to ?? '';
   const variable = vars.find((v) => String(v.id) === String(q.v)) ?? vars[0];
@@ -257,7 +254,15 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const series = Object.fromEntries(sides.map((sd) => [sd, buildSeries(sessions, variable.id, sd, f)]));
   const stats = Object.fromEntries(sides.map((sd) => [sd, { pa: personalAverage(series[sd].valid), pb: personalBest(series[sd].valid, variable.direction) }]));
   const tg = Object.fromEntries(sides.map((sd) => [sd, resolveTarget(targets, { playerId: player.id, positionId, variableId: variable.id, side: sd })]));
-  const all = sides.flatMap((sd) => [...series[sd].valid, ...series[sd].excluded].map((p) => p.value).concat(tg[sd] ? [tg[sd].value] : []));
+  // Variable relativa (BW/SW): la Premier League solo publica valores absolutos (N), así que su zona se calcula con el valor absoluto equivalente del jugador.
+  const srcVar = isRelative(variable) ? catalog.variables.find((x) => x.id === variable.formula.operands[0]) : null;
+  const abs = srcVar ? (() => { const ser = Object.fromEntries(sides.map((sd) => [sd, buildSeries(sessions, srcVar.id, sd, f)])); return { variable: srcVar, stats: Object.fromEntries(sides.map((sd) => [sd, { pa: personalAverage(ser[sd].valid), pb: personalBest(ser[sd].valid, srcVar.direction) }])), current: Object.fromEntries(sides.map((sd) => [sd, currentResult(ser[sd].valid)])) }; })() : null;
+  const ctx = refData ? refContext({ refData, test, variable, sides, filters: f, playerId: player.id, positionId, srcVar }) : null;
+  const posNombre = positions.find((p) => p.id === positionId)?.name;
+  const REF_OPTS = [['p50', 'P50 La Liga', 'p50', [], 2], ['p50pos', `P50 La Liga (${posNombre ?? 'posición'})`, 'p50pos', [8, 4], 2], ['p75', 'P75 La Liga', 'p75', [2, 3], 2], ['p75pos', `P75 La Liga (${posNombre ?? 'posición'})`, 'p75pos', [10, 3, 2, 3], 2], ['premier50', 'P50 Premier League', 'premier50', [], 1.5]];
+  const chosen = String(q.rl ?? '').split(',').filter(Boolean);
+  const refLines = ctx ? REF_OPTS.filter(([k]) => chosen.includes(k) && ctx.lines[k] != null).map(([k, label, , dash, w]) => ({ k, label, value: ctx.lines[k], dash, w, color: k === 'premier50' ? PAL.premier : PAL.laLiga })) : [];
+  const all = sides.flatMap((sd) => [...series[sd].valid, ...series[sd].excluded].map((p) => p.value).concat(tg[sd] ? [tg[sd].value] : [])).concat(refLines.map((r) => r.value));
   const pad = all.length ? (Math.max(...all) - Math.min(...all)) * 0.1 || Math.abs(Math.max(...all)) * 0.1 || 1 : 1;
   const yMin = all.length ? Math.min(...all) - pad : undefined, yMax = all.length ? Math.max(...all) + pad : undefined; // mismo eje para ambos lados
   const asym = variable.sides === 'LR' ? asymmetrySeries(sessions, variable.id, f) : null;
@@ -267,29 +272,24 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   return html`<div class="evo">
     <p><a class="button" href=${allUrl}>Ver todos los jugadores en este test</a></p>
     <div class="filters">
-      <label>Variable <select value=${variable.id} onChange=${(e) => setQ({ v: e.target.value })}>${vars.map((v) => html`<option key=${v.id} value=${v.id}>${v.name}${v.unit ? ` (${v.unit})` : ''}${v.sides === 'LR' ? ' · I/D' : ''}</option>`)}</select></label>
+      <label>Variable <select value=${variable.id} onChange=${(e) => setQ({ v: e.target.value })}>${vars.map((v) => html`<option key=${v.id} value=${v.id}>${v.name}${v.unit && !v.name.includes(`(${v.unit})`) ? ` (${v.unit})` : ''}${v.sides === 'LR' ? ' · I/D' : ''}</option>`)}</select></label>
       ${protocols.length ? html`<label>Protocolo <select value=${proto} onChange=${(e) => setQ({ p: e.target.value })}><option value="all">Todos</option><option value="none">Sin protocolo</option>${protocols.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label>` : null}
       <label>Desde <input type="date" value=${from} onInput=${(e) => setQ({ from: e.target.value })} /></label>
       <label>Hasta <input type="date" value=${to} onInput=${(e) => setQ({ to: e.target.value })} /></label>
     </div>
     <${NotaRelativa} variable=${variable} omitted=${omitted} catalog=${catalog} />
-    <div class=${sides.length === 2 ? 'sides' : ''}>
-      ${sides.map((sd) => html`<section class="side" key=${sd} aria-label=${sideName[sd]}>
-        ${sides.length === 2 ? html`<h4>${sideName[sd]}</h4>` : null}
-        ${series[sd].valid.length
-          ? html`<${Grafico} deps=${[key, sd]} label=${`Evolución de ${variable.name}, ${sideName[sd]}: ${series[sd].valid.length} sesiones`} build=${(c) => lineConfig(c, { series: series[sd], pa: stats[sd].pa, pb: stats[sd].pb, unit: variable.unit, yMin, yMax, target: tg[sd], side: sd })} nombre=${`evolucion-${variable.name}-${sd}`} />`
-          : html`<p class="muted">Sin sesiones válidas en el periodo.</p>`}
-        <${Resumen} series=${series[sd]} pa=${stats[sd].pa} pb=${stats[sd].pb} unit=${variable.unit} variable=${variable} />
-      </section>`)}
-    </div>
+    <fieldset class="modes"><legend>Líneas de referencia en el gráfico</legend>${REF_OPTS.map(([k, label]) => { const off = !ctx || ctx.lines[k] == null ; return html`<label class="check" key=${k} title=${off ? (k.endsWith('pos') && positionId == null ? 'El jugador no tiene posición principal.' : k === 'premier50' ? 'Esta variable no figura en las tablas de la Premier League.' : `Sin muestra suficiente (mínimo ${ctx?.minN ?? 10} jugadores).`) : ''}><input type="checkbox" disabled=${off} checked=${chosen.includes(k)} onChange=${(e) => setQ({ rl: (e.target.checked ? [...chosen, k] : chosen.filter((x) => x !== k)).join(',') || undefined })} /> ${label}</label>`; })}</fieldset>
+    ${sides.some((sd) => series[sd].valid.length)
+      ? html`<${Grafico} deps=${[key, 'lineas', refLines.map((r) => r.k + r.value).join(), !!ctx]} nombre=${`evolucion-${variable.name}`} label=${`Evolución de ${variable.name}: ${sides.map((sd) => `${sideName[sd]} ${series[sd].valid.length} sesiones`).join(', ')}`} build=${(c) => lineConfig(c, { sides, series, stats, unit: variable.unit, yMin, yMax, tg, refLines, info: ctx ? (v) => ctx.info(v, 'last') : null })} />`
+      : html`<p class="muted">Sin sesiones válidas en el periodo.</p>`}
     <${TargetRapido} key=${'tr' + variable.id + player.id} player=${player} variable=${variable} sides=${sides} own=${targets.find((t) => t.scope === 'player' && t.playerId === player.id && t.variableId === variable.id)} reload=${reload} />
     <${TargetPanel} key=${'t' + variable.id} player=${player} variable=${variable} sides=${sides} targets=${targets} positions=${positions} positionId=${positionId} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} reload=${reload} />
     ${asym && asym.length ? html`<section><h4>Asimetría por sesión (como en VALD)</h4>
-      <p class="chips" aria-label="Leyenda"><span class="chip" style=${`background:${PAL.izq}`}>LEFT</span> <span class="chip" style=${`background:${PAL.der}`}>RIGHT</span></p>
+      <p class="leyenda" aria-label="Leyenda"><span class="leyenda-chip" style=${`background:${PAL.izq}`}>LEFT</span> <span class="leyenda-chip" style=${`background:${PAL.der}`}>RIGHT</span></p>
       <p class="muted">|D − I| ÷ máx × 100 y la letra del lado con el valor más alto (L izquierda, R derecha). Como en VALD: barra azul hacia la izquierda si el lado izquierdo es mayor, naranja hacia la derecha si lo es el derecho.</p>
       <${Grafico} deps=${[key, 'asim']} nombre=${`asimetria-${variable.name}`} alto=${`${Math.max(9, 3.2 + asym.length * 2.2)}rem`} label=${`Asimetría de ${variable.name}: ${asym.length} sesiones`} build=${(c) => asymConfig(c, asym, variable)} />
       <p class="muted">Última: ${asymText(asym[asym.length - 1].pct)} (izquierda ${nf(asym[asym.length - 1].left)}, derecha ${nf(asym[asym.length - 1].right)} ${variable.unit ?? ''}).</p></section>` : null}
-    <${PercentilesPanel} key=${variable.id} player=${player} test=${test} variable=${variable} mine=${sessions} q=${q} setQ=${setQ} filters=${f} targets=${tg} />
+    <${PercentilesPanel} key=${variable.id} player=${player} test=${test} variable=${variable} mine=${sessions} q=${q} setQ=${setQ} filters=${f} targets=${tg} refData=${refData} abs=${abs} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} />
     <${RadarPanel} key=${'radar' + test.id + player.id} player=${player} testName=${test.name} />
     <${TablaSesiones} sessions=${sessions.filter((s) => s.values?.[variable.id] && (protocolId === undefined || (s.protocolId ?? null) === protocolId) && (!f.from || s.date >= f.from) && (!f.to || s.date <= f.to))} variable=${variable} player=${player} test=${test} reload=${reload} />
     <p class="muted">Cada punto es el Average de una sesión (media de sus repeticiones). Las sesiones excluidas no cuentan en el Personal Best, el Personal Average ni en ningún análisis. La Máxima repetición no está disponible: los datos importados traen una media por sesión.</p>

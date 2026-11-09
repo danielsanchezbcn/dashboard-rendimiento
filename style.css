@@ -153,4 +153,8 @@ td a small, td a .cell-date { text-decoration: none; }
 .copiable-msg { margin: .25rem 0 0; cursor: default; }
 .target-rapido { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; margin: .5rem 0; }
 .target-rapido img { width: 1.4rem; height: 1.4rem; vertical-align: middle; background: #040612; border-radius: .3rem; padding: .1rem; }
-.chips { margin: .25rem 0; } .chip { display: inline-block; padding: .05rem .6rem; border-radius: .2rem; color: #040612; font-weight: 700; font-size: .8rem; }
+.leyenda { margin: .25rem 0; } .leyenda-chip { display: inline-block; padding: .05rem .6rem; border-radius: .2rem; color: #040612; font-weight: 700; font-size: .8rem; }
+.refs td.num { white-space: nowrap; }
+
+/* Tipografía de los gráficos (Agency FB, como los documentos del usuario; ver fuentes.js) */
+.copiable svg text { font-family: 'Agency FB','Agency FB Regular','Agency','Arial Narrow','Liberation Sans Narrow',sans-serif; }

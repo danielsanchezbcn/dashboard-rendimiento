@@ -72,11 +72,14 @@ export const PREMIER_REFERENCES = [
 ];
 
 const lc = (s) => String(s ?? '').trim().toLowerCase();
+// Clave de enlace tolerante: sin mayúsculas, acentos, espacios ni signos, y sin el prefijo «Double-Leg»/«DL» del test (p. ej. «Hop Test» = «Double-Leg Hop Test»).
+const keyTest = (s) => lc(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '').replace(/^(doubleleg|dl)/, '');
+const keyVar = (s) => lc(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 export const CUT_NAMES = ['P5', 'P25', 'P50 (mediana)', 'P75', 'P95'];
 
 // Referencia de la Premier para (test, variable) del catálogo, con los cortes ya en la unidad del catálogo. null = no figura en las tablas.
 export function findPremier(test, variable) {
-  const ref = PREMIER_REFERENCES.find((r) => r.tests.some((t) => lc(t) === lc(test?.name)) && lc(r.variable) === lc(variable?.name));
+  const ref = PREMIER_REFERENCES.find((r) => r.tests.some((t) => keyTest(t) === keyTest(test?.name)) && keyVar(r.variable) === keyVar(variable?.name));
   if (!ref) return null;
   return { ...ref, cuts: ref.cuts.map((c) => Math.round(c * ref.scale * 1e6) / 1e6), unitConverted: ref.scale !== 1 };
 }
@@ -102,4 +105,21 @@ export function placeAgainstPremier(ref, value) {
   if (ref.signed) return { placed: false, reason: 'Referencia con signo: la convención de signo de ForceDecks no está verificada frente a la de la app (D25); se muestran los cortes sin ubicar ni colorear al jugador.' };
   const z = zoneOf(ref.cuts, ref.abs ? Math.abs(value) : value);
   return { placed: true, zone: z, band: ZONE_BANDS[z], text: ZONE_TEXT[z], aboveMedian: ref.cuts[4] >= ref.cuts[0] ? value > ref.cuts[2] : value < ref.cuts[2] };
+}
+
+// Masa corporal de la población de la tabla Premier (aportada por el usuario el 9/11/2026, columna kg, mismos cortes P5, P25, P50, P75, P95; edad 19, 20, 22, 27, 35 años).
+export const PREMIER_BODY_MASS_KG = [72.0, 76.6, 81.8, 88.2, 97.1];
+const G = 9.80665;
+// Estimación de los cortes de una medida RELATIVA (N ÷ (factor × masa × g)) a partir de los cortes absolutos y de la masa de la tabla. La Premier NO publica la distribución
+// conjunta fuerza–masa, así que solo se pueden dar dos límites matemáticos: (a) «correlación perfecta»: se divide cada corte de fuerza por el corte de masa del mismo percentil
+// (dispersión mínima posible); (b) «sin relación»: se divide cada corte por la masa mediana (dispersión máxima). La mediana coincide en ambos (F50 ÷ m50). Valor central = media de
+// ambos límites. Es una estimación, no un dato publicado.
+export function estimateRelative(ref, factor = 1) {
+  if (!ref || ref.signed || !Number.isFinite(factor) || factor <= 0) return null;
+  const d = (i) => factor * G;
+  const low = ref.cuts.map((c, i) => c / (d() * PREMIER_BODY_MASS_KG[i]));
+  const high = ref.cuts.map((c) => c / (d() * PREMIER_BODY_MASS_KG[2]));
+  const cuts = low.map((l, i) => Math.round(((l + high[i]) / 2) * 1e6) / 1e6);
+  const lo = low.map((l, i) => Math.min(l, high[i])), hi = low.map((l, i) => Math.max(l, high[i]));
+  return { ...ref, cuts, estimated: true, range: { lo, hi }, unitConverted: false };
 }
