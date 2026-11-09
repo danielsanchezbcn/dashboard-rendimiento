@@ -11,7 +11,7 @@
 
 import { audit } from './db.js';
 import { isIsoDay } from './fechas.js';
-import { normalizeName, findCandidates, createPlayer, addAlias } from './jugadores.js';
+import { normalizeName, findCandidates, createPlayer, addAlias, updatePlayer, playerLabel } from './jugadores.js';
 
 export const ROLES = {
   ignorar: 'Ignorar esta columna',
@@ -267,13 +267,13 @@ export function distinctNames(rows) {
   return [...map.values()];
 }
 
-// Propuesta para cada nombre distinto (nunca decide). preselect solo si hay un único candidato con coincidencia exacta y sin avisos.
+// Propuesta para cada nombre distinto (nunca decide). Se preselecciona solo si hay un único parecido «alto» (nombre y apellido, sin acentos) y sin avisos; siempre hay que confirmarlo.
 export async function proposeLinks(db, names, source = IMPORT_SOURCE) {
   const out = [];
   for (const n of names) {
     const found = await findCandidates(db, n.text, { source });
-    const only = found.candidates.length === 1 && !found.requiresManual ? found.candidates[0].player.id : null;
-    out.push({ ...n, candidates: found.candidates.map((c) => ({ playerId: c.player.id, name: c.player.jerseyName, via: c.matches.map((m) => m.via).join(', '), exact: c.matches.some((m) => m.exact), enye: c.matches.some((m) => m.changesEnye) })), reasons: found.reasons, requiresManual: found.requiresManual, suggestedPlayerId: only });
+    const only = !found.requiresManual ? (found.candidates.find((c) => c.level === 'alta')?.player.id ?? null) : null;
+    out.push({ ...n, candidates: found.candidates.map((c) => ({ playerId: c.player.id, name: playerLabel(c.player), level: c.level, why: c.why, via: c.matches.map((m) => m.via).join(', '), exact: c.matches.some((m) => m.exact), enye: c.matches.some((m) => m.changesEnye) })), reasons: found.reasons, requiresManual: found.requiresManual, suggestedPlayerId: only });
   }
   return out;
 }
@@ -334,16 +334,27 @@ export async function commitImport(db, { file, sheetName, mappingName = '', test
     const report = { rowIssues: plan.rowErrors, pendingNames: [...new Set(plan.pending.map((p) => p.name))].map((name) => ({ name, rows: plan.pending.filter((p) => p.name === name).map((p) => p.row) })), sessionNotes: [...(parsed.notes ?? [])] };
     const batchId = await db.importBatches.add({ createdAt: now, source, fileName: file.name, fileHash: file.hash, fileSize: file.size, sheet: sheetName, testId, protocolId, mappingName, rowsRead: parsed.stats.read, rowsEmpty: parsed.stats.empty, status: 'en curso' });
     const playerIds = new Map(); // ref → id
-    const counts = { sesionesCreadas: 0, duplicadasOmitidas: 0, conflictosOmitidos: 0, conflictosGuardadosComoNuevas: 0, conflictosFichero: 0, jugadoresNuevos: 0, aliasGuardados: 0, filasSinResolver: plan.counts.pendientes, filasConError: plan.counts.filasConError };
+    const counts = { sesionesCreadas: 0, duplicadasOmitidas: 0, conflictosOmitidos: 0, conflictosGuardadosComoNuevas: 0, conflictosFichero: 0, jugadoresNuevos: 0, aliasGuardados: 0, aliasFijados: 0, filasNoImportadasFichero: parsed.stats?.skipped ?? 0, filasSinResolver: plan.counts.pendientes, filasConError: plan.counts.filasConError };
     const ensurePlayer = async (s) => {
       if (playerIds.has(s.ref)) return playerIds.get(s.ref);
       let id;
       if (s.resolution.action === 'link') id = s.resolution.playerId;
       else {
-        id = await createPlayer(db, { jerseyName: s.resolution.jerseyName || s.playerText });
+        const isVald = source === 'VALD';
+        id = await createPlayer(db, { jerseyName: s.resolution.jerseyName || s.playerText, ...(isVald ? { fullName: s.playerText } : {}) });
         counts.jugadoresNuevos++;
       }
       playerIds.set(s.ref, id);
+      {
+        // El nombre de VALD es el nombre completo; el de los Excel pasa a ser el alias (nombre en camiseta) si aún no había uno distinto.
+        const p0 = await db.players.get(id);
+        if (p0 && source === 'VALD' && !p0.fullName) await updatePlayer(db, id, { fullName: s.playerText });
+        else if (p0 && source !== 'VALD' && s.resolution.action === 'link' && p0.fullName && p0.jerseyName === p0.fullName && s.playerText !== p0.fullName) {
+          await updatePlayer(db, id, { jerseyName: s.playerText });
+          counts.aliasFijados = (counts.aliasFijados ?? 0) + 1;
+          report.sessionNotes.push({ rows: s.rowNumbers, text: `«${s.playerText}» queda como alias de ${p0.fullName}.` });
+        }
+      }
       if (rememberAlias[s.playerText]) {
         const p = await db.players.get(id);
         if (p && p.jerseyName !== s.playerText) {
@@ -389,7 +400,7 @@ export function reportCsv(batch) {
   const lines = [['Apartado', 'Fila(s)', 'Detalle'].map(q).join(',')];
   const add = (a, r, d) => lines.push([a, r, d].map(q).join(','));
   add('Fichero', '', `${batch.fileName} · hoja ${batch.sheet} · importación del ${batch.createdAt}`);
-  add('Resumen', '', `Filas leídas ${batch.rowsRead}; vacías ${batch.rowsEmpty}; sesiones creadas ${batch.sesionesCreadas}; duplicadas omitidas ${batch.duplicadasOmitidas}; conflictos omitidos ${batch.conflictosOmitidos}; conflictos guardados como nuevas ${batch.conflictosGuardadosComoNuevas}; conflictos dentro del fichero ${batch.conflictosFichero}; jugadores nuevos ${batch.jugadoresNuevos}; alias guardados ${batch.aliasGuardados}; filas sin resolver ${batch.filasSinResolver}; filas con error ${batch.filasConError}`);
+  add('Resumen', '', `Filas leídas ${batch.rowsRead}; vacías ${batch.rowsEmpty}; sesiones creadas ${batch.sesionesCreadas}; duplicadas omitidas ${batch.duplicadasOmitidas}; conflictos omitidos ${batch.conflictosOmitidos}; conflictos guardados como nuevas ${batch.conflictosGuardadosComoNuevas}; conflictos dentro del fichero ${batch.conflictosFichero}; jugadores nuevos ${batch.jugadoresNuevos}; alias guardados ${batch.aliasGuardados}; filas sin resolver ${batch.filasSinResolver}; filas con error ${batch.filasConError}${batch.source === 'VALD' ? `; filas del fichero no importadas por test sin perfil ${batch.filasNoImportadasFichero ?? 0}` : ''}`);
   for (const i of batch.report?.rowIssues ?? []) add('Error de fila', i.row, i.text);
   for (const p of batch.report?.pendingNames ?? []) add('Jugador sin resolver', p.rows.join(' '), p.name);
   for (const n of batch.report?.sessionNotes ?? []) add('Aviso', (n.rows ?? []).join(' '), n.text);

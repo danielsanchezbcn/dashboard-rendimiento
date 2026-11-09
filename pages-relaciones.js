@@ -6,6 +6,8 @@ import { getSetting, setSetting, clearSetting } from './db.js';
 import { listCatalog } from './catalogo.js';
 import { MIN_N_DEFAULT } from './percentiles.js';
 import { locate, ratioReferences, G, withReferenceWeights, squadRatios, quadrantCuts, quadrantOf } from './relaciones.js';
+import { playerLabel } from './jugadores.js';
+import { Copiable } from './copiar.js';
 
 const nf = (n, d = 2) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 
@@ -46,7 +48,7 @@ function Cuadrantes({ sq, fixed, minN, playerName, db, reload }) {
       <button type="button" class="secondary" onClick=${async () => { await clearSetting(db, 'quadrantCuts'); setF({ dsi: '', eur: '' }); reload(); }}>Volver a la mediana</button>
     </div><${Msg} msg=${msg} />
     <p class="muted">Corte DSI: ${cuts.dsi.value === null ? `sin mediana (N = ${cuts.dsi.n ?? 0} < ${minN})` : `${nf(cuts.dsi.value)} (${cuts.dsi.source === 'fijo' ? 'fijado por ti' : `mediana de ${cuts.dsi.n} jugadores`})`} · Corte EUR: ${cuts.eur.value === null ? `sin mediana (N = ${cuts.eur.n ?? 0} < ${minN})` : `${nf(cuts.eur.value)} (${cuts.eur.source === 'fijo' ? 'fijado por ti' : `mediana de ${cuts.eur.n} jugadores`})`}</p>
-    ${mineP.length ? html`<svg viewBox=${`0 0 ${W} ${H}`} width="100%" role="img" style="display:block;max-width:720px" aria-label=${`Cuadrantes DSI por EUR de ${playerName}: ${mineP.map((p) => `${p.name} DSI ${nf(p.dsi)} con EUR ${nf(eurV)}`).join('; ')}`}>
+    ${mineP.length ? html`<${Copiable} nombre="cuadrantes-DSI-EUR"><svg viewBox=${`0 0 ${W} ${H}`} width="100%" role="img" style="display:block;max-width:720px" aria-label=${`Cuadrantes DSI por EUR de ${playerName}: ${mineP.map((p) => `${p.name} DSI ${nf(p.dsi)} con EUR ${nf(eurV)}`).join('; ')}`}>
       <rect x=${L} y=${T} width=${W - L - R} height=${H - T - B} style="fill:none;stroke:var(--line)" />
       ${ticks(x0, x1).map((v) => html`<g key=${'x' + v}><line x1=${px(v)} x2=${px(v)} y1=${T} y2=${H - B} style="stroke:var(--line)" stroke-width="0.5" /><text x=${px(v)} y=${H - B + 16} text-anchor="middle" font-size="12" style="fill:var(--muted)">${nf(v)}</text></g>`)}
       ${ticks(y0, y1).map((v) => html`<g key=${'y' + v}><line x1=${L} x2=${W - R} y1=${py(v)} y2=${py(v)} style="stroke:var(--line)" stroke-width="0.5" /><text x=${L - 6} y=${py(v) + 4} text-anchor="end" font-size="12" style="fill:var(--muted)">${nf(v)}</text></g>`)}
@@ -55,7 +57,7 @@ function Cuadrantes({ sq, fixed, minN, playerName, db, reload }) {
       ${cuts.dsi.value !== null ? html`<line x1=${L} x2=${W - R} y1=${py(cuts.dsi.value)} y2=${py(cuts.dsi.value)} style="stroke:var(--text)" stroke-dasharray="6 4" />` : null}
       ${mineP.map((p) => html`<g key=${p.k}><circle cx=${px(eurV)} cy=${py(p.dsi)} r="8" style="fill:var(--accent)" /><text x=${px(eurV) + 12} y=${py(p.dsi) + 4} font-size="13" font-weight="700" style="fill:var(--text)">${p.ab}</text></g>`)}
       <text x=${(L + W - R) / 2} y=${H - 10} text-anchor="middle" font-size="13" style="fill:var(--text)">EUR</text>
-      <text transform=${`translate(16 ${(T + H - B) / 2}) rotate(-90)`} text-anchor="middle" font-size="13" style="fill:var(--text)">DSI</text></svg>
+      <text transform=${`translate(16 ${(T + H - B) / 2}) rotate(-90)`} text-anchor="middle" font-size="13" style="fill:var(--text)">DSI</text></svg><//>
       <p class="muted">Gris: otros jugadores de La Liga (un punto por jugador y lado, sin sintéticos). Punto de color: ${playerName}, I = izquierda, D = derecha. Líneas discontinuas: los cortes.</p>
       <div class="table-wrap"><table><caption>Posición del jugador respecto a los cortes</caption><thead><tr><th>Lado</th><th class="num">DSI</th><th class="num">EUR</th><th>Cuadrante</th></tr></thead>
         <tbody>${mineP.map((p) => { const q = quadrantOf(p.dsi, eurV, cuts); return html`<tr key=${p.k}><td>${p.name}</td><td class="num">${nf(p.dsi)}</td><td class="num">${nf(eurV)}</td><td>${q ? q.text : html`<span class="muted">Sin corte: fija un valor o espera a tener ${minN} jugadores con dato</span>`}</td></tr>`; })}</tbody></table></div>`
@@ -95,6 +97,6 @@ export function RelacionesPanel({ player }) {
       <h3>Optimal Reactive Zone (Drop Jump)</h3>
       ${m.orz.hidden ? html`<p class="muted">Sin datos de ambas alturas: no se muestra la ORZ (hace falta al menos una sesión válida de 30 cm y otra de 45 cm).</p>` : m.orz.defined
         ? html`<p><strong>ORZ: ${m.orz.height} cm</strong> — RSI Personal Average: 30 cm ${nf(m.orz.pa30)} · 45 cm ${nf(m.orz.pa45)}.</p>` : html`<p>${m.orz.reason} (30 cm ${nf(m.orz.pa30)} · 45 cm ${nf(m.orz.pa45)})</p>`}
-      <${Cuadrantes} sq=${squadRatios({ loc, sessions: data.sessions, anthropometry: data.anthropometry, players: pl, playerId: player.id })} fixed=${data.fixed} minN=${data.minN} playerName=${player.jerseyName} db=${db} reload=${() => setTick((t) => t + 1)} />
+      <${Cuadrantes} sq=${squadRatios({ loc, sessions: data.sessions, anthropometry: data.anthropometry, players: pl, playerId: player.id })} fixed=${data.fixed} minN=${data.minN} playerName=${playerLabel(player)} db=${db} reload=${() => setTick((t) => t + 1)} />
     <//>`;
 }

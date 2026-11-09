@@ -49,11 +49,11 @@ check('unidad distinta en el catálogo rechazada', /unidad/.test(V.parseValdGrid
 const links = await M.proposeLinks(db, M.distinctNames(res.rows.filter((r) => r.ok)), V.VALD_SOURCE);
 const L = Object.fromEntries(links.map((l) => [l.text, l]));
 check('alias de VALD sugiere al jugador (única coincidencia exacta)', L['JUGADOR SINTÉTICO A, nombre completo VALD ficticio'].suggestedPlayerId !== null);
-check('desconocido sin candidatos', L['JUGADOR DESCONOCIDO FICTICIO'].candidates.length === 0);
+check('desconocido: nada sugerido (solo coincide una palabra genérica)', L['JUGADOR DESCONOCIDO FICTICIO'].suggestedPlayerId === null && L['JUGADOR DESCONOCIDO FICTICIO'].candidates.every((c) => c.level !== 'alta'));
 const bySource = await M.proposeLinks(db, [{ text: 'JUGADOR SINTÉTICO A, nombre completo VALD ficticio', rows: 1, validRows: 1 }], 'Excel');
-check('el alias de VALD no se propone al importar como Excel (fuente distinta)', bySource[0].candidates.length === 0);
+check('el nombre completo de VALD también se propone al importar como Excel (alta, sin vincular solo)', bySource[0].candidates[0]?.level === 'alta' && bySource[0].suggestedPlayerId !== null);
 const resolutions = {};
-for (const l of links) resolutions[l.text] = l.candidates.length ? { action: 'link', playerId: l.candidates[0].playerId } : { action: 'new', jerseyName: 'Jugador sintético nuevo V' };
+for (const l of links) resolutions[l.text] = l.suggestedPlayerId ? { action: 'link', playerId: l.suggestedPlayerId } : { action: 'new', jerseyName: 'Jugador sintético nuevo V' };
 const vp = await V.planValdImport(db, res0, resolutions);
 const plan = vp.plan;
 check('plan: 6 nuevas (A, B, C y E fusionadas, D y el desconocido como jugador nuevo)', plan.counts.nuevas === 6 && plan.counts.filasConError === 2 && plan.counts.conflictosFichero === 0, JSON.stringify(plan.counts));
@@ -66,6 +66,7 @@ check('sesión fusionada guarda valores, reps y filas de origen', sC.values[vPF.
 check('el peso (BW) y las etiquetas no están en ninguna sesión', !(await db.sessions.toArray()).some((s) => 'bw' in s || 'tags' in s || JSON.stringify(s).includes('Fatigue')));
 const batch = out.batches[0];
 check('lote con fuente VALD y aviso de fusión en el informe', batch.source === 'VALD' && M.reportCsv(batch).includes('fusionadas'));
+check('informe VALD: el Resumen indica las filas omitidas por test sin perfil', /no importadas por test sin perfil \d+/.test(M.reportCsv(batch)));
 // reimportar: idempotente
 const res2 = V.parseValdGrid(grid, cat);
 const newId = (await db.players.toArray()).find((p) => p.jerseyName === 'Jugador sintético nuevo V').id;

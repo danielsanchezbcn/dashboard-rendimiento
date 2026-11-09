@@ -32,6 +32,7 @@ const decisions = Object.fromEntries(plan.map((x) => [x.name, x.suggested]));
 const pos = await P.createPosition(db, { name: 'Portero sintético' });
 const out = await A.commitAthletes(db, { rows: r.rows, decisions, positionMap: { 'Central Midfielder': { create: true }, Goalkeeper: { positionId: pos } } });
 check('commit: 2 nuevos, 1 vinculado, 3 alias, 1 posición creada y 2 asignadas', out.counts.jugadoresNuevos === 2 && out.counts.vinculados === 1 && out.counts.aliasAnadidos === 3 && out.counts.posicionesCreadas === 1 && out.counts.posicionesAsignadas === 2, JSON.stringify(out.counts));
+check('los jugadores creados desde VALD guardan el nombre completo', (await db.players.toArray()).some((p) => p.fullName === 'Ñoño Sintético Tres' && p.jerseyName === 'Ñoño Sintético Tres') && (await db.players.get(existing)).fullName === 'Ana Sintética Uno');
 const al = await db.playerAliases.where('source').equals('VALD').toArray();
 check('alias de la fuente VALD con el nombre exacto del CSV', al.some((a) => a.rawText === 'Ñoño Sintético Tres'));
 // reimportar: idempotente y no pisa posiciones

@@ -7,6 +7,7 @@
 import { asymmetryPct } from './catalogo.js';
 import { positionOnDate } from './posiciones.js';
 import { buildSeries, personalAverage, personalBest } from './evolucion.js';
+import { playerLabel } from './jugadores.js';
 
 export const MODES = [['pa', 'Personal Average'], ['pb', 'Personal Best'], ['last', 'Última sesión válida'], ['hist', 'Histórico completo']];
 export const NONE_KEY = 'none';
@@ -29,7 +30,7 @@ export function compareTest({ sessions, variable, players, histories, positions,
     withData++;
     const mk = (cells, groupKey, date, extra = {}) => {
       const asym = sides.length === 2 && cells.L?.value != null && cells.R?.value != null ? asymmetryPct(cells.L.value, cells.R.value) : null;
-      return { playerId, playerName: player.jerseyName, groupKey, date, cells, asym, ...extra };
+      return { playerId, playerName: playerLabel(player), groupKey, date, cells, asym, ...extra };
     };
     if (mode === 'pa') {
       const keys = new Set(sides.flatMap((sd) => series[sd].map((p) => posKey(playerId, p.date))));

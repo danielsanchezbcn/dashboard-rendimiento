@@ -84,7 +84,7 @@ const names = M.distinctNames(R);
 const links = await M.proposeLinks(db, names);
 const byText = Object.fromEntries(links.map((l) => [l.text, l]));
 check('alias exacto del Excel sugiere al jugador A (única coincidencia)', byText['jug. sintetico A'].candidates.length === 1 && byText['jug. sintetico A'].suggestedPlayerId !== null);
-check('desconocido: sin candidatos', byText['Jugador desconocido'].candidates.length === 0 && byText['Jugador desconocido'].suggestedPlayerId === null);
+check('desconocido: sin parecido alto (solo coincide la palabra genérica «jugador») y nada sugerido', byText['Jugador desconocido'].candidates.every((c) => c.level !== 'alta') && byText['Jugador desconocido'].suggestedPlayerId === null);
 check('Muñoz exacto → 1 candidato sugerido; con ñ/n → 2 candidatos y manual',
   byText['Jugador sintético Muñoz'].candidates.length >= 1 && (await M.proposeLinks(db, [{ text: 'Jugador sintetico Munoz', rows: 1, validRows: 1 }]))[0].requiresManual === true);
 const pid = (txt) => byText[txt].candidates[0].playerId;
@@ -139,6 +139,12 @@ check('informe CSV: neutraliza fórmulas en nombres y ficheros (=, +, -, @)', !/
   const rN = await M.commitImport(db, { file, sheetName: 'x', testId: test.id, mapping, parsed: p3, plan: plan3, conflictChoices: { [key]: 'nueva' } });
   const sa = await db.sessions.where('playerId').equals(A).toArray();
   check('conflicto «guardar como nueva» conserva la original', rN.counts.conflictosGuardadosComoNuevas === 1 && sa.length === 2 && sa.some((s) => s.values[vPF.id].L === 410));
+  // nombre completo + alias: al confirmar un nombre de Excel sobre un jugador sin alias distinto, ese texto pasa a ser su alias
+  const Z = await db.players.add({ jerseyName: 'Zed Zeta Prueba', fullName: 'Zed Zeta Prueba', notes: '', active: true, createdAt: 'x', updatedAt: 'x' });
+  const planZ = await M.planImport(db, { rows: p3.rows, testId: test.id, resolutions: { 'jug. sintetico A': { action: 'link', playerId: Z } } });
+  const rZ = await M.commitImport(db, { file, sheetName: 'x', testId: test.id, mapping, parsed: p3, plan: planZ });
+  const zp = await db.players.get(Z);
+  check('el nombre del Excel queda como alias y el completo se conserva', zp.jerseyName === 'jug. sintetico A' && zp.fullName === 'Zed Zeta Prueba' && rZ.counts.aliasFijados === 1);
 }
 
 // ---- Mapeos guardados por encabezado

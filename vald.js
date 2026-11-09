@@ -271,7 +271,7 @@ export async function commitValdImport(db, { file, vald, plans, choices = {}, re
     const { group: g, plan } = plans[i];
     const own = {};
     for (const x of plan.sessions) { const c = choices[`${g.testId}~${x.key}`]; if (c) own[x.key] = c; }
-    const parsed = { stats: { read: g.readRows, empty: 0 }, notes: [...g.notes, ...(i === 0 ? vald.notes : [])] };
+    const parsed = { stats: { read: g.readRows, empty: 0, skipped: vald.stats?.skipped ?? 0 }, notes: [...g.notes, ...(i === 0 ? vald.notes : [])] };
     const r = await commitImport(db, { file, sheetName: 'CSV', mappingName: `Perfil VALD (${g.testName})`, testId: g.testId, mapping: { perfil: vald.codes.join(',') }, parsed, plan, conflictChoices: own, rememberAlias: remember, source: VALD_SOURCE });
     batchIds.push(r.batchId);
     for (const [k, v] of Object.entries(r.counts)) total[k] = (total[k] ?? 0) + v;

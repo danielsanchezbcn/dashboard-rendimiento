@@ -3,7 +3,7 @@
 // No se importan fecha de nacimiento, altura, peso (viene a 0 casi siempre), sexo, correo ni vald-id (el esquema no tiene dónde guardarlos).
 // Nada se vincula en silencio: cada nombre que ya coincide con un jugador existente se propone, no se aplica sin confirmar.
 
-import { normalizeName, findCandidates, createPlayer, addAlias } from './jugadores.js';
+import { normalizeName, findCandidates, createPlayer, addAlias, updatePlayer, playerLabel } from './jugadores.js';
 import { listPositions, createPosition, setMainPosition, playerHistory } from './posiciones.js';
 import { audit } from './db.js';
 
@@ -55,8 +55,8 @@ export async function planAthletes(db, rows) {
   const out = [];
   for (const r of rows) {
     const f = await findCandidates(db, r.name, { source: ATLETAS_SOURCE });
-    const one = f.candidates.length === 1 && !f.requiresManual;
-    out.push({ ...r, candidates: f.candidates.map((c) => ({ playerId: c.player.id, jerseyName: c.player.jerseyName })), suggested: one ? { action: 'link', playerId: f.candidates[0].player.id } : f.candidates.length ? null : { action: 'new' }, reasons: f.reasons ?? [] });
+    const one = !f.requiresManual && f.candidates.some((c) => c.level === 'alta');
+    out.push({ ...r, candidates: f.candidates.map((c) => ({ playerId: c.player.id, jerseyName: playerLabel(c.player), level: c.level, why: c.why })), suggested: one ? { action: 'link', playerId: f.candidates.find((c) => c.level === 'alta').player.id } : f.candidates.length ? null : { action: 'new' }, reasons: f.reasons ?? [] });
   }
   return out;
 }
@@ -79,8 +79,8 @@ export async function commitAthletes(db, { rows, decisions, positionMap = {} }) 
     if (!d || d.action === 'skip') { counts.omitidos++; continue; }
     try {
       let playerId;
-      if (d.action === 'new') { playerId = await createPlayer(db, { jerseyName: r.name }); counts.jugadoresNuevos++; }
-      else { playerId = d.playerId; counts.vinculados++; }
+      if (d.action === 'new') { playerId = await createPlayer(db, { jerseyName: r.name, fullName: r.name }); counts.jugadoresNuevos++; }
+      else { playerId = d.playerId; counts.vinculados++; const p0 = await db.players.get(playerId); if (p0 && !p0.fullName) await updatePlayer(db, playerId, { fullName: r.name }); }
       try { await addAlias(db, playerId, ATLETAS_SOURCE, r.name); counts.aliasAnadidos++; }
       catch (e) { if (/ya existe para este jugador/.test(e.message)) counts.aliasYaExistian++; else throw e; }
       if (r.position && posIds.has(r.position)) {

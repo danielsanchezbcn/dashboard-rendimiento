@@ -10,6 +10,8 @@ import { readFileGrid } from './excel.js';
 import { downloadBlob } from './io.js';
 import { BANDS } from './percentiles.js';
 import { fitLoadVelocity, classText, compareWithSquad, parseFvGrid, referenceFrom, addFvProfile, updateFvProfile, deleteFvProfile, FV_REFERENCE_DEFAULT, FV_MAX_POINTS, FDM_VELOCITY_DEFAULT } from './fuerzavelocidad.js';
+import { playerLabel } from './jugadores.js';
+import { Copiable } from './copiar.js';
 
 const nf = (n, d = 2) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d, minimumFractionDigits: d }));
 const VERDE = '#7FBF98'; const AMARILLO = '#FFC000'; const BLANCO = '#FFFFFF';
@@ -47,7 +49,7 @@ function FvChart({ config, label, canvasRef }) {
     let chart; try { chart = new Chart(canvasRef.current, config); } catch (e) { /* sin gráfico: las tablas siguen */ }
     return () => chart?.destroy();
   }, [JSON.stringify(config.data), config.options.scales.y.min]);
-  return html`<div class="chart-box" style="background:#000;border-radius:.5rem;height:380px"><canvas ref=${canvasRef} role="img" aria-label=${label}></canvas></div>`;
+  return html`<${Copiable} nombre="perfil-carga-velocidad"><div class="chart-box" style="background:#000;border-radius:.5rem;height:380px"><canvas ref=${canvasRef} role="img" aria-label=${label}></canvas></div><//>`;
 }
 
 function FvForm({ player, editing, initial, onDone, setInitial }) {
@@ -142,8 +144,8 @@ export function FvPanel({ player }) {
   return html`<${Card} titulo="Perfil carga-velocidad (VBT)" id="fv">
     ${cur ? html`
       ${profiles.length > 1 ? html`<label>Perfil <select value=${cur.id} onChange=${(e) => { setSel(Number(e.target.value)); setConfirmDel(null); }}>${profiles.map((p) => html`<option key=${p.id} value=${p.id}>${fmtDay(p.date)}${p.exercise ? ` · ${p.exercise}` : ''}</option>`)}</select></label>` : null}
-      ${fit.points?.length ? html`<${FvChart} canvasRef=${canvasRef} config=${fvChartConfig({ fit, reference, name: `${player.jerseyName}${cur.exercise ? ' · ' + cur.exercise : ''}` })} label=${`Relación carga-velocidad de ${player.jerseyName} el ${fmtDay(cur.date)}: ${fit.points.map((p) => `${p.load} kg ${nf(p.velocity)} m/s`).join(', ')}`} />
-        <div class="actions"><button type="button" class="secondary" onClick=${() => canvasRef.current?.toBlob((b) => (b ? downloadBlob(b, `perfil-carga-velocidad-${player.jerseyName}-${cur.date}.png`.replace(/[^\w.-]+/g, '_')) : setMsg({ level: 'fail', text: 'No se pudo crear la imagen.' })))}>Descargar imagen (PNG)</button></div>` : null}
+      ${fit.points?.length ? html`<${FvChart} canvasRef=${canvasRef} config=${fvChartConfig({ fit, reference, name: `${playerLabel(player)}${cur.exercise ? ' · ' + cur.exercise : ''}` })} label=${`Relación carga-velocidad de ${playerLabel(player)} el ${fmtDay(cur.date)}: ${fit.points.map((p) => `${p.load} kg ${nf(p.velocity)} m/s`).join(', ')}`} />
+        <div class="actions"><button type="button" class="secondary" onClick=${() => canvasRef.current?.toBlob((b) => (b ? downloadBlob(b, `perfil-carga-velocidad-${playerLabel(player)}-${cur.date}.png`.replace(/[^\w.-]+/g, '_')) : setMsg({ level: 'fail', text: 'No se pudo crear la imagen.' })))}>Descargar imagen (PNG)</button></div>` : null}
       <p class=${'badge ' + (fit.ok ? '' : 'sint')} role="status" title="Umbrales de tu Excel; la pendiente depende también del nivel de fuerza, así que no es una clasificación validada"><strong>${classText(fit.class)}</strong> <span class="muted">(clasificación de tu Excel, no validada)</span></p>
       ${fit.ok ? null : html`<p class="status fail" role="status">${fit.reason}</p>`}
       ${Number.isFinite(fit.fo) ? html`<dl class="stats">

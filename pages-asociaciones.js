@@ -1,4 +1,5 @@
 // pages-asociaciones.js — fase 6c: vista exploratoria de relaciones entre variables. Criterio estadístico PROVISIONAL (pendiente de confirmar).
+import { Copiable } from './copiar.js';
 import { html } from './libs.js';
 import { useApp } from './context.js';
 import { Card, useLoad } from './componentes.js';
@@ -29,7 +30,7 @@ function Dispersion({ res, xo, yo }) {
   const lines = res.mode === 'within' ? [...Map.groupBy(res.obs, (o) => o.id).values()].map((g) => g.sort((a, b) => a.x - b.x)) : [];
   const xl = `${xo.test.name} · ${xo.variable.name}${xo.unit ? ` (${xo.unit})` : ''}${xo.side !== 'S' ? ` · ${xo.side === 'L' ? 'Izq.' : 'Der.'}` : ''}`;
   const yl = `${yo.test.name} · ${yo.variable.name}${yo.unit ? ` (${yo.unit})` : ''}${yo.side !== 'S' ? ` · ${yo.side === 'L' ? 'Izq.' : 'Der.'}` : ''}`;
-  return html`<svg class="scatter" viewBox=${`0 0 ${W} ${H}`} width="100%" role="img" aria-label=${`Dispersión: ${xl} (horizontal) frente a ${yl} (vertical), ${res.n} observaciones`}>
+  return html`<${Copiable} nombre="dispersion"><svg class="scatter" viewBox=${`0 0 ${W} ${H}`} width="100%" role="img" aria-label=${`Dispersión: ${xl} (horizontal) frente a ${yl} (vertical), ${res.n} observaciones`}>
     ${xt.map((t) => html`<g key=${'x' + t}><line x1=${X(t)} x2=${X(t)} y1=${T} y2=${H - B} class="gridline" /><text x=${X(t)} y=${H - B + 16} text-anchor="middle">${nf(t, 1)}</text></g>`)}
     ${yt.map((t) => html`<g key=${'y' + t}><line x1=${L} x2=${W - R} y1=${Y(t)} y2=${Y(t)} class="gridline" /><text x=${L - 6} y=${Y(t) + 4} text-anchor="end">${nf(t, 1)}</text></g>`)}
     <line x1=${L} x2=${W - R} y1=${H - B} y2=${H - B} class="axis" /><line x1=${L} x2=${L} y1=${T} y2=${H - B} class="axis" />
@@ -37,7 +38,7 @@ function Dispersion({ res, xo, yo }) {
     ${res.obs.map((o, i) => html`<circle key=${i} cx=${X(o.x)} cy=${Y(o.y)} r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="1"><title>${o.name}${o.date ? ` · ${fmtDay(o.date)}` : ''}: ${nf(o.x)} ; ${nf(o.y)}${o.synthetic ? ' (sintético)' : ''}</title></circle>`)}
     <text x=${(L + W - R) / 2} y=${H - 8} text-anchor="middle" class="axlabel">${xl}</text>
     <text transform=${`translate(14 ${(T + H - B) / 2}) rotate(-90)`} text-anchor="middle" class="axlabel">${yl}</text>
-  </svg>`;
+  </svg><//>`;
 }
 
 export function Relaciones({ query = {} }) {

@@ -1,4 +1,4 @@
-// jugadores.js — jugadores y alias por fuente. El nombre en camiseta es el nombre visible.
+// jugadores.js — jugadores y alias por fuente. Nombre completo (VALD) y alias (camiseta, el de los Excel); el visible es «completo (alias)».
 // La normalización solo sirve para PROPONER candidatos: nunca vincula por sí sola.
 
 import { audit } from './db.js';
@@ -25,24 +25,88 @@ export function compareNames(a, b) {
 
 const cleanName = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 
-export async function createPlayer(db, { jerseyName, notes = '' }, opts) {
-  const name = cleanName(jerseyName);
-  if (!name) throw new Error('El nombre en camiseta es obligatorio.');
+// Nombre visible: nombre completo (el de VALD) y, si es distinto, el alias (el de los Excel / camiseta) entre paréntesis.
+export const baseName = (p) => cleanName(p?.fullName) || cleanName(p?.jerseyName);
+export function playerLabel(p) {
+  const full = cleanName(p?.fullName), alias = cleanName(p?.jerseyName);
+  if (full && alias && normalizeName(full).key !== normalizeName(alias).key) return `${full} (${alias})`;
+  return full || alias;
+}
+export const aliasOf = (p) => { const f = cleanName(p?.fullName), a = cleanName(p?.jerseyName); return f && a && normalizeName(f).key !== normalizeName(a).key ? a : ''; };
+export const nameMatchesPlayer = (p, text) => { const t = cleanName(text); return !!t && (t === cleanName(p?.jerseyName) || t === cleanName(p?.fullName) || t === playerLabel(p)); };
+
+// ---------- Parecido entre nombres (solo propone; nunca vincula) ----------
+const PARTICLES = new Set(['de', 'del', 'la', 'las', 'los', 'el', 'y', 'da', 'do', 'dos', 'das', 'di', 'van', 'von', 'der', 'den', 'bin', 'ben', 'al', 'le', 'jr', 'sr']);
+export function nameTokens(text) {
+  const key = normalizeName(text).key.replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const all = key ? key.split(' ') : [];
+  const kept = all.filter((t) => !PARTICLES.has(t));
+  return kept.length ? kept : all;
+}
+function editDistance(a, b) {
+  const m = a.length, n = b.length;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[n];
+}
+// Peso de la coincidencia de una palabra con otra: 1 igual · 0.85 errata leve · 0.8 una es el inicio de la otra · 0.6 inicial · 0 nada.
+function tokenScore(a, b) {
+  if (a === b) return 1;
+  const [s, l] = a.length <= b.length ? [a, b] : [b, a];
+  if (s.length === 1) return l.startsWith(s) ? 0.6 : 0;
+  if (s.length >= 3 && l.startsWith(s)) return 0.8;
+  const d = editDistance(a, b);
+  if (s.length >= 5 && d <= (l.length >= 9 ? 2 : 1)) return 0.85;
+  return 0;
+}
+// Compara dos nombres sin acentos, sin importar el orden ni las partículas. Cubre nombre y apellido.
+export function similarity(a, b) {
+  const A = nameTokens(a), B = nameTokens(b);
+  if (!A.length || !B.length) return { level: null, score: 0, why: '' };
+  const [short, long] = A.length <= B.length ? [A, B] : [B, A];
+  const used = new Set();
+  let sum = 0, matched = 0, initials = 0;
+  for (const t of short) {
+    let best = 0, bi = -1;
+    long.forEach((u, i) => { if (used.has(i)) return; const sc = tokenScore(t, u); if (sc > best) { best = sc; bi = i; } });
+    if (best > 0) { used.add(bi); sum += best; matched++; if (best === 0.6) initials++; }
+  }
+  const coverage = sum / short.length;
+  const same = normalizeName(a).key.replace(/[^\p{L}\p{N}]+/gu, ' ').trim() === normalizeName(b).key.replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  let level = null;
+  if (same) level = 'alta';
+  else if (short.length >= 2 && matched === short.length) level = initials ? 'media' : 'alta'; // con inicial («A. Fati») nunca pasa de media // todas las palabras del nombre más corto aparecen en el otro
+  else if (short.length === 1 && matched === 1) level = 'media'; // una sola palabra (apodo, apellido o nombre): nunca basta para dar por hecho
+  else if (short.length >= 2 && matched >= 1 && coverage >= 0.5) level = 'baja'; // solo coincide una de las palabras
+  const why = level === 'alta' ? (same ? 'mismo nombre (sin contar acentos)' : 'coinciden nombre y apellido') : level === 'media' ? 'coincide una palabra' : level === 'baja' ? 'solo coincide una de las palabras' : '';
+  return { level, score: same ? 1 : coverage, why };
+}
+const RANK = { alta: 3, media: 2, baja: 1 };
+
+export async function createPlayer(db, { jerseyName, fullName, notes = '' }, opts) {
+  const full = cleanName(fullName);
+  const name = cleanName(jerseyName) || full;
+  if (!name) throw new Error('El alias (nombre en camiseta) es obligatorio.');
   const now = new Date().toISOString();
-  const id = await db.players.add({ jerseyName: name, notes: String(notes ?? '').trim(), active: true, createdAt: now, updatedAt: now, ...syntheticFields(opts) });
+  const id = await db.players.add({ jerseyName: name, ...(full ? { fullName: full } : {}), notes: String(notes ?? '').trim(), active: true, createdAt: now, updatedAt: now, ...syntheticFields(opts) });
   await audit(db, 'jugador-creado', { jugadorId: id });
   return id;
 }
 
-export async function updatePlayer(db, id, { jerseyName, notes }) {
+export async function updatePlayer(db, id, { jerseyName, fullName, notes }) {
   const player = await db.players.get(id);
   if (!player) throw new Error('El jugador no existe.');
   const patch = { updatedAt: new Date().toISOString() };
   if (jerseyName !== undefined) {
     const name = cleanName(jerseyName);
-    if (!name) throw new Error('El nombre en camiseta es obligatorio.');
+    if (!name) throw new Error('El alias (nombre en camiseta) es obligatorio.');
     patch.jerseyName = name;
   }
+  if (fullName !== undefined) patch.fullName = cleanName(fullName);
   if (notes !== undefined) patch.notes = String(notes).trim();
   await db.players.update(id, patch);
   await audit(db, 'jugador-modificado', { jugadorId: id });
@@ -59,8 +123,8 @@ export async function duplicateNameWarning(db, name, excludeId) {
   const { key } = normalizeName(name);
   if (!key) return null;
   const all = await db.players.toArray();
-  const other = all.find((p) => p.id !== excludeId && normalizeName(p.jerseyName).key === key);
-  return other ? `Ya hay un jugador con un nombre equivalente («${other.jerseyName}»). Comprueba que no es el mismo.` : null;
+  const other = all.find((p) => p.id !== excludeId && (normalizeName(p.jerseyName).key === key || normalizeName(p.fullName).key === key));
+  return other ? `Ya hay un jugador con un nombre equivalente («${playerLabel(other)}»). Comprueba que no es el mismo.` : null;
 }
 
 export async function addAlias(db, playerId, source, rawText, opts) {
@@ -73,14 +137,14 @@ export async function addAlias(db, playerId, source, rawText, opts) {
   if (dup) {
     if (dup.playerId === playerId) throw new Error('Ese alias ya existe para este jugador.');
     const owner = await db.players.get(dup.playerId);
-    throw new Error(`Ese alias de ${source} ya está vinculado a otro jugador («${owner?.jerseyName ?? '?'}»).`);
+    throw new Error(`Ese alias de ${source} ya está vinculado a otro jugador («${owner ? playerLabel(owner) : '?'}»).`);
   }
   const { key } = normalizeName(text);
   const warnings = [];
   for (const a of sameSource) {
     if (a.playerId !== playerId && a.normalizedKey === key) {
       const owner = await db.players.get(a.playerId);
-      warnings.push(`Hay un alias equivalente de ${source} («${a.rawText}») en otro jugador («${owner?.jerseyName ?? '?'}»): en una importación exigirá confirmación manual.`);
+      warnings.push(`Hay un alias equivalente de ${source} («${a.rawText}») en otro jugador («${owner ? playerLabel(owner) : '?'}»): en una importación exigirá confirmación manual.`);
     }
   }
   const id = await db.playerAliases.add({ playerId, source, rawText: text, normalizedKey: key, confirmedAt: new Date().toISOString(), ...syntheticFields(opts) });
@@ -95,31 +159,57 @@ export async function removeAlias(db, id) {
   await audit(db, 'alias-eliminado', { jugadorId: alias.playerId, aliasId: id, fuente: alias.source });
 }
 
-// Candidatos para un nombre de origen. NUNCA decide el vínculo: devuelve propuestas y si exigen confirmación manual.
+// Rellena el nombre completo de jugadores antiguos con su alias de VALD (idempotente; no toca a quien ya lo tiene).
+export async function backfillFullNames(db) {
+  const players = await db.players.filter((p) => !p.fullName).toArray();
+  if (!players.length) return 0;
+  const vald = await db.playerAliases.where('source').equals('VALD').toArray();
+  let n = 0;
+  for (const p of players) {
+    const a = vald.filter((x) => x.playerId === p.id).sort((x, y) => String(x.confirmedAt).localeCompare(String(y.confirmedAt)))[0];
+    if (a) { await db.players.update(p.id, { fullName: a.rawText }); n++; }
+  }
+  return n;
+}
+
+// Candidatos para un nombre de origen. NUNCA decide el vínculo: devuelve propuestas (con nivel alta/media/baja) y si exigen confirmación manual.
+// Busca por parecido en nombre completo, alias (camiseta) y alias guardados, sin acentos y con nombre y apellido.
 export async function findCandidates(db, text, { source } = {}) {
   const target = normalizeName(text);
   if (!target.key) return { candidates: [], requiresManual: true, reasons: ['Nombre vacío.'] };
   const players = await db.players.toArray();
   const aliases = await db.playerAliases.toArray();
+  const byId = new Map(players.map((p) => [p.id, p]));
   const byPlayer = new Map();
   const add = (player, via, candidateText, alias) => {
     const cmp = compareNames(text, candidateText);
-    if (!cmp.sameKey) return;
-    const entry = byPlayer.get(player.id) ?? { player, matches: [] };
-    entry.matches.push({ via, text: candidateText, alias: alias ?? null, exact: cmp.exact, changesEnye: cmp.changesEnye });
+    const sim = cmp.sameKey ? { level: 'alta', score: 1, why: 'mismo nombre (sin contar acentos)' } : similarity(text, candidateText);
+    if (!sim.level) return;
+    const entry = byPlayer.get(player.id) ?? { player, matches: [], level: null, score: 0, why: '' };
+    entry.matches.push({ via, text: candidateText, alias: alias ?? null, exact: cmp.exact, changesEnye: cmp.sameKey && cmp.changesEnye, level: sim.level, score: sim.score, why: sim.why });
+    if (!entry.level || RANK[sim.level] > RANK[entry.level] || (sim.level === entry.level && sim.score > entry.score)) { entry.level = sim.level; entry.score = sim.score; entry.why = sim.why; }
     byPlayer.set(player.id, entry);
   };
-  for (const p of players) add(p, 'camiseta', p.jerseyName);
+  for (const p of players) {
+    add(p, 'camiseta', p.jerseyName);
+    if (p.fullName && p.fullName !== p.jerseyName) add(p, 'nombre completo', p.fullName);
+  }
   for (const a of aliases) {
-    if (source && a.source !== source) continue;
-    const p = players.find((x) => x.id === a.playerId);
+    if (source && a.source !== source && a.source !== 'VALD') continue; // los alias de otras fuentes no se miran; VALD sí (es el nombre completo)
+    const p = byId.get(a.playerId);
     if (p) add(p, `alias ${a.source}`, a.rawText, a);
   }
-  const candidates = [...byPlayer.values()];
+  let candidates = [...byPlayer.values()].sort((x, y) => RANK[y.level] - RANK[x.level] || y.score - x.score);
+  if (candidates.some((c) => c.level === 'alta')) candidates = candidates.filter((c) => c.level !== 'baja'); // un parecido parcial no compite con uno completo
+  candidates = candidates.slice(0, 8);
+  const altas = candidates.filter((c) => c.level === 'alta');
   const reasons = [];
-  if (candidates.length > 1) reasons.push('Más de un jugador coincide.');
-  if (candidates.some((c) => !c.matches.some((m) => m.exact))) reasons.push('La coincidencia no es exacta (mayúsculas, espacios o acentos).');
-  if (candidates.some((c) => c.matches.some((m) => m.changesEnye))) reasons.push('La equivalencia cambia ñ por n.');
-  if (candidates.length === 0) reasons.push('Ningún jugador coincide.');
-  return { candidates, requiresManual: reasons.length > 0, reasons, autoLink: false };
+  if (candidates.length === 0) reasons.push('Ningún jugador se parece a este nombre.');
+  else {
+    if (altas.length > 1) reasons.push('Más de un jugador encaja: elige con cuidado.');
+    if (altas.length === 0) reasons.push('Solo hay parecidos parciales (coincide una palabra): comprueba que es el mismo jugador.');
+    if (candidates.some((c) => c.matches.some((m) => m.changesEnye))) reasons.push('La equivalencia cambia ñ por n.');
+  }
+  const sure = altas.length === 1 && !altas[0].matches.some((m) => m.changesEnye);
+  return { candidates, requiresManual: !sure, reasons, autoLink: false };
 }

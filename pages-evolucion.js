@@ -14,6 +14,21 @@ import { withReferenceWeights } from './relaciones.js';
 import { isAsymVariable, asymText } from './catalogo.js';
 import { setTarget, deleteTarget, resolveTarget, distanceToTarget } from './targets.js';
 import { buildSeries, personalAverage, personalBest, currentResult, asymmetrySeries, setSessionExcluded, deleteSessionPermanently, correctSession } from './evolucion.js';
+import { playerLabel, nameMatchesPlayer } from './jugadores.js';
+import { PAL, colorLado } from './colores.js';
+import { Copiable } from './copiar.js';
+import { RadarPanel } from './pages-radar.js';
+import { ICONO_TARGET } from './iconos.js';
+
+// Bandera de Target (icono del usuario): se dibuja al final de la línea de target.
+const flagImg = typeof Image === 'undefined' ? null : Object.assign(new Image(), { src: ICONO_TARGET });
+const flagPlugin = { id: 'banderaTarget', afterDatasetsDraw(chart) {
+  const i = chart.data.datasets.findIndex((d) => d.bandera); if (i < 0 || !flagImg?.complete || !flagImg.naturalWidth) return;
+  const meta = chart.getDatasetMeta(i); const pt = meta.data[meta.data.length - 1]; if (!pt) return;
+  const h = 26, w = h * (flagImg.naturalWidth / flagImg.naturalHeight);
+  chart.ctx.drawImage(flagImg, pt.x - w * 0.75, pt.y - h - 2, w, h);
+} };
+
 
 const nf = (n, d = 2) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 const dayNum = (iso) => Date.parse(iso + 'T00:00:00Z') / 86400000;
@@ -32,18 +47,18 @@ function useTheme() {
   return n;
 }
 
-// Gráfico con Chart.js (solo líneas/puntos/barras, D20). `build` recibe los colores y devuelve la configuración.
-function Grafico({ build, label, deps }) {
+// Gráfico con Chart.js (solo líneas/puntos/barras, D20) con el aspecto de los informes del usuario (fondo oscuro, colores de colores.js).
+// `build` recibe los colores y devuelve la configuración. Clic sobre el gráfico: copiar imagen.
+function Grafico({ build, label, deps, nombre = 'grafico', alto }) {
   const ref = useRef(null);
-  const theme = useTheme();
   useEffect(() => {
     if (!ref.current || !Chart) return undefined;
-    const colors = { text: css('--text'), muted: css('--muted'), line: css('--line'), accent: css('--accent'), ok: css('--ok'), fail: css('--fail'), warn: css('--warn') };
+    const colors = { text: PAL.texto, muted: PAL.texto, line: PAL.rejilla, accent: PAL.jugador, ok: PAL.lila, fail: PAL.jugador, warn: PAL.texto };
     let chart;
-    try { chart = new Chart(ref.current, build(colors)); } catch (e) { /* sin gráfico: la tabla de datos sigue disponible */ }
+    try { chart = new Chart(ref.current, { plugins: [flagPlugin], ...build(colors) }); } catch (e) { /* sin gráfico: la tabla de datos sigue disponible */ }
     return () => chart?.destroy();
-  }, [...deps, theme]);
-  return html`<div class="chart-box"><canvas ref=${ref} role="img" aria-label=${label}></canvas></div>`;
+  }, [...deps]);
+  return html`<${Copiable} nombre=${nombre}><div class="chart-box doc" style=${alto ? `height:${alto}` : ''}><canvas ref=${ref} role="img" aria-label=${label}></canvas></div><//>`;
 }
 
 const baseOptions = (c, unit, yMin, yMax) => ({
@@ -55,14 +70,15 @@ const baseOptions = (c, unit, yMin, yMax) => ({
   },
 });
 
-function lineConfig(c, { series, pa, pb, unit, yMin, yMax, target }) {
+function lineConfig(c, { series, pa, pb, unit, yMin, yMax, target, side }) {
+  const col = colorLado(side);
   const pts = series.valid.map((p) => ({ x: dayNum(p.date), y: p.value, p }));
   const x0 = pts.length ? pts[0].x : 0, x1 = pts.length ? pts[pts.length - 1].x : 1;
-  const datasets = [{ label: 'Average de sesión', data: pts, borderColor: c.accent, backgroundColor: c.accent, pointRadius: 4, tension: 0, borderWidth: 2 }];
-  if (series.excluded.length) datasets.push({ label: 'Sesión excluida (no cuenta)', data: series.excluded.map((p) => ({ x: dayNum(p.date), y: p.value })), showLine: false, borderColor: c.muted, backgroundColor: 'transparent', pointStyle: 'crossRot', pointRadius: 6, borderWidth: 2 });
-  if (pa.defined) datasets.push({ label: 'Personal Average', data: [{ x: x0, y: pa.value }, { x: x1, y: pa.value }], borderColor: c.warn, borderDash: [6, 4], pointRadius: 0, borderWidth: 2 });
-  if (pb.defined) datasets.push({ label: 'Personal Best', data: [{ x: x0, y: pb.value }, { x: x1, y: pb.value }], borderColor: c.ok, borderDash: [2, 3], pointRadius: 0, borderWidth: 2 });
-  if (target) datasets.push({ label: `Target (${target.origin})`, data: [{ x: x0, y: target.value }, { x: x1 === x0 ? x0 + 1 : x1, y: target.value }], borderColor: c.text, borderDash: [10, 4], pointRadius: 0, borderWidth: 2 });
+  const datasets = [{ label: 'Average de sesión', data: pts, borderColor: col, backgroundColor: col, pointRadius: 4, tension: 0, borderWidth: 2 }];
+  if (series.excluded.length) datasets.push({ label: 'Sesión excluida (no cuenta)', data: series.excluded.map((p) => ({ x: dayNum(p.date), y: p.value })), showLine: false, borderColor: PAL.texto, backgroundColor: 'transparent', pointStyle: 'crossRot', pointRadius: 6, borderWidth: 2 });
+  if (pa.defined) datasets.push({ label: 'Personal Average', data: [{ x: x0, y: pa.value }, { x: x1, y: pa.value }], borderColor: PAL.texto, borderDash: [6, 4], pointRadius: 0, borderWidth: 2 });
+  if (pb.defined) datasets.push({ label: 'Personal Best', data: [{ x: x0, y: pb.value }, { x: x1, y: pb.value }], borderColor: PAL.lila, borderDash: [2, 3], pointRadius: 0, borderWidth: 2 });
+  if (target) datasets.push({ label: `Target (${target.origin})`, data: [{ x: x0, y: target.value }, { x: x1 === x0 ? x0 + 1 : x1, y: target.value }], borderColor: PAL.target, borderDash: [10, 4], pointRadius: 0, borderWidth: 2, bandera: true });
   const o = baseOptions(c, unit, yMin, yMax);
   o.plugins.tooltip.callbacks.label = (it) => {
     const p = it.raw?.p;
@@ -76,10 +92,13 @@ function Resumen({ series, pa, pb, unit, variable }) {
   const u = unit ? ` ${unit}` : '';
   const asy = isAsymVariable(variable);
   const vt = (x) => (asy ? asymText(x) : `${nf(x)}${u}`);
+  const tip = (txt, detail) => html`<span title=${detail} tabindex="0" aria-label=${`${txt}. ${detail}`}>${txt}</span>`;
+  const pbTip = pb.defined ? `${fmtDay(pb.date)}${pb.tied ? (pb.sameDayTie ? ', empate el mismo día' : ', empate: se muestra la más reciente') : ''}` : '';
+  const paTip = pa.defined ? `${fmtDay(pa.from)} a ${fmtDay(pa.to)}, ${pa.sessions} sesión(es)${pa.reps !== null ? `, ${pa.reps} rep.` : ', sin repeticiones en alguna sesión: pesa 1'}` : '';
   return html`<dl class="stats">
-    <div><dt>Resultado actual</dt><dd>${cur ? html`${vt(cur.value)} <span class="muted">(${fmtDay(cur.date)})</span>` : '—'}</dd></div>
-    <div><dt>Personal Best</dt><dd>${pb.defined ? html`${vt(pb.value)} <span class="muted">(${fmtDay(pb.date)}${pb.tied ? (pb.sameDayTie ? ', empate el mismo día' : ', empate: se muestra la más reciente') : ''})</span>` : html`<span class="muted" title=${pb.reason}>no definido</span>`}</dd></div>
-    <div><dt>Personal Average</dt><dd>${pa.defined ? html`${vt(pa.value)} <span class="muted">(${fmtDay(pa.from)} a ${fmtDay(pa.to)}, ${pa.sessions} sesión(es)${pa.reps !== null ? `, ${pa.reps} rep.` : ', sin repeticiones en alguna sesión: pesa 1'})</span>` : '—'}</dd></div>
+    <div><dt>Resultado actual</dt><dd>${cur ? tip(vt(cur.value), fmtDay(cur.date)) : '—'}</dd></div>
+    <div><dt>Personal Best</dt><dd>${pb.defined ? tip(vt(pb.value), pbTip) : html`<span class="muted" title=${pb.reason}>no definido</span>`}</dd></div>
+    <div><dt>Personal Average</dt><dd>${pa.defined ? tip(vt(pa.value), paTip) : '—'}</dd></div>
   </dl>${!pb.defined && pb.reason && series.valid.length ? html`<p class="muted">${pb.reason}${/catálogo/.test(pb.reason) ? html` <a href=${'#catalogo-test-' + variable.testId}>Abrir el test en el catálogo</a>.` : null}</p>` : null}`;
 }
 
@@ -127,10 +146,10 @@ function AccionesSesion({ s, player, test, reload, many, variable }) {
     <button type="button" disabled=${busy} onClick=${run(async () => { await setSessionExcluded(db, s.id, true, reason); done(); })}>Excluir (reversible)</button>
     <button type="button" class="secondary" onClick=${() => setOpen(null)}>Cancelar</button><${Msg} msg=${msg} /></div>`;
   if (open === 'eliminar') return html`<div class="inline-form" role="group" aria-label="Eliminación definitiva">
-    <p><strong>Eliminar definitivamente</strong> la sesión de <em>${player.jerseyName}</em> en <em>${test.name}</em> del <em>${fmtDay(s.date)}</em>${s.time ? ` (${s.time})` : ''}. No se borra ninguna otra sesión. Las copias de seguridad antiguas pueden conservarla.</p>
+    <p><strong>Eliminar definitivamente</strong> la sesión de <em>${playerLabel(player)}</em> en <em>${test.name}</em> del <em>${fmtDay(s.date)}</em>${s.time ? ` (${s.time})` : ''}. No se borra ninguna otra sesión. Las copias de seguridad antiguas pueden conservarla.</p>
     <label>Escribe el nombre del jugador <input value=${cn} onInput=${(e) => setCn(e.target.value)} /></label>
     <label>Escribe la fecha (AAAA-MM-DD) <input value=${cd} onInput=${(e) => setCd(e.target.value)} placeholder=${s.date} /></label>
-    <button type="button" class="danger" disabled=${busy || cn.trim() !== player.jerseyName || cd.trim() !== s.date} onClick=${run(async () => { await deleteSessionPermanently(db, s.id, { playerName: cn, date: cd }); done(); })}>Eliminar para siempre</button>
+    <button type="button" class="danger" disabled=${busy || !nameMatchesPlayer(player, cn) || cd.trim() !== s.date} onClick=${run(async () => { await deleteSessionPermanently(db, s.id, { playerName: cn, date: cd }); done(); })}>Eliminar para siempre</button>
     <button type="button" class="secondary" onClick=${() => setOpen(null)}>Cancelar</button><${Msg} msg=${msg} /></div>`;
   return html`<span class="row-actions">
     ${s.status === 'excluded'
@@ -156,6 +175,24 @@ function TablaSesiones({ sessions, vars, variable, player, test, reload }) {
 }
 
 // Targets (D15): el individual manda sobre el de la posición; un solo valor para ambos lados. Sin color: «alcanzado» o distancia en unidades y en %.
+// Alta rápida de Target individual (icono de bandera del usuario): un valor, mismo para ambos lados si la variable es por lado.
+function TargetRapido({ player, variable, sides, own, reload }) {
+  const { db } = useApp();
+  const { msg, busy, run } = useRunner();
+  const [val, setVal] = useState('');
+  const u = variable.unit ? ` (${variable.unit})` : '';
+  const save = run(async () => {
+    const n = Number(String(val).replace(',', '.'));
+    if (String(val).trim() === '' || !Number.isFinite(n)) throw new Error('Escribe un número para el target.');
+    await setTarget(db, { scope: 'player', playerId: player.id, variableId: variable.id, values: Object.fromEntries(sides.map((sd) => [sd, n])), note: own?.note ?? '' });
+    setVal(''); reload();
+  }, 'Target guardado: aparece con la bandera en los gráficos.');
+  return html`<div class="target-rapido" role="group" aria-label="Añadir target al momento">
+    <img src=${ICONO_TARGET} alt="" />
+    <label>Añadir target${u}${sides.length === 2 ? ' (ambos lados)' : ''} <input type="number" step="any" value=${val} onInput=${(e) => setVal(e.target.value)} /></label>
+    <button type="button" disabled=${busy} onClick=${save}>Guardar target</button><${Msg} msg=${msg} /></div>`;
+}
+
 function TargetPanel({ player, variable, sides, targets, positions, positionId, stats, current, reload }) {
   const { db } = useApp();
   const { msg, busy, run } = useRunner();
@@ -175,13 +212,13 @@ function TargetPanel({ player, variable, sides, targets, positions, positionId, 
   }, 'Target guardado.');
   const remove = (t) => run(async () => { await deleteTarget(db, t.id); setForm({ ...form, ...(t.scope === 'player' ? { own: {}, ownNote: '' } : { pos: {}, posNote: '' }) }); reload(); }, 'Target eliminado.');
   return html`<section class="targets"><h4>Target</h4>
-    ${rows.length ? html`<div class="table-wrap"><table><caption>Target aplicable a ${player.jerseyName} en ${variable.name}</caption><thead><tr><th>Lado</th><th class="num">Target</th><th>Origen</th><th>Resultado actual</th><th>Personal Average</th></tr></thead>
+    ${rows.length ? html`<div class="table-wrap"><table><caption>Target aplicable a ${playerLabel(player)} en ${variable.name}</caption><thead><tr><th>Lado</th><th class="num">Target</th><th>Origen</th><th>Resultado actual</th><th>Personal Average</th></tr></thead>
       <tbody>${rows.map((r) => html`<tr key=${r.sd}><th scope="row">${sideName[r.sd]}</th><td class="num">${nf(r.t.value)}${u}</td><td>${r.t.origin}${r.t.note ? html` <span class="muted">· ${r.t.note}</span>` : null}</td>
-        <td>${r.cur ? fmt(distanceToTarget(r.cur.value, r.t.value, variable.direction)) : '—'}</td><td>${r.pa.defined ? fmt(distanceToTarget(r.pa.value, r.t.value, variable.direction)) : '—'}</td></tr>`)}</tbody></table></div>
+        <td>${r.cur ? html`<span title=${`${fmtDay(r.cur.date)} · frente al target: ${fmt(distanceToTarget(r.cur.value, r.t.value, variable.direction))}`} tabindex="0">${nf(r.cur.value)}${u}</span>` : '—'}</td><td>${r.pa.defined ? html`<span title=${`frente al target: ${fmt(distanceToTarget(r.pa.value, r.t.value, variable.direction))}`} tabindex="0">${nf(r.pa.value)}${u}</span>` : '—'}</td></tr>`)}</tbody></table></div>
       ${variable.direction !== 'higher' && variable.direction !== 'lower' ? html`<p class="muted">Esta variable no tiene dirección «más alto» ni «más bajo» en el catálogo: se muestra la distancia, pero no si el target está alcanzado.</p>` : null}`
       : html`<p class="muted">Sin target definido para esta variable.</p>`}
     <details><summary>Definir o cambiar targets</summary>
-      <div class="inline-form" role="group" aria-label="Target individual"><p><strong>Individual de ${player.jerseyName}</strong> (manda sobre el de la posición)</p>${inputs('own')}
+      <div class="inline-form" role="group" aria-label="Target individual"><p><strong>Individual de ${playerLabel(player)}</strong> (manda sobre el de la posición)</p>${inputs('own')}
         <label>Nota o fuente (opcional) <input value=${form.ownNote} onInput=${(e) => setForm({ ...form, ownNote: e.target.value })} /></label>
         <button type="button" disabled=${busy} onClick=${save('player')}>Guardar individual</button>${own ? html` <button type="button" class="secondary" disabled=${busy} onClick=${remove(own)}>Eliminar individual</button>` : null}</div>
       ${positionId == null ? html`<p class="muted">El jugador no tiene posición principal: no se puede definir un target por posición desde aquí.</p>` : html`
@@ -191,6 +228,20 @@ function TargetPanel({ player, variable, sides, targets, positions, positionId, 
       <${Msg} msg=${msg} />
     </details>
     <p class="muted">Un target es un valor objetivo que defines tú. No se colorea: solo se indica si está alcanzado y la distancia, usando la dirección de la variable en el catálogo.</p></section>`;
+}
+
+// Asimetría horizontal como en VALD: eje central en 0, azul (izquierda) hacia la izquierda y naranja (derecha) hacia la derecha, con la fecha en el eje vertical.
+function asymConfig(c, asym, variable) {
+  const m = Math.max(1, ...asym.map((a) => Math.abs(a.pct))); const lim = Math.ceil(m * 1.35);
+  const etiquetas = { id: 'etiquetasAsim', afterDatasetsDraw(ch) {
+    const meta = ch.getDatasetMeta(0); const g = ch.ctx; g.save(); g.font = 'bold 12px sans-serif'; g.fillStyle = PAL.texto; g.textBaseline = 'middle';
+    meta.data.forEach((bar, i) => { const v = asym[i].pct; g.textAlign = v >= 0 ? 'left' : 'right'; g.fillText(`${nf(Math.abs(v), 1)} %`, bar.x + (v >= 0 ? 6 : -6), bar.y); });
+    g.restore(); } };
+  return { type: 'bar', plugins: [etiquetas], data: { labels: asym.map((a) => fmtDay(a.date)), datasets: [{ label: 'Asimetría (%)', data: asym.map((a) => a.pct), backgroundColor: asym.map((a) => (a.pct >= 0 ? PAL.der : PAL.izq)), barPercentage: 0.7 }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { right: 36, left: 4 } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (it) => `${asymText(it.parsed.x)} · I ${nf(asym[it.dataIndex].left)} / D ${nf(asym[it.dataIndex].right)} ${variable.unit ?? ''}` } } },
+      scales: { x: { min: -lim, max: lim, title: { display: true, text: 'Asimetría interlateral (%) · izquierda ◄  ► derecha', color: PAL.texto }, ticks: { color: PAL.texto, callback: (v) => `${Math.abs(v)}` }, grid: { color: (ctx) => (ctx.tick.value === 0 ? PAL.texto : PAL.rejilla) } },
+        y: { ticks: { color: PAL.texto }, grid: { display: false } } } } };
 }
 
 function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, setQ, targets = [], positions = [], positionId = null }) {
@@ -226,17 +277,20 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
       ${sides.map((sd) => html`<section class="side" key=${sd} aria-label=${sideName[sd]}>
         ${sides.length === 2 ? html`<h4>${sideName[sd]}</h4>` : null}
         ${series[sd].valid.length
-          ? html`<${Grafico} deps=${[key, sd]} label=${`Evolución de ${variable.name}, ${sideName[sd]}: ${series[sd].valid.length} sesiones`} build=${(c) => lineConfig(c, { series: series[sd], pa: stats[sd].pa, pb: stats[sd].pb, unit: variable.unit, yMin, yMax, target: tg[sd] })} />`
+          ? html`<${Grafico} deps=${[key, sd]} label=${`Evolución de ${variable.name}, ${sideName[sd]}: ${series[sd].valid.length} sesiones`} build=${(c) => lineConfig(c, { series: series[sd], pa: stats[sd].pa, pb: stats[sd].pb, unit: variable.unit, yMin, yMax, target: tg[sd], side: sd })} nombre=${`evolucion-${variable.name}-${sd}`} />`
           : html`<p class="muted">Sin sesiones válidas en el periodo.</p>`}
         <${Resumen} series=${series[sd]} pa=${stats[sd].pa} pb=${stats[sd].pb} unit=${variable.unit} variable=${variable} />
       </section>`)}
     </div>
+    <${TargetRapido} key=${'tr' + variable.id + player.id} player=${player} variable=${variable} sides=${sides} own=${targets.find((t) => t.scope === 'player' && t.playerId === player.id && t.variableId === variable.id)} reload=${reload} />
     <${TargetPanel} key=${'t' + variable.id} player=${player} variable=${variable} sides=${sides} targets=${targets} positions=${positions} positionId=${positionId} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} reload=${reload} />
     ${asym && asym.length ? html`<section><h4>Asimetría por sesión (como en VALD)</h4>
-      <p class="muted">|D − I| ÷ máx × 100 y la letra del lado con el valor más alto (L izquierda, R derecha). En el gráfico, las barras hacia arriba son R y hacia abajo L.</p>
-      <${Grafico} deps=${[key, 'asim']} label=${`Asimetría de ${variable.name}: ${asym.length} sesiones`} build=${(c) => ({ type: 'bar', data: { labels: asym.map((a) => fmtDay(a.date)), datasets: [{ label: 'Asimetría (%)', data: asym.map((a) => a.pct), backgroundColor: asym.map((a) => (a.pct >= 0 ? c.accent : c.warn)) }] }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (it) => `${asymText(it.parsed.y)} · I ${nf(asym[it.dataIndex].left)} / D ${nf(asym[it.dataIndex].right)} ${variable.unit ?? ''}` } } }, scales: { x: { ticks: { color: c.muted }, grid: { color: c.line } }, y: { title: { display: true, text: '%', color: c.muted }, ticks: { color: c.muted }, grid: { color: c.line } } } } })} />
+      <p class="chips" aria-label="Leyenda"><span class="chip" style=${`background:${PAL.izq}`}>LEFT</span> <span class="chip" style=${`background:${PAL.der}`}>RIGHT</span></p>
+      <p class="muted">|D − I| ÷ máx × 100 y la letra del lado con el valor más alto (L izquierda, R derecha). Como en VALD: barra azul hacia la izquierda si el lado izquierdo es mayor, naranja hacia la derecha si lo es el derecho.</p>
+      <${Grafico} deps=${[key, 'asim']} nombre=${`asimetria-${variable.name}`} alto=${`${Math.max(9, 3.2 + asym.length * 2.2)}rem`} label=${`Asimetría de ${variable.name}: ${asym.length} sesiones`} build=${(c) => asymConfig(c, asym, variable)} />
       <p class="muted">Última: ${asymText(asym[asym.length - 1].pct)} (izquierda ${nf(asym[asym.length - 1].left)}, derecha ${nf(asym[asym.length - 1].right)} ${variable.unit ?? ''}).</p></section>` : null}
-    <${PercentilesPanel} key=${variable.id} player=${player} test=${test} variable=${variable} mine=${sessions} q=${q} setQ=${setQ} filters=${f} />
+    <${PercentilesPanel} key=${variable.id} player=${player} test=${test} variable=${variable} mine=${sessions} q=${q} setQ=${setQ} filters=${f} targets=${tg} />
+    <${RadarPanel} key=${'radar' + test.id + player.id} player=${player} testName=${test.name} />
     <${TablaSesiones} sessions=${sessions.filter((s) => s.values?.[variable.id] && (protocolId === undefined || (s.protocolId ?? null) === protocolId) && (!f.from || s.date >= f.from) && (!f.to || s.date <= f.to))} variable=${variable} player=${player} test=${test} reload=${reload} />
     <p class="muted">Cada punto es el Average de una sesión (media de sus repeticiones). Las sesiones excluidas no cuentan en el Personal Best, el Personal Average ni en ningún análisis. La Máxima repetición no está disponible: los datos importados traen una media por sesión.</p>
   </div>`;
@@ -292,7 +346,7 @@ export function ResultadosJugador({ player, query = {} }) {
   const zName = (t) => catalog.zones.find((z) => z.id === t.zoneId)?.name ?? null;
   const groups = [...new Set(tests.map(mName))];
   return html`<${Card} titulo="Resultados por bloque">
-    ${test ? html`<${Migas} items=${[{ label: 'Jugadores', href: '#jugadores' }, { label: player.jerseyName }, { label: test.name }]} />` : null}
+    ${test ? html`<${Migas} items=${[{ label: 'Jugadores', href: '#jugadores' }, { label: playerLabel(player) }, { label: test.name }]} />` : null}
     <div role="tablist" aria-label="Bloques" class="tabs">${blocks.map(([k, n]) => html`<button type="button" role="tab" key=${k} aria-selected=${block === k} class=${block === k ? 'tab on' : 'tab'} onClick=${() => setQ({ b: k, t: undefined, v: undefined })}>${n} <span class="muted">(${testsOf(k).length})</span></button>`)}</div>
     ${!tests.length ? html`<p class="muted">${block === 'fuerza' ? 'Este jugador aún no tiene sesiones de fuerza. Impórtalas desde «Importar».' : 'Sin datos en este bloque todavía (aún no hay importación para él).'}</p>` : html`
       <div class="test-list">${groups.map((g) => html`<div key=${g}><h3>${g}</h3><div class="chips">${tests.filter((t) => mName(t) === g).map((t) => html`<button type="button" key=${t.id} class=${t.id === test.id ? 'chip on' : 'chip'} aria-pressed=${t.id === test.id} onClick=${() => setQ({ t: t.id, v: undefined })}>${zName(t) ? zName(t) + ' · ' : ''}${t.name}</button>`)}</div></div>`)}</div>

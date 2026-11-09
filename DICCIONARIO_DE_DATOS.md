@@ -35,7 +35,8 @@ Base de datos local: `dashboard-rendimiento` (IndexedDB), **esquema versión 4**
 | Campo | Descripción |
 |---|---|
 | `id` | Identificador estable |
-| `jerseyName` | Nombre en camiseta: el nombre visible en toda la aplicación (obligatorio) |
+| `jerseyName` | **Alias** (nombre en camiseta, el que usan los Excel del usuario). Obligatorio; se muestra entre paréntesis detrás del nombre completo |
+| `fullName` | Nombre completo (el de VALD). Opcional. Visible: «nombre completo (alias)»; si ambos son iguales solo se muestra uno. Los jugadores antiguos lo reciben de su alias de VALD al abrir la aplicación (una sola vez) |
 | `notes` | Notas libres |
 | `active` | `true` o `false`. Un jugador no se borra: se desactiva y conserva su historial |
 | `createdAt`, `updatedAt` | Fechas ISO |

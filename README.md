@@ -245,6 +245,20 @@ Tarjeta «Perfil carga-velocidad (VBT)» en la ficha del jugador, con el aspecto
 - **Diferencias con tu Excel:** tu «Vo» es a + b (velocidad con 1 kg); aquí es el intercepto b (D17): para Ansu 1,3588 frente a 1,3498 m/s, y la potencia óptima sale 51,1 frente a 50,8. La línea «Balanced» es la tuya (8 puntos) y es fija para todos los jugadores; se edita en la tarjeta.
 - **Copias:** tabla nueva `fvProfiles` (esquema 6); una copia antigua se restaura con el aviso habitual de tabla ausente.
 
+## Perfil, percentiles y gráficos con el aspecto de tus informes (versión 7k-0.1.0)
+
+- «Resultados por bloque» abre el perfil del jugador.
+- Percentiles: una sola tabla con «La Liga» y «Premier League» (P50 y P95 y ubicación).
+- Asimetría horizontal como VALD (azul izquierda, naranja derecha).
+- Clic en un gráfico: «Copiar imagen» o «Descargar PNG» (la copia al portapapeles solo funciona en la página publicada con HTTPS).
+- Escala de percentiles con los logos de La Liga y Premier (P50) y la bandera de Target; «Añadir target» al momento bajo los gráficos.
+
+## Nombre completo + alias y vínculos sugeridos (versión 7j-0.1.0)
+
+- Cada jugador tiene **nombre completo** (el de VALD) y **alias** (el nombre en camiseta de tus Excel). Se muestra como «Ansu Fati Vieira (Fati)». Se editan en la ficha del jugador.
+- Al importar, para cada nombre del fichero se **sugieren** jugadores parecidos, sin acentos y mirando nombre **y** apellido (orden indiferente, partículas ignoradas, erratas leves toleradas). Solo se preselecciona un único parecido «alto»; siempre confirmas tú.
+- Al confirmar un nombre de tu Excel sobre un jugador que solo tenía nombre completo, ese texto pasa a ser su alias.
+
 ## Fase 8 (G8): cuadrantes DSI × EUR (versión 7i-0.1.0)
 
 Dentro de la tarjeta «Relaciones: DSI, EUR y ORZ» de la ficha del jugador. Eje horizontal EUR, vertical DSI, con un punto por lado (I y D) para el jugador y un punto gris por jugador y lado del resto de La Liga (sin sintéticos).

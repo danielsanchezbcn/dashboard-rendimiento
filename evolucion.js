@@ -4,6 +4,7 @@
 // Una sesión guarda la media de sus repeticiones (D8): no hay repeticiones sueltas, por lo que no existe «Máxima repetición» en los datos.
 // Las sesiones excluidas NO cuentan en ninguna estadística; se listan aparte y se pueden reincorporar.
 
+import { nameMatchesPlayer } from './jugadores.js';
 import { asymmetryPct } from './catalogo.js';
 import { audit } from './db.js';
 import { isIsoDay } from './fechas.js';
@@ -97,7 +98,7 @@ export async function deleteSessionPermanently(db, sessionId, { playerName, date
   const s = await db.sessions.get(sessionId);
   if (!s) throw new Error('La sesión no existe.');
   const p = await db.players.get(s.playerId);
-  if (String(playerName ?? '').trim() !== p?.jerseyName || String(date ?? '').trim() !== s.date) throw new Error('La confirmación no coincide con el jugador y la fecha de la sesión.');
+  if (!p || !nameMatchesPlayer(p, playerName) || String(date ?? '').trim() !== s.date) throw new Error('La confirmación no coincide con el jugador y la fecha de la sesión.');
   await db.sessions.delete(sessionId);
   await audit(db, 'sesion-eliminada', { sessionId, playerId: s.playerId, testId: s.testId, date: s.date });
 }

@@ -29,7 +29,7 @@ check('normalizar: vacío no coincide con nada', J.compareNames('', '').sameKey 
 {
   const db = await fresh();
   check('esquema 6 con 21 tablas', db.verno === 6 && db.tables.length === 21);
-  check('jugador: nombre obligatorio', (await rejects(() => J.createPlayer(db, { jerseyName: '  ' }))) === 'El nombre en camiseta es obligatorio.');
+  check('jugador: nombre obligatorio', (await rejects(() => J.createPlayer(db, { jerseyName: '  ' }))) === 'El alias (nombre en camiseta) es obligatorio.');
   const a = await J.createPlayer(db, { jerseyName: ' Jugador  Uno ' });
   check('jugador: nombre limpio y activo', (await db.players.get(a)).jerseyName === 'Jugador Uno' && (await db.players.get(a)).active === true);
   check('jugador: aviso de nombre equivalente', (await J.duplicateNameWarning(db, 'jugador uno'))?.includes('Jugador Uno') && (await J.duplicateNameWarning(db, 'Otro')) === null && (await J.duplicateNameWarning(db, 'jugador uno', a)) === null);
@@ -49,7 +49,7 @@ check('normalizar: vacío no coincide con nada', J.compareNames('', '').sameKey 
   let r = await J.findCandidates(db, 'Jugador Uno');
   check('candidatos: coincidencia exacta única no vincula sola', r.candidates.length === 1 && r.requiresManual === false && r.autoLink === false);
   r = await J.findCandidates(db, 'jugador uno');
-  check('candidatos: sin acento/mayúsculas exige confirmación', r.candidates.length === 1 && r.requiresManual && r.reasons.some((x) => x.includes('no es exacta')));
+  check('candidatos: sin acento/mayúsculas exige confirmación', r.candidates.length === 1 && r.candidates[0].level === 'alta' && !r.requiresManual && r.autoLink === false);
   r = await J.findCandidates(db, 'muñoz');
   check('candidatos: Muñoz/Munoz → dos candidatos y manual', r.candidates.length === 2 && r.requiresManual && r.reasons.some((x) => x.includes('Más de un jugador')));
   r = await J.findCandidates(db, 'Muñoz');
@@ -59,8 +59,33 @@ check('normalizar: vacío no coincide con nada', J.compareNames('', '').sameKey 
   r = await J.findCandidates(db, 'juan perez garcia', { source: 'VALD' });
   check('candidatos: por fuente y varios jugadores', r.candidates.length === 2 && r.requiresManual);
   r = await J.findCandidates(db, 'JUAN PÉREZ GARCÍA', { source: 'Excel' });
-  check('candidatos: alias exacto único de otra fuente', r.candidates.length === 1 && r.candidates[0].player.id === b && r.candidates[0].matches[0].exact);
+  check('candidatos: el alias de VALD (nombre completo) también cuenta con fuente Excel', r.candidates.length === 2 && r.requiresManual && r.candidates.some((c) => c.player.id === b && c.matches.some((m) => m.exact)));
   await J.removeAlias(db, r1.id);
+  // ---- parecido por palabras (sin acentos, nombre y apellido, cualquier orden)
+  const S = J.similarity;
+  check('parecido: orden distinto y acentos', S('Fati Ansu', 'ANSU FATÍ').level === 'alta' && S('Peréz, Juan', 'Juan Perez').level === 'alta');
+  check('parecido: el alias es parte del nombre completo', S('Lamine Yamal', 'Lamine Yamal Nasraoui Ebana').level === 'alta');
+  check('parecido: partículas ignoradas', S('Marc-André ter Stegen', 'Marc Andre Ter Stegen').level === 'alta' && S('Frenkie de Jong', 'Frenkie Jong').level === 'alta');
+  check('parecido: inicial + apellido = media (nunca se sugiere sola)', S('A. Fati', 'Ansu Fati').level === 'media');
+  check('parecido: errata leve en una palabra larga', S('Gonzalez Lopez', 'Gonzales Lopez').level === 'alta');
+  check('parecido: solo el apellido o solo una palabra = media', S('Fati', 'Ansu Fati').level === 'media' && S('Pedri', 'Pedro González').level === 'media');
+  check('parecido: comparten solo el nombre de pila = baja', S('Pablo Torre', 'Pablo Gavira').level === 'baja');
+  check('parecido: nada en común', S('Pablo Torre', 'Ansu Fati').level === null && S('', 'Ansu').level === null);
+  const f1 = await J.createPlayer(db, { jerseyName: 'Fati', fullName: 'Ansu Fati Vieira' });
+  const f2 = await J.createPlayer(db, { jerseyName: 'Alex Fati', fullName: 'Alex Fati Gómez' });
+  let rr = await J.findCandidates(db, 'ANSU FATÍ', { source: 'Excel' });
+  check('candidatos: nombre y apellido sin acentos → una alta y sugerida', rr.candidates[0].player.id === f1 && rr.candidates[0].level === 'alta' && !rr.requiresManual);
+  rr = await J.findCandidates(db, 'Gómez', { source: 'Excel' });
+  check('candidatos: solo una palabra del nombre completo → media, nunca sugerida sola', rr.candidates.length === 1 && rr.candidates[0].level === 'media' && rr.requiresManual);
+  rr = await J.findCandidates(db, 'Fati', { source: 'Excel' });
+  check('candidatos: alias exacto «Fati» → alta; «Alex Fati» solo media', rr.candidates[0].player.id === f1 && rr.candidates[0].level === 'alta' && rr.candidates.some((c) => c.player.id === f2 && c.level === 'media'));
+  rr = await J.findCandidates(db, 'Fati Vieira Ansu');
+  check('candidatos: busca por nombre completo aunque el alias sea otro', rr.candidates[0].player.id === f1 && rr.candidates[0].matches.some((m) => m.via === 'nombre completo'));
+  check('etiqueta: nombre completo (alias)', J.playerLabel(await db.players.get(f1)) === 'Ansu Fati Vieira (Fati)' && J.playerLabel({ jerseyName: 'Solo' }) === 'Solo' && J.playerLabel({ jerseyName: 'Ansu', fullName: 'ANSU' }) === 'ANSU');
+  await db.players.update(f2, { fullName: undefined });
+  await db.playerAliases.add({ playerId: f2, source: 'VALD', rawText: 'Alex Fati Gómez', normalizedKey: 'alex fati gomez', confirmedAt: '2026-01-01' });
+  check('migración: rellena el nombre completo desde el alias de VALD, una sola vez', (await J.backfillFullNames(db)) >= 1 && (await db.players.get(f2)).fullName === 'Alex Fati Gómez' && (await J.backfillFullNames(db)) === 0);
+  await db.playerAliases.where('playerId').anyOf([f2]).delete(); await db.players.bulkDelete([f1, f2]);
   check('alias: eliminar', (await db.playerAliases.get(r1.id)) === undefined);
   const audits = (await db.auditLog.toArray()).map((x) => x.action);
   check('auditoría: acciones de jugadores y alias, sin nombres', ['jugador-creado', 'jugador-desactivado', 'alias-anadido', 'alias-eliminado'].every((x) => audits.includes(x)) && !JSON.stringify(await db.auditLog.toArray()).includes('Jugador Uno') && !JSON.stringify(await db.auditLog.toArray()).includes('PÉREZ'));
@@ -168,7 +193,7 @@ check('normalizar: vacío no coincide con nada', J.compareNames('', '').sameKey 
   const cand = await J.findCandidates(db, 'jugador sintetico munoz');
   check('fixture: Muñoz/Munoz generan candidatos con confirmación manual', cand.candidates.length === 2 && cand.requiresManual);
   const cand2 = await J.findCandidates(db, 'JUGADOR SINTÉTICO A, nombre completo VALD ficticio', { source: 'VALD' });
-  check('fixture: alias de VALD y del Excel apuntan al mismo jugador', cand2.candidates.length === 1 && cand2.candidates[0].player.jerseyName === 'Jugador sintético A' && (await J.findCandidates(db, 'jug. sintetico A', { source: 'Excel' })).candidates[0].player.id === cand2.candidates[0].player.id);
+  check('fixture: alias de VALD y del Excel apuntan al mismo jugador', cand2.candidates[0].level === 'alta' && cand2.candidates[0].player.jerseyName === 'Jugador sintético A' && (await J.findCandidates(db, 'jug. sintetico A', { source: 'Excel' })).candidates[0].player.id === cand2.candidates[0].player.id);
   // Una copia con sintéticos y su eliminación
   const bk = await B.buildBackup(db, D.APP_VERSION);
   check('copia: incluye las tablas nuevas con sus recuentos', bk.counts.players === 13 && bk.counts.anthropometry === 37 && bk.counts.positions === 3 && !('local' in bk.tables));

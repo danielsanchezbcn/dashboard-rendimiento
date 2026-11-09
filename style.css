@@ -119,8 +119,7 @@ tr.excluded td { color: var(--muted); text-decoration: line-through; } tr.exclud
 .inline-form { display: flex; flex-direction: column; gap: .4rem; max-width: 28rem; }
 
 /* Fase 5b: vista de test */
-:root { --side-l: #2b6cb0; --side-r: #c05621; --side-text: #fff; }
-@media (prefers-color-scheme: dark) { :root { --side-l: #63b3ed; --side-r: #f6ad55; --side-text: #1a202c; } }
+:root { --side-l: #31B3FE; --side-r: #FC912F; --side-text: #040612; } /* azul y naranja medidos en los informes VALD del usuario (colores.js) */
 .crumbs { display: flex; flex-wrap: wrap; gap: .25rem; list-style: none; padding: 0; margin: 0 0 .75rem; font-size: .9rem; }
 .crumbs li + li::before { content: '›'; margin-right: .25rem; color: var(--muted); }
 .modes { display: flex; flex-wrap: wrap; gap: .25rem 1rem; border: 0; padding: 0; margin: 0 0 .75rem; }
@@ -144,3 +143,14 @@ td a small, td a .cell-date { text-decoration: none; }
 .scatter { max-width: 760px; } .scatter text { fill: var(--text); font-size: 11px; } .scatter .axlabel { fill: var(--muted); font-size: 12px; }
 .scatter .axis { stroke: var(--muted); } .scatter .gridline { stroke: var(--line); stroke-width: 1; }
 .badge { display: inline-block; border: 1px solid var(--line); border-radius: .4rem; padding: .15rem .6rem; font-weight: 600; }
+
+/* Gráficos con el aspecto de los informes del usuario (fondo oscuro) y «copiar imagen» */
+.chart-box.doc, .doc-panel { background: #040612; color: #fff; border-radius: .5rem; padding: .5rem; }
+
+.copiable { position: relative; cursor: pointer; outline-offset: 2px; }
+.copiable:focus-visible { outline: 2px solid var(--accent); }
+.copiable-menu { position: absolute; top: .5rem; right: .5rem; z-index: 5; display: flex; flex-direction: column; gap: .3rem; padding: .4rem; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: .5rem; box-shadow: 0 4px 14px rgba(0,0,0,.35); cursor: default; }
+.copiable-msg { margin: .25rem 0 0; cursor: default; }
+.target-rapido { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; margin: .5rem 0; }
+.target-rapido img { width: 1.4rem; height: 1.4rem; vertical-align: middle; background: #040612; border-radius: .3rem; padding: .1rem; }
+.chips { margin: .25rem 0; } .chip { display: inline-block; padding: .05rem .6rem; border-radius: .2rem; color: #040612; font-weight: 700; font-size: .8rem; }

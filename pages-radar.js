@@ -10,6 +10,8 @@ import { listPositions } from './posiciones.js';
 import { MIN_N_DEFAULT } from './percentiles.js';
 import { buildRadar, profileFromSetting, RADAR_MIN_AXES, RADAR_MAX_AXES } from './radar.js';
 import { downloadBlob } from './io.js';
+import { playerLabel, baseName } from './jugadores.js';
+import { Copiable } from './copiar.js';
 
 const nf = (n, d = 2) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 const fx = (v) => Number(v).toLocaleString('es-ES', { minimumFractionDigits: digits(v), maximumFractionDigits: digits(v) });
@@ -103,7 +105,7 @@ function RadarEditor({ cfg, tests, variables, onSaved, onCancel }) {
     <button type="button" onClick=${save}>Guardar variables</button> <button type="button" class="secondary" onClick=${reset}>Volver al perfil por defecto (CMJ)</button> <button type="button" class="secondary" onClick=${onCancel}>Cancelar</button><${Msg} msg=${msg} /></div>`;
 }
 
-export function RadarPanel({ player }) {
+export function RadarPanel({ player, testName }) {
   const { db, version } = useApp();
   const [basis, setBasis] = useState('pa');
   const [rp, setRp] = useState('all');
@@ -122,6 +124,8 @@ export function RadarPanel({ player }) {
   }, [db, version, player.id, tick]);
   if (!data) return null;
   const profile = data.profile;
+  if (testName && data.test && data.test.name !== testName) return null; // el radar solo aparece al mirar su test (CMJ por defecto)
+  if (testName && !data.test) return null;
   if (!data.test) return html`<${Card} titulo="Perfil radial" id="radar"><p class="muted">El test elegido para el radar («${profile.test}») ya no existe o está archivado.</p>
     <button type="button" class="secondary" onClick=${async () => { await clearSetting(db, 'radarConfig'); setTick((t) => t + 1); }}>Volver al perfil por defecto</button><//>`;
   const playersById = Object.fromEntries(data.players.map((p) => [p.id, p]));
@@ -137,8 +141,8 @@ export function RadarPanel({ player }) {
       <label>Valor del jugador <select value=${basis} onChange=${(e) => setBasis(e.target.value)}><option value="pa">Personal Average</option><option value="last">Última medida</option></select></label>
       <label>Referencia La Liga <select value=${rp} onChange=${(e) => setRp(e.target.value)}><option value="all">Todas las posiciones</option>${data.positions.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label>
     </div>
-    ${radar.drawable ? html`<${RadarSvg} profile=${profile} radar=${radar} playerName=${player.jerseyName} basisText=${basisText} svgRef=${svgRef} />
-      <div class="actions"><button type="button" class="secondary" onClick=${() => toPng(svgRef.current, `radar-${profile.center}-${player.jerseyName}.png`.replace(/[^\w.-]+/g, '_')).catch((e) => setMsg({ type: 'error', text: e.message }))}>Descargar imagen (PNG)</button></div>
+    ${radar.drawable ? html`<${Copiable} nombre=${`radar-${profile.center}-${baseName(player)}`}><${RadarSvg} profile=${profile} radar=${radar} playerName=${playerLabel(player)} basisText=${basisText} svgRef=${svgRef} /><//>
+      <div class="actions"><button type="button" class="secondary" onClick=${() => toPng(svgRef.current, `radar-${profile.center}-${baseName(player)}.png`.replace(/[^\w.-]+/g, '_')).catch((e) => setMsg({ type: 'error', text: e.message }))}>Descargar imagen (PNG)</button></div>
       <${Msg} msg=${msg} />`
       : html`<p class="muted">No hay datos suficientes para dibujar el radar: hacen falta al menos 3 variables con dato del jugador y P50 suficiente de La Liga.</p>`}
     ${radar.axes.length ? html`<div class="table-wrap"><table><caption>Valores originales y normalización</caption>

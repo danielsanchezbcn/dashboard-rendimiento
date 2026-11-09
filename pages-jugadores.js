@@ -2,13 +2,12 @@ import { html, useState } from './libs.js';
 import { useApp } from './context.js';
 import { Card, Msg, Sintetico, useLoad, useRunner } from './componentes.js';
 import { fmtDay, todayIso, isIsoDay } from './fechas.js';
-import { normalizeName, SOURCES, createPlayer, updatePlayer, setPlayerActive, addAlias, removeAlias, duplicateNameWarning } from './jugadores.js';
+import { normalizeName, playerLabel, baseName, SOURCES, createPlayer, updatePlayer, setPlayerActive, addAlias, removeAlias, duplicateNameWarning } from './jugadores.js';
 import { listPositions, playerHistory, positionOnDate, setMainPosition, clearMainPosition, addSecondaryPosition, deleteHistoryRecord } from './posiciones.js';
 import { METRICS, playerAnthropometry, addAnthropometry, updateAnthropometry, deleteAnthropometry, setReferenceWeight, clearReferenceWeight } from './antropometria.js';
 import { totalOf, countSynthetic } from './sinteticos.js';
 import { ResultadosJugador } from './pages-evolucion.js';
 import { RelacionesPanel } from './pages-relaciones.js';
-import { RadarPanel } from './pages-radar.js';
 import { FvPanel } from './pages-fv.js';
 
 const posName = (positions, id) => positions.find((p) => p.id === id)?.name ?? '(posición eliminada)';
@@ -20,6 +19,7 @@ export function Jugadores() {
   const [q, setQ] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [name, setName] = useState('');
+  const [full, setFull] = useState('');
   const [notes, setNotes] = useState('');
   const [posId, setPosId] = useState('');
   const { msg, run, busy } = useRunner();
@@ -33,18 +33,18 @@ export function Jugadores() {
   const key = normalizeName(q).key;
   const rows = data.players
     .filter((p) => showInactive || p.active)
-    .filter((p) => !key || normalizeName(p.jerseyName).key.includes(key) || data.aliases.some((a) => a.playerId === p.id && a.normalizedKey.includes(key)))
-    .sort((a, b) => a.jerseyName.localeCompare(b.jerseyName, 'es'));
+    .filter((p) => !key || normalizeName(p.jerseyName).key.includes(key) || normalizeName(p.fullName).key.includes(key) || data.aliases.some((a) => a.playerId === p.id && a.normalizedKey.includes(key)))
+    .sort((a, b) => baseName(a).localeCompare(baseName(b), 'es'));
   const current = (id) => {
     const x = positionOnDate(data.history.filter((r) => r.playerId === id)).principal;
     return x ? posName(data.positions, x.positionId) : 'Sin posición';
   };
   const create = run(async () => {
-    const warn = await duplicateNameWarning(db, name);
+    const warn = await duplicateNameWarning(db, full || name);
     if (warn && !confirm(`${warn}\n\n¿Crear el jugador de todos modos?`)) throw new Error('Creación cancelada.');
-    const id = await createPlayer(db, { jerseyName: name, notes });
+    const id = await createPlayer(db, { jerseyName: name, fullName: full, notes });
     if (posId) await setMainPosition(db, id, Number(posId));
-    setName(''); setNotes(''); setPosId('');
+    setName(''); setFull(''); setNotes(''); setPosId('');
     bump();
     return id;
   }, 'jugador creado.');
@@ -53,7 +53,8 @@ export function Jugadores() {
     ${totalOf(data.synth) > 0 ? html`<div class="banner info" role="status">Hay datos sintéticos de demostración (${totalOf(data.synth)} registros), marcados como <${Sintetico} />. Se eliminan todos juntos desde <a href="#configuracion">Configuración</a>.</div>` : null}
     <${Card} titulo="Nuevo jugador">
       <form onSubmit=${create} class="fields">
-        <label>Nombre en camiseta <input type="text" required value=${name} onInput=${(e) => setName(e.target.value)} /></label>
+        <label>Nombre completo (el de VALD) <input type="text" value=${full} onInput=${(e) => setFull(e.target.value)} /></label>
+        <label>Alias (nombre en camiseta, el de tus Excel) <input type="text" value=${name} onInput=${(e) => setName(e.target.value)} /></label>
         <label>Notas (opcional) <input type="text" value=${notes} onInput=${(e) => setNotes(e.target.value)} /></label>
         <label>Posición principal inicial (opcional)
           <select value=${posId} onChange=${(e) => setPosId(e.target.value)}>
@@ -74,9 +75,9 @@ export function Jugadores() {
       ${rows.length === 0
         ? html`<p class="muted">${data.players.length === 0 ? 'Todavía no hay jugadores.' : 'Ningún jugador coincide con el filtro.'}</p>`
         : html`<div class="table-wrap"><table>
-            <thead><tr><th scope="col">Nombre en camiseta</th><th scope="col">Posición principal hoy</th><th scope="col">Estado</th></tr></thead>
+            <thead><tr><th scope="col">Jugador (nombre completo y alias)</th><th scope="col">Posición principal hoy</th><th scope="col">Estado</th></tr></thead>
             <tbody>${rows.map((p) => html`<tr key=${p.id}>
-              <th scope="row"><a href=${'#jugador-' + p.id}>${p.jerseyName}</a> ${p.synthetic ? html`<${Sintetico} />` : null}</th>
+              <th scope="row"><a href=${'#jugador-' + p.id}>${playerLabel(p)}</a> ${p.synthetic ? html`<${Sintetico} />` : null}</th>
               <td>${current(p.id)}</td><td>${p.active ? 'Activo' : 'Inactivo'}</td></tr>`)}</tbody>
           </table></div>`}
     <//>
@@ -88,12 +89,14 @@ export function Jugadores() {
 function Basicos({ player }) {
   const { db, bump } = useApp();
   const [name, setName] = useState(player.jerseyName);
+  const [full, setFull] = useState(player.fullName ?? '');
   const [notes, setNotes] = useState(player.notes ?? '');
   const { msg, run, busy } = useRunner();
   return html`
     <${Card} titulo="Datos básicos">
-      <form class="fields" onSubmit=${run(async () => { await updatePlayer(db, player.id, { jerseyName: name, notes }); bump(); }, 'datos guardados.')}>
-        <label>Nombre en camiseta <input type="text" required value=${name} onInput=${(e) => setName(e.target.value)} /></label>
+      <form class="fields" onSubmit=${run(async () => { await updatePlayer(db, player.id, { jerseyName: name, fullName: full, notes }); bump(); }, 'datos guardados.')}>
+        <label>Nombre completo (el de VALD) <input type="text" value=${full} onInput=${(e) => setFull(e.target.value)} /></label>
+        <label>Alias (nombre en camiseta, el de tus Excel) <input type="text" required value=${name} onInput=${(e) => setName(e.target.value)} /></label>
         <label>Notas <input type="text" value=${notes} onInput=${(e) => setNotes(e.target.value)} /></label>
         <div class="actions">
           <button type="submit" disabled=${busy}>Guardar</button>
@@ -246,13 +249,12 @@ export function PerfilJugador({ id, query = {} }) {
   const { player } = data;
   return html`
     <p><a href="#jugadores">← Jugadores</a></p>
-    <h2 class="page-title">${player.jerseyName} ${player.synthetic ? html`<${Sintetico} />` : null} ${player.active ? null : html`<span class="badge">INACTIVO</span>`}</h2>
+    <h2 class="page-title">${playerLabel(player)} ${player.synthetic ? html`<${Sintetico} />` : null} ${player.active ? null : html`<span class="badge">INACTIVO</span>`}</h2>
+    <${ResultadosJugador} key=${'r' + player.id} player=${player} query=${query} />
     <${Basicos} key=${'b' + player.id + player.updatedAt} player=${player} />
     <${Alias} player=${player} aliases=${data.aliases} />
     <${Posiciones} player=${player} history=${data.history} positions=${data.positions} />
     <${Antropometria} key=${'a' + player.id} player=${player} records=${data.records} />
-    <${ResultadosJugador} key=${'r' + player.id} player=${player} query=${query} />
-    <${RadarPanel} key=${'radar' + player.id} player=${player} />
     <${FvPanel} key=${'fv' + player.id} player=${player} />
     <${RelacionesPanel} key=${'rel' + player.id} player=${player} />
   `;

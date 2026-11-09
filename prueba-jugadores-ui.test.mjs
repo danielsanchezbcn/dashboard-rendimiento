@@ -66,7 +66,7 @@ check('búsqueda por alias', rowsOf(card('Lista')).length === 6);
 await setVal(field(card('Lista'), 'Buscar'), '');
 // crear jugador real con posición inicial
 let nc = card('Nuevo jugador');
-await setVal(field(nc, 'Nombre en camiseta'), 'Real Uno');
+await setVal(field(nc, 'Alias (nombre en camiseta'), 'Real Uno');
 const alfaId = $$('option', field(nc, 'Posición principal inicial')).find((o) => o.textContent === 'Alfa').value;
 await setVal(field(nc, 'Posición principal inicial'), alfaId, 'change');
 await click(btn(nc, 'Crear jugador'), 500);
@@ -74,13 +74,13 @@ check('jugador real creado con su posición', /jugador creado/.test(text()) && c
 // nombre equivalente → aviso con confirmación
 confirmAnswer = false;
 nc = card('Nuevo jugador');
-await setVal(field(nc, 'Nombre en camiseta'), 'real  UNO');
+await setVal(field(nc, 'Alias (nombre en camiseta'), 'real  UNO');
 await click(btn(nc, 'Crear jugador'), 400);
 check('nombre equivalente: avisa y se puede cancelar', /Creación cancelada/.test(text()) && confirms.at(-1).includes('Real Uno') && cellsOf(card('Lista')).filter((r) => /real uno/i.test(r[0])).length === 1);
 confirmAnswer = true;
 // sin posición
 nc = card('Nuevo jugador');
-await setVal(field(nc, 'Nombre en camiseta'), 'Real Dos');
+await setVal(field(nc, 'Alias (nombre en camiseta'), 'Real Dos');
 check('el formulario de jugador no pide fecha de posición', !/Rige desde/.test(card('Nuevo jugador').textContent));
 await click(btn(card('Nuevo jugador'), 'Crear jugador'), 500);
 check('jugador sin posición: figura «Sin posición»', cellsOf(card('Lista')).some((r) => r.join('|') === 'Real Dos|Sin posición|Activo'));

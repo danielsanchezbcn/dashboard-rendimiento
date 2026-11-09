@@ -3,6 +3,7 @@ import { createDb, initDb, requestPersistence } from './db.js';
 import { App } from './app.js';
 import { seedInitialCatalog } from './catalogo-inicial.js';
 import { collapsePositions } from './posiciones.js';
+import { backfillFullNames } from './jugadores.js';
 
 const root = document.getElementById('app');
 
@@ -29,6 +30,7 @@ async function boot() {
     await initDb(db);
     await seedInitialCatalog(db);
     await collapsePositions(db);
+    await backfillFullNames(db);
   } catch (e) {
     showError('No se pudo abrir la base de datos local', `${e?.message || e}. Comprueba que no estás en una ventana privada y que el navegador permite guardar datos de este sitio.`);
     return;

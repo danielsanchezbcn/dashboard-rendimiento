@@ -13,6 +13,7 @@ import { listPositions } from './posiciones.js';
 import { downloadBlob } from './io.js';
 import { fmtDate } from './util.js';
 import { fmtDay } from './fechas.js';
+import { baseName, playerLabel } from './jugadores.js';
 
 const show = (v) => (v === null || v === undefined ? '' : v instanceof Date ? v.toISOString().slice(0, 10) : String(v));
 const STEPS = [['archivo', '1. Archivo'], ['mapeo', '2. Columnas'], ['vista', '3. Vista previa'], ['jugadores', '4. Jugadores'], ['resumen', '5. Resumen'], ['resultado', '6. Informe']];
@@ -121,7 +122,7 @@ export function Importar() {
     for (const p of proposals) {
       const r = resolutions[p.text];
       if (!r) throw new Error(`Falta decidir qué hacer con «${p.text}».`);
-      if (r.action === 'new' && !String(r.jerseyName ?? '').trim()) throw new Error(`Escribe el nombre en camiseta del jugador nuevo «${p.text}».`);
+      if (r.action === 'new' && !String(r.jerseyName ?? '').trim()) throw new Error(`Escribe el alias (nombre en camiseta) del jugador nuevo «${p.text}».`);
       res[p.text] = r;
     }
     if (origin === 'vald') { const r = await V.planValdImport(db, vald, res); setPlan(r.plan); setVplans(r.plans); }
@@ -269,13 +270,13 @@ function PasoJugadores({ proposals, resolutions, setResolutions, remember, setRe
       ${p.reasons.length && p.candidates.length ? html`<p class="status warn">${p.reasons.join(' ')}</p>` : p.candidates.length === 0 ? html`<p class="muted">Ningún jugador coincide con este nombre.</p>` : null}
       <label>Qué hacer <select aria-label=${'Qué hacer con ' + p.text} value=${valueOf(p.text)} onChange=${(e) => choose(p, e.target.value)}>
         <option value="">Elige…</option>
-        ${p.candidates.length ? html`<optgroup label="Coincidencias propuestas">${p.candidates.map((c) => html`<option key=${c.playerId} value=${'link:' + c.playerId}>Vincular a ${c.name}${c.exact ? '' : ' (no exacta)'}${c.enye ? ' (cambia ñ/n)' : ''}</option>`)}</optgroup>` : null}
-        <optgroup label="Otros jugadores">${(players ?? []).filter((x) => !candIds(p).has(x.id)).sort((a, b) => a.jerseyName.localeCompare(b.jerseyName, 'es')).map((x) => html`<option key=${x.id} value=${'link:' + x.id}>Vincular a ${x.jerseyName}</option>`)}</optgroup>
+        ${p.candidates.length ? html`<optgroup label="Jugadores parecidos (sin contar acentos; nombre y apellido)">${p.candidates.map((c) => html`<option key=${c.playerId} value=${'link:' + c.playerId}>Vincular a ${c.name} · parecido ${c.level ?? 'alto'}${c.exact ? '' : ` (${c.why || 'no exacta'})`}${c.enye ? ' (cambia ñ/n)' : ''}</option>`)}</optgroup>` : null}
+        <optgroup label="Otros jugadores">${(players ?? []).filter((x) => !candIds(p).has(x.id)).sort((a, b) => baseName(a).localeCompare(baseName(b), 'es')).map((x) => html`<option key=${x.id} value=${'link:' + x.id}>Vincular a ${playerLabel(x)}</option>`)}</optgroup>
         <option value="new">Crear jugador nuevo</option>
         <option value="skip">Dejar sin resolver (no se importan sus filas)</option>
       </select></label>
       ${p.suggestedPlayerId && resolutions[p.text]?.playerId === p.suggestedPlayerId ? html`<span class="badge">PROPUESTA</span>` : null}
-      ${resolutions[p.text]?.action === 'new' ? html`<label>Nombre en camiseta del jugador nuevo <input type="text" value=${resolutions[p.text].jerseyName} onInput=${(e) => set(p.text, { action: 'new', jerseyName: e.target.value })} /></label>` : null}
+      ${resolutions[p.text]?.action === 'new' ? html`<label>Alias del jugador nuevo (nombre en camiseta) <input type="text" value=${resolutions[p.text].jerseyName} onInput=${(e) => set(p.text, { action: 'new', jerseyName: e.target.value })} /></label>` : null}
       ${resolutions[p.text] && resolutions[p.text].action !== 'skip' ? html`<label class="check"><input type="checkbox" checked=${!!remember[p.text]} onChange=${(e) => setRemember((r) => ({ ...r, [p.text]: e.target.checked }))} /> Recordar «${p.text}» como alias de Excel de este jugador</label>` : null}
     </fieldset>`)}
     <div class="actions"><button type="button" class="secondary" onClick=${back}>Atrás</button><button type="button" disabled=${busy || proposals.some((p) => !resolutions[p.text])} onClick=${next}>Continuar: resumen</button></div>
@@ -302,7 +303,7 @@ function PasoAtletas({ atl, back, done }) {
       <div class="actions"><button type="button" onClick=${done}>Terminar</button></div><//>`;
   }
   return html`<${Card} titulo="Atletas de VALD: revisión">
-    <p>${atl.rows.length} atletas leídos. Se importan solo el <strong>nombre completo</strong> (queda como nombre en camiseta, que podrás editar) y el <strong>alias de la fuente VALD</strong>. No se importan fecha de nacimiento, altura, peso, sexo, correo ni vald-id${atl.ignored.length ? ` (columnas sin usar: ${atl.ignored.join(', ')})` : ''}.</p>
+    <p>${atl.rows.length} atletas leídos. Se importan solo el <strong>nombre completo</strong> (queda como nombre completo; el alias de tus Excel se fijará al confirmarlo en una importación, y podrás editarlo) y el <strong>alias de la fuente VALD</strong>. No se importan fecha de nacimiento, altura, peso, sexo, correo ni vald-id${atl.ignored.length ? ` (columnas sin usar: ${atl.ignored.join(', ')})` : ''}.</p>
     ${atl.notes.length ? html`<div class="banner warn" role="status"><ul>${atl.notes.map((n, i) => html`<li key=${i}>Filas ${n.rows.join(', ')}: ${n.text}</li>`)}</ul></div>` : null}
     <div class="table-wrap"><table><caption>Qué se hará con cada atleta</caption>
       <thead><tr><th>Atleta (nombre VALD)</th><th>Posición en VALD</th><th>Acción</th></tr></thead>
@@ -310,7 +311,7 @@ function PasoAtletas({ atl, back, done }) {
         <select aria-label=${`Acción para ${x.name}`} value=${dec[x.name]?.action === 'link' ? `link:${dec[x.name].playerId}` : dec[x.name]?.action ?? 'pending'} onChange=${(e) => { const v = e.target.value; setD(x.name, v.startsWith('link:') ? { action: 'link', playerId: Number(v.slice(5)) } : { action: v }); }}>
           <option value="pending">— Elegir —</option>
           <option value="new">Crear jugador nuevo</option>
-          ${x.candidates.map((c) => html`<option key=${c.playerId} value=${`link:${c.playerId}`}>Vincular con «${c.jerseyName}»</option>`)}
+          ${x.candidates.map((c) => html`<option key=${c.playerId} value=${`link:${c.playerId}`}>Vincular con «${c.jerseyName}»${c.level ? ` · parecido ${c.level}` : ''}</option>`)}
           <option value="skip">No importar</option>
         </select></td></tr>`)}</tbody></table></div>
     ${atl.positions.length ? html`<fieldset class="player-choice"><legend>Posiciones (opcional: solo se asignan si eliges)</legend>
@@ -364,7 +365,7 @@ function PasoResultado({ result, again }) {
     <p class="status ok">${result.batchIds?.length > 1 ? `Lotes ${result.batchIds.join(', ')} guardados` : `Lote ${result.batchId} guardado`}: ${k.sesionesCreadas} sesiones creadas.</p>
     <ul>
       <li>${k.duplicadasOmitidas} duplicadas omitidas · ${k.conflictosOmitidos} conflictos omitidos · ${k.conflictosGuardadosComoNuevas} conflictos guardados como sesión nueva · ${k.conflictosFichero} grupos contradictorios del fichero sin importar.</li>
-      <li>${k.jugadoresNuevos} jugadores nuevos · ${k.aliasGuardados} alias guardados · ${k.filasSinResolver} filas sin resolver · ${k.filasConError} filas con error.</li>
+      <li>${k.jugadoresNuevos} jugadores nuevos · ${k.aliasGuardados} alias guardados${k.aliasFijados ? ` · ${k.aliasFijados} alias (camiseta) fijados` : ''} · ${k.filasSinResolver} filas sin resolver · ${k.filasConError} filas con error.</li>
     </ul>
     <div class="actions">
       ${(result.batches ?? [result.batch]).map((b) => html`<button type="button" key=${b.id} onClick=${() => downloadBlob(new Blob([I.reportCsv(b)], { type: 'text/csv;charset=utf-8' }), `informe-importacion-lote-${b.id}.csv`)}>Descargar informe (CSV)${(result.batches?.length ?? 1) > 1 ? ' · lote ' + b.id : ''}</button>`)}
