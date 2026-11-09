@@ -23,3 +23,7 @@
 | Chart.js (con @kurkle/color 0.3.x) | 4.6.1, publicada el 22/10/2026 | MIT | Líneas, dispersión, barras y radar; solo esos componentes. Unos 180 KB minimizada en la prueba | Fase 5a, dentro de `libs.js` (decisión D20, 6/11/2026) |
 
 **Integrada el 7/11/2026 (fase 5a):** solo se registran líneas, puntos y barras (el paquete crece 174 KB). Comprobado en Chromium sin interfaz: tema claro y oscuro, sin violaciones de la política de seguridad. **Sin comprobar:** rendimiento con el volumen real, Chrome real y lectores de pantalla.
+
+## Lectura de imágenes (OCR) — fase 7v
+- **Tesseract.js 5.1.1** (Apache-2.0) → `ocr-tesseract.js` (módulo ES) y `ocr-worker.js`; **tesseract.js-core 5.1.1** (Apache-2.0) → `ocr-core.js` (núcleo wasm con SIMD); **@tesseract.js-data/eng 1.0.0** (Apache-2.0, `4.0.0_best_int`) → `eng.traineddata.gz`.
+- Se cargan desde el mismo origen (sin red externa); `cacheMethod: 'none'`. Solo se usan al importar una imagen de antropometría.

@@ -46,7 +46,7 @@ await go('fuerza');
 check('Manifestaciones de la fuerza: grupos del catálogo inicial', ['Max Isometric Strength', 'Heavy Dynamic Strength', 'Fast Dynamic Strength', 'Reactive Strength', 'Explosive Strength'].filter((m) => card(m)).length === 4 && !card('Explosive Strength'));
 check('fuerza: aparece Run-Specific Hip Iso-Push con su zona y 5 variables', /Run-Specific Hip Iso-Push\s*·\s*Hip\s*·\s*5 variables/.test(card('Max Isometric Strength').textContent.replace(/\s+/g, ' ')), card('Max Isometric Strength')?.textContent.slice(0, 160));
 await go('perimetros');
-check('Perímetros: sin nada precargado', /No hay medidas de perímetro definidas/.test(text()) && /No se precarga nada/.test(text()));
+check('Perímetros: el test de 5 variables que indicó el usuario', /Perímetros\s*·\s*5 variables/.test(text().replace(/\s+/g, ' ')) && !/No hay medidas de perímetro definidas/.test(text()));
 await go('nme');
 check('NME: sin nada precargado y con la etiqueta tal cual', /Bloque sin definir/.test(text()) && document.querySelector('h2.page-title').textContent === 'NME');
 
@@ -54,12 +54,12 @@ check('NME: sin nada precargado y con la etiqueta tal cual', /Bloque sin definir
 await go('catalogo');
 check('título de la pestaña', document.title.startsWith('Catálogo de tests'));
 let tc = card('Tests');
-check('34 tests del catálogo inicial', rowTexts(tc).length === 34, String(rowTexts(tc).length));
+check('35 tests del catálogo inicial (34 de fuerza + Perímetros)', rowTexts(tc).length === 35, String(rowTexts(tc).length));
 await setVal(field(tc, 'Buscar'), 'iso-hold');
 check('búsqueda por nombre', rowTexts(card('Tests')).length === 4, String(rowTexts(card('Tests')).length));
 await setVal(field(card('Tests'), 'Buscar'), '');
 check('manifestaciones: 5 y zonas: 4', rowTexts(card('Manifestaciones de la fuerza')).length === 5 && rowTexts(card('Zonas anatómicas')).length === 4);
-check('el catálogo inicial no muestra tests de otros bloques', $$('#tests tbody tr').length === 34);
+check('el catálogo inicial: 34 tests de fuerza + el de Perímetros', $$('#tests tbody tr').length === 35);
 
 // ---- Alta de un test y duplicado
 tc = card('Tests');
@@ -67,7 +67,7 @@ const nf = $$('form', tc).pop();
 await setVal(field(nf, 'Nombre del test'), 'Test de prueba');
 await setVal(field(nf, 'Manifestación'), $$('option', field(nf, 'Manifestación')).find((o) => o.textContent === 'Max Isometric Strength').value, 'change');
 await click(btn(nf, 'Añadir test'));
-check('test nuevo en la lista', !!testRow('Test de prueba') && rowTexts(card('Tests')).length === 35);
+check('test nuevo en la lista', !!testRow('Test de prueba') && rowTexts(card('Tests')).length === 36);
 const nf2 = $$('form', card('Tests')).pop();
 await setVal(field(nf2, 'Nombre del test'), 'test de prueba');
 await setVal(field(nf2, 'Manifestación'), $$('option', field(nf2, 'Manifestación')).find((o) => o.textContent === 'Max Isometric Strength').value, 'change');

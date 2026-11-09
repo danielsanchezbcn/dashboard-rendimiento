@@ -22,5 +22,7 @@ check('Premier relativa: mediana = 2667 N ÷ 81,8 kg ÷ g ≈ 3,32 BW, igual en 
 check('Premier relativa: cortes ascendentes y rango lo<=central<=hi', er.cuts.every((c, i) => i === 0 || c > er.cuts[i - 1]) && er.cuts.every((c, i) => er.range.lo[i] <= c + 1e-5 && c <= er.range.hi[i] + 1e-5));
 check('Premier: enlace tolerante («Hop Test», mayúsculas y espacios en el nombre)', !!findPremier({ name: 'Hop Test' }, { name: 'mean rsi (flight time / contact time)' }) && !!findPremier({ name: 'drop jump 30 cm' }, { name: 'RSI (FLIGHT TIME / CONTACT TIME)' }) && !findPremier({ name: 'CMJ' }, { name: 'SL CMJ' }));
 check('código de color: jugador blanco, Premier morado, La Liga amarillo, grises sin color', PAL.jugador === '#FFFFFF' && PAL.premier === '#B8A2C9' && PAL.laLiga === '#FEC900' && [PAL.gris1, PAL.gris2, PAL.gris3].every((h) => { const [r, g, b] = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)); return r === g && g === b; }));
+import { defaultVar } from './relativos.js';
+check('variable por defecto: la relativa si tiene valores; la absoluta si no hay masa', defaultVar([vs[1], vs[0]], [{ values: { 2: { L: 3 } } }])?.id === 2 && defaultVar([vs[1], vs[0]], [{ values: { 1: { L: 2762 } } }])?.id === 1);
 if (fails) { console.log(`${fails} fallo(s)`); process.exit(1); }
 console.log('Todas las pruebas de paleta e iconos pasan');
