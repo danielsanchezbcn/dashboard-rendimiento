@@ -322,3 +322,16 @@ details.notas[open] > summary { margin-bottom: .5rem; }
   .card { padding: 1rem 1.05rem; }
   .page-title { font-size: 1.35rem; }
 }
+
+/* Manifestaciones de la fuerza una al lado de otra (1 a 5 columnas); los tests de cada una, en filas (Hip, Knee, Ankle) */
+.test-list { display: grid; gap: 0 1.25rem; align-items: start; }
+.test-list.cols-1 { grid-template-columns: 1fr; }
+.test-list.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.test-list.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.test-list.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.test-list.cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.test-list > div { min-width: 0; }
+.test-list .chips { flex-direction: column; align-items: flex-start; }
+.test-list .chip { text-align: left; max-width: 100%; }
+@media (max-width: 900px) { .test-list[class*="cols-"] { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .test-list[class*="cols-"] { grid-template-columns: 1fr; } }

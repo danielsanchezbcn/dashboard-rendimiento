@@ -238,6 +238,19 @@ export async function deleteEmptyPlayer(db, id) {
   });
 }
 
+// Elimina un jugador Y todo lo suyo (sesiones, perfiles carga-velocidad, antropometría, targets individuales, alias y posiciones). Permanente.
+// La auditoría guarda solo identificadores y recuentos, nunca valores.
+export async function deletePlayerWithData(db, id) {
+  return db.transaction('rw', [db.players, ...PLAYER_TABLES.map((t) => db[t]), db.auditLog], async () => {
+    if (!(await db.players.get(id))) throw new Error('El jugador no existe.');
+    const borrados = {};
+    for (const t of PLAYER_TABLES) borrados[t] = await db[t].where('playerId').equals(id).delete();
+    await db.players.delete(id);
+    await audit(db, 'jugador-eliminado', { jugadorId: id, borrados });
+    return borrados;
+  });
+}
+
 // Unifica dos fichas del mismo jugador: todo lo de «dropId» pasa a «keepId» y «dropId» desaparece. Nada se sobrescribe: si ambos tienen peso de referencia o nombre completo, gana el de keepId.
 // Los nombres de la ficha eliminada quedan como alias de la que se conserva (para que futuras importaciones la encuentren). Las sesiones no se fusionan: si hay dos del mismo test, protocolo, fecha y hora
 // se conservan ambas y se devuelven en «posiblesDuplicadas» para que las revises.

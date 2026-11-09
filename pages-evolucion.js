@@ -73,7 +73,7 @@ const baseOptions = (c, unit, yMin, yMax) => ({
 });
 
 // Gráfico único con los dos lados (azul = izquierda, naranja = derecha): sesiones, Personal Average (discontinua), Personal Best (punteada) y Target (verde con bandera).
-function lineConfig(c, { sides, series, stats, unit, yMin, yMax, tg, refLines = [], info }) {
+function lineConfig(c, { sides, series, unit, yMin, yMax, tg, refLines = [], info }) {
   const lr = sides.length === 2;
   const sfx = (sd) => (lr ? ` (${sd === 'L' ? 'I' : 'D'})` : '');
   const all = sides.flatMap((sd) => series[sd].valid.map((p) => dayNum(p.date)));
@@ -83,8 +83,7 @@ function lineConfig(c, { sides, series, stats, unit, yMin, yMax, tg, refLines = 
     const col = colorLado(sd);
     datasets.push({ side: sd, label: `Average de sesión${sfx(sd)}`, data: series[sd].valid.map((p) => ({ x: dayNum(p.date), y: p.value, p })), borderColor: col, backgroundColor: col, pointRadius: 4, tension: 0, borderWidth: 2 });
     if (series[sd].excluded.length) datasets.push({ label: `Sesión excluida${sfx(sd)}`, data: series[sd].excluded.map((p) => ({ x: dayNum(p.date), y: p.value })), showLine: false, borderColor: PAL.texto, backgroundColor: 'transparent', pointStyle: 'crossRot', pointRadius: 6, borderWidth: 2 });
-    const { pa } = stats[sd]; // el Personal Best no se dibuja como línea: es el punto más alto (decisión 9/11/2026)
-    if (pa.defined) datasets.push({ label: `Personal Average${sfx(sd)}`, data: [{ x: x0, y: pa.value }, { x: x1, y: pa.value }], borderColor: lr ? col : PAL.texto, borderDash: [6, 4], pointRadius: 0, borderWidth: 2 });
+    // el Personal Best no se dibuja como línea (es el punto más alto) y el Personal Average solo si se marca entre las líneas de referencia (10/11/2026)
   }
   refLines.forEach((r) => datasets.push({ label: r.label, data: [{ x: x0, y: r.value }, { x: x1 === x0 ? x0 + 1 : x1, y: r.value }], borderColor: r.color, borderDash: r.dash, pointRadius: 0, borderWidth: r.w }));
   const tgs = sides.map((sd) => tg[sd]).filter(Boolean).filter((t, i, a) => a.findIndex((u) => u.value === t.value) === i);
@@ -223,7 +222,8 @@ function TargetPanel({ player, variable, sides, targets, positions, positionId, 
         <button type="button" disabled=${busy} onClick=${save('position')}>Guardar por defecto</button>${pos ? html` <button type="button" class="secondary" disabled=${busy} onClick=${remove(pos)}>Eliminar por defecto</button>` : null}</div>`}
       <${Msg} msg=${msg} />
     </details>
-    <p class="muted">Un target es un valor objetivo que defines tú. No se colorea: solo se indica si está alcanzado y la distancia, usando la dirección de la variable en el catálogo.</p></section>`;
+    <details class="notas"><summary>Qué es un target</summary>
+    <p class="muted">Un target es un valor objetivo que defines tú. No se colorea: solo se indica si está alcanzado y la distancia, usando la dirección de la variable en el catálogo.</p></details></section>`;
 }
 
 // Asimetría horizontal como en VALD: eje central en 0, azul (izquierda) hacia la izquierda y naranja (derecha) hacia la derecha, con la fecha en el eje vertical.
@@ -260,8 +260,11 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const ctx = refData ? refContext({ refData, test, variable, sides, filters: f, playerId: player.id, positionId, srcVar }) : null;
   const posNombre = positions.find((p) => p.id === positionId)?.name;
   const REF_OPTS = [['p50', 'P50 La Liga', 'p50', [], 2], ['p50pos', `P50 La Liga (${posNombre ?? 'posición'})`, 'p50pos', [8, 4], 2], ['p75', 'P75 La Liga', 'p75', [2, 3], 2], ['p75pos', `P75 La Liga (${posNombre ?? 'posición'})`, 'p75pos', [10, 3, 2, 3], 2], ['premier50', 'P50 Premier League', 'premier50', [], 1.5], ['premier75', 'P75 Premier League', 'premier75', [8, 3], 1.5]];
-  const chosen = String(q.rl ?? '').split(',').filter(Boolean);
-  const refLines = ctx ? REF_OPTS.filter(([k]) => chosen.includes(k) && ctx.lines[k] != null).map(([k, label, , dash, w]) => ({ k, label, value: ctx.lines[k], dash, w, color: k.startsWith('premier') ? PAL.premier : PAL.laLiga })) : [];
+  // Por defecto: P50 La Liga y P50 Premier League. «none» = ninguna marcada.
+  const chosen = q.rl === undefined ? ['p50', 'premier50'] : String(q.rl).split(',').filter((x) => x && x !== 'none');
+  const paOpts = sides.map((sd) => ['pa' + sd, variable.sides === 'LR' ? `Personal Average (${sd === 'L' ? 'I' : 'D'})` : 'Personal Average', [6, 4], 2, variable.sides === 'LR' ? colorLado(sd) : PAL.texto, stats[sd].pa.defined ? stats[sd].pa.value : null]);
+  const opts = [...REF_OPTS.map(([k, label, , dash, w]) => [k, label, dash, w, k.startsWith('premier') ? PAL.premier : PAL.laLiga, ctx?.lines[k] ?? null]), ...paOpts];
+  const refLines = opts.filter(([k, , , , , v]) => chosen.includes(k) && v != null).map(([k, label, dash, w, color, v]) => ({ k, label, value: v, dash, w, color }));
   const all = sides.flatMap((sd) => [...series[sd].valid, ...series[sd].excluded].map((p) => p.value).concat(tg[sd] ? [tg[sd].value] : [])).concat(refLines.map((r) => r.value));
   const pad = all.length ? (Math.max(...all) - Math.min(...all)) * 0.1 || Math.abs(Math.max(...all)) * 0.1 || 1 : 1;
   const yMin = all.length ? Math.min(...all) - pad : undefined, yMax = all.length ? Math.max(...all) + pad : undefined; // mismo eje para ambos lados
@@ -278,9 +281,9 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
       <label>Hasta <input type="date" value=${to} onInput=${(e) => setQ({ to: e.target.value })} /></label>
     </div>
     <${NotaRelativa} variable=${variable} omitted=${omitted} catalog=${catalog} />
-    <fieldset class="modes"><legend>Líneas de referencia en el gráfico</legend>${REF_OPTS.map(([k, label]) => { const off = !ctx || ctx.lines[k] == null ; return html`<label class="check" key=${k} title=${off ? (k.endsWith('pos') && positionId == null ? 'El jugador no tiene posición principal.' : k.startsWith('premier') ? 'Esta variable no figura en las tablas de la Premier League.' : `Sin muestra suficiente (mínimo ${ctx?.minN ?? 10} jugadores).`) : ''}><input type="checkbox" disabled=${off} checked=${chosen.includes(k)} onChange=${(e) => setQ({ rl: (e.target.checked ? [...chosen, k] : chosen.filter((x) => x !== k)).join(',') || undefined })} /> ${label}</label>`; })}</fieldset>
+    <fieldset class="modes"><legend>Líneas de referencia en el gráfico</legend>${opts.map(([k, label, , , , v]) => { const off = v == null; return html`<label class="check" key=${k} title=${off ? (k.startsWith('pa') ? 'Sin sesiones válidas en el periodo.' : k.endsWith('pos') && positionId == null ? 'El jugador no tiene posición principal.' : k.startsWith('premier') ? 'Esta variable no figura en las tablas de la Premier League.' : `Sin muestra suficiente (mínimo ${ctx?.minN ?? 10} jugadores).`) : ''}><input type="checkbox" disabled=${off} checked=${!off && chosen.includes(k)} onChange=${(e) => setQ({ rl: (e.target.checked ? [...chosen, k] : chosen.filter((x) => x !== k)).join(',') || 'none' })} /> ${label}</label>`; })}</fieldset>
     ${sides.some((sd) => series[sd].valid.length)
-      ? html`<${Grafico} deps=${[key, 'lineas', refLines.map((r) => r.k + r.value).join(), !!ctx]} nombre=${`evolucion-${variable.name}`} label=${`Evolución de ${variable.name}: ${sides.map((sd) => `${sideName[sd]} ${series[sd].valid.length} sesiones`).join(', ')}`} build=${(c) => lineConfig(c, { sides, series, stats, unit: variable.unit, yMin, yMax, tg, refLines, info: ctx ? (v) => ctx.info(v, 'last') : null })} />`
+      ? html`<${Grafico} deps=${[key, 'lineas', refLines.map((r) => r.k + r.value).join(), !!ctx]} nombre=${`evolucion-${variable.name}`} label=${`Evolución de ${variable.name}: ${sides.map((sd) => `${sideName[sd]} ${series[sd].valid.length} sesiones`).join(', ')}`} build=${(c) => lineConfig(c, { sides, series, unit: variable.unit, yMin, yMax, tg, refLines, info: ctx ? (v) => ctx.info(v, 'last') : null })} />`
       : html`<p class="muted">Sin sesiones válidas en el periodo.</p>`}
     <${TargetRapido} key=${'tr' + variable.id + player.id} player=${player} variable=${variable} sides=${sides} own=${targets.find((t) => t.scope === 'player' && t.playerId === player.id && t.variableId === variable.id)} reload=${reload} />
     <${TargetPanel} key=${'t' + variable.id} player=${player} variable=${variable} sides=${sides} targets=${targets} positions=${positions} positionId=${positionId} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} reload=${reload} />
@@ -289,8 +292,7 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
       <details class="notas"><summary>Cómo se calcula la asimetría</summary>
       <p class="muted">|D − I| ÷ máx × 100 y la letra del lado con el valor más alto (L izquierda, R derecha). Como en VALD: barra azul hacia la izquierda si el lado izquierdo es mayor, naranja hacia la derecha si lo es el derecho.</p>
       </details>
-      <${Grafico} deps=${[key, 'asim']} nombre=${`asimetria-${variable.name}`} alto=${`${Math.max(9, 3.2 + asym.length * 2.2)}rem`} label=${`Asimetría de ${variable.name}: ${asym.length} sesiones`} build=${(c) => asymConfig(c, asym, variable)} />
-      <p class="muted">Última: ${asymText(asym[asym.length - 1].pct)} (izquierda ${nf(asym[asym.length - 1].left)}, derecha ${nf(asym[asym.length - 1].right)} ${variable.unit ?? ''}).</p></section>` : null}
+      <${Grafico} deps=${[key, 'asim']} nombre=${`asimetria-${variable.name}`} alto=${`${Math.max(9, 3.2 + asym.length * 2.2)}rem`} label=${`Asimetría de ${variable.name}: ${asym.length} sesiones`} build=${(c) => asymConfig(c, asym, variable)} /></section>` : null}
     <${PercentilesPanel} key=${variable.id} player=${player} test=${test} variable=${variable} mine=${sessions} q=${q} setQ=${setQ} filters=${f} targets=${tg} refData=${refData} abs=${abs} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} />
     <${RelacionTest} key=${'rel' + test.id + player.id} player=${player} test=${test} />
     <${OrzTest} key=${'orz' + test.id + player.id} player=${player} test=${test} />
@@ -352,11 +354,13 @@ export function ResultadosJugador({ player, query = {} }) {
   const mName = (t) => catalog.manifestations.find((m) => m.id === t.manifestationId)?.name ?? 'Sin manifestación';
   const zName = (t) => catalog.zones.find((z) => z.id === t.zoneId)?.name ?? null;
   const groups = [...new Set(tests.map(mName))];
+  const rank = (t) => { const z = (zName(t) ?? '').toLowerCase(); return z.startsWith('hip') ? 0 : z.startsWith('groin') ? 0.5 : z.startsWith('knee') ? 1 : z.startsWith('ankle') ? 2 : 3; }; // Hip, (Groin), Knee, Ankle; sin zona al final
+  const ordered = (g) => tests.filter((t) => mName(t) === g).map((t, i) => [t, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([t]) => t);
   return html`<${Card} titulo="Resultados por bloque">
     ${test ? html`<${Migas} items=${[{ label: 'Jugadores', href: '#jugadores' }, { label: playerLabel(player) }, { label: test.name }]} />` : null}
     <div role="tablist" aria-label="Bloques" class="tabs">${blocks.map(([k, n]) => html`<button type="button" role="tab" key=${k} aria-selected=${block === k} class=${block === k ? 'tab on' : 'tab'} onClick=${() => setQ({ b: k, t: undefined, v: undefined })}>${n} <span class="muted">(${testsOf(k).length})</span></button>`)}</div>
     ${!tests.length ? html`<p class="muted">${block === 'fuerza' ? 'Este jugador aún no tiene sesiones de fuerza. Impórtalas desde «Importar».' : 'Sin datos en este bloque todavía (aún no hay importación para él).'}</p>` : html`
-      <div class="test-list">${groups.map((g) => html`<div key=${g}><h3>${g}</h3><div class="chips">${tests.filter((t) => mName(t) === g).map((t) => html`<button type="button" key=${t.id} class=${t.id === test.id ? 'chip on' : 'chip'} aria-pressed=${t.id === test.id} onClick=${() => setQ({ t: t.id, v: undefined })}>${zName(t) ? zName(t) + ' · ' : ''}${t.name}</button>`)}</div></div>`)}</div>
+      <div class=${`test-list cols-${Math.min(5, groups.length)}`}>${groups.map((g) => html`<div key=${g}><h3>${g}</h3><div class="chips">${ordered(g).map((t) => html`<button type="button" key=${t.id} class=${t.id === test.id ? 'chip on' : 'chip'} aria-pressed=${t.id === test.id} onClick=${() => setQ({ t: t.id, v: undefined })}>${zName(t) ? zName(t) + ' · ' : ''}${t.name}</button>`)}</div></div>`)}</div>
       <div class="test-sticky"><span class="muted">${playerLabel(player)} ·</span> <h3>${test.name}</h3></div>
       <${PanelTest} key=${test.id} player=${player} test=${test} catalog=${catalog} sessions=${sessions.filter((s) => s.testId === test.id)} omitted=${omitted} reload=${reload} q=${query} setQ=${setQ} targets=${targets} positions=${positions} positionId=${positionId} />`}
   <//><${AltaManualCarga} player=${player} catalog=${catalog} reload=${reload} />`;

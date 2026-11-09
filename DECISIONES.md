@@ -288,3 +288,16 @@ Estilo y biblioteca (D20) cerrados el 6 de noviembre de 2026. Ese mismo día se 
 - «Max Force Asymmetry» se calcula (D25: (D − I) ÷ máx × 100, positivo si domina la derecha); coincide con «Max Imbalance (%)» de VALD en las 62 filas del fichero aportado, también tras fusionar sesiones. El resto de columnas (fuerza media, impulso, RFD, tiempo al pico, por kg) no se importan.
 - Ratios del Excel (Personal Best ÷ Personal Best, el Excel usa el valor máximo): cadera aducción 0° ÷ abducción 0° (palanca larga, N, valor único; comprobado: 297 ÷ 244 = 1,21721 igual que el Excel); tobillo inversión ÷ eversión por lado, con asimetría entre ratios (D25). Se muestran en la pantalla del test (inversión, eversión, aducción 0°, abducción 0°) con percentil de La Liga y color de posición (sin dirección «mejor/peor»; tobillo con las dos piernas juntas). Interpretación mía de «tercera columna Left / Right / Asimetría»: bloque propio bajo los percentiles, con filas Izquierda, Derecha y Asimetría.
 - Versión 8i.
+
+## (80) Importador de Excel con libros grandes (9/11/2026)
+- Fallo: al elegir el Excel de cadera el asistente no avanzaba. Causa: la lectura del .xlsx usaba una descompresión en Web Worker (blob:) cuando la hoja es grande, y la política de seguridad de la página la bloquea (sin mensaje de error visible).
+- Solución sin relajar la política: `libs.js` recompilado con descompresión síncrona (`fflate-sync.js`, alias de fflate). Comprobado con el Excel de cadera y tobillo del usuario: se leen las dos hojas, se reconocen «Jugador», «Longitud de pierna / palanca» y «Peso». Prueba automática: el paquete no contiene workers desde blob.
+- Versión 8j.
+
+## (81) Ajustes de pantalla (10/11/2026)
+- Jugadores: «Nuevo jugador» pasa debajo de la lista. El texto sobre targets queda plegado («Qué es un target»).
+- Eliminar jugadores: en «Unificar o eliminar» del perfil se puede eliminar también un jugador con datos; borra sus sesiones, antropometría, perfiles carga-velocidad, targets, alias y posiciones (doble confirmación con recuentos; auditoría solo con ids y recuentos).
+- Selector de tests: manifestaciones en 1–5 columnas y, debajo de cada una, los tests en filas ordenados Hip, (Groin), Knee, Ankle; los que no tienen zona, al final. (El orden de Groin entre Hip y Knee es decisión mía; no lo pediste expresamente.)
+- Líneas de referencia: el Personal Average (I/D o único) deja de dibujarse siempre y pasa a ser una casilla más. Marcadas por defecto: P50 La Liga y P50 Premier League (si hay dato). Se guarda en la dirección de la página (rl=none = ninguna).
+- Asimetría: se elimina el texto «Última: …» bajo el gráfico (los valores salen en el gráfico y el tooltip).
+- Versión 8k.

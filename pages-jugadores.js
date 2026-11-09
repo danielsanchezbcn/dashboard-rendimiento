@@ -2,7 +2,7 @@ import { html, useState } from './libs.js';
 import { useApp } from './context.js';
 import { Card, Msg, Sintetico, useLoad, useRunner } from './componentes.js';
 import { fmtDay, todayIso, isIsoDay } from './fechas.js';
-import { normalizeName, playerLabel, baseName, SOURCES, createPlayer, updatePlayer, setPlayerActive, addAlias, removeAlias, duplicateNameWarning, mergePlayers, deleteEmptyPlayer, playerDataCounts } from './jugadores.js';
+import { normalizeName, playerLabel, baseName, SOURCES, createPlayer, updatePlayer, setPlayerActive, addAlias, removeAlias, duplicateNameWarning, mergePlayers, deletePlayerWithData, playerDataCounts } from './jugadores.js';
 import { listPositions, playerHistory, positionOnDate, setMainPosition, clearMainPosition, addSecondaryPosition, deleteHistoryRecord } from './posiciones.js';
 import { METRICS, playerAnthropometry, addAnthropometry, updateAnthropometry, deleteAnthropometry, setReferenceWeight, clearReferenceWeight } from './antropometria.js';
 import { totalOf, countSynthetic } from './sinteticos.js';
@@ -51,6 +51,20 @@ export function Jugadores() {
   return html`
     <h2 class="page-title">Jugadores</h2>
     ${totalOf(data.synth) > 0 ? html`<div class="banner info" role="status">Hay datos sintéticos de demostración (${totalOf(data.synth)} registros), marcados como <${Sintetico} />. Se eliminan todos juntos desde <a href="#configuracion">Configuración</a>.</div>` : null}
+    <${Card} titulo=${`Lista (${rows.length})`}>
+      <div class="fields">
+        <label>Buscar por nombre o alias <input type="search" value=${q} onInput=${(e) => setQ(e.target.value)} /></label>
+        <label class="check"><input type="checkbox" checked=${showInactive} onChange=${(e) => setShowInactive(e.target.checked)} /> Mostrar inactivos</label>
+      </div>
+      ${rows.length === 0
+        ? html`<p class="muted">${data.players.length === 0 ? 'Todavía no hay jugadores.' : 'Ningún jugador coincide con el filtro.'}</p>`
+        : html`<div class="table-wrap"><table>
+            <thead><tr><th scope="col">Jugador (nombre completo y alias)</th><th scope="col">Posición principal hoy</th><th scope="col">Estado</th></tr></thead>
+            <tbody>${rows.map((p) => html`<tr key=${p.id}>
+              <th scope="row"><a href=${'#jugador-' + p.id}>${playerLabel(p)}</a> ${p.synthetic ? html`<${Sintetico} />` : null}</th>
+              <td>${current(p.id)}</td><td>${p.active ? 'Activo' : 'Inactivo'}</td></tr>`)}</tbody>
+          </table></div>`}
+    <//>
     <${Card} titulo="Nuevo jugador">
       <form onSubmit=${create} class="fields">
         <label>Nombre completo (el de VALD) <input type="text" value=${full} onInput=${(e) => setFull(e.target.value)} /></label>
@@ -66,20 +80,6 @@ export function Jugadores() {
       </form>
       ${data.positions.length === 0 ? html`<p class="muted">Todavía no hay posiciones definidas. Defínelas en <a href="#configuracion">Configuración</a>; no se precarga ninguna.</p>` : null}
       <${Msg} msg=${msg} />
-    <//>
-    <${Card} titulo=${`Lista (${rows.length})`}>
-      <div class="fields">
-        <label>Buscar por nombre o alias <input type="search" value=${q} onInput=${(e) => setQ(e.target.value)} /></label>
-        <label class="check"><input type="checkbox" checked=${showInactive} onChange=${(e) => setShowInactive(e.target.checked)} /> Mostrar inactivos</label>
-      </div>
-      ${rows.length === 0
-        ? html`<p class="muted">${data.players.length === 0 ? 'Todavía no hay jugadores.' : 'Ningún jugador coincide con el filtro.'}</p>`
-        : html`<div class="table-wrap"><table>
-            <thead><tr><th scope="col">Jugador (nombre completo y alias)</th><th scope="col">Posición principal hoy</th><th scope="col">Estado</th></tr></thead>
-            <tbody>${rows.map((p) => html`<tr key=${p.id}>
-              <th scope="row"><a href=${'#jugador-' + p.id}>${playerLabel(p)}</a> ${p.synthetic ? html`<${Sintetico} />` : null}</th>
-              <td>${current(p.id)}</td><td>${p.active ? 'Activo' : 'Inactivo'}</td></tr>`)}</tbody>
-          </table></div>`}
     <//>
   `;
 }
@@ -259,8 +259,10 @@ function UnificarEliminar({ player }) {
   });
   const mergeAndReport = async (e) => { await merge(e); };
   const del = run(async () => {
-    if (!confirm(`¿Eliminar definitivamente a «${playerLabel(player)}»? No tiene datos guardados.`)) throw new Error('Eliminación cancelada.');
-    await deleteEmptyPlayer(db, player.id);
+    const resumen = withData === 0 ? 'No tiene datos guardados.' : `Se borrarán también ${c.sessions} sesiones, ${c.anthropometry} mediciones, ${c.fvProfiles} perfiles carga-velocidad y ${c.targets} targets suyos.`;
+    if (!confirm(`¿Eliminar definitivamente a «${playerLabel(player)}»?\n\n${resumen}\nEs permanente: haz antes una copia de seguridad.`)) throw new Error('Eliminación cancelada.');
+    if (withData > 0 && !confirm(`Última confirmación: se perderán todos los datos de «${playerLabel(player)}». ¿Eliminar?`)) throw new Error('Eliminación cancelada.');
+    await deletePlayerWithData(db, player.id);
     bump();
     window.location.hash = '#jugadores';
   });
@@ -273,8 +275,9 @@ function UnificarEliminar({ player }) {
     </form>
     <p class="muted">Las sesiones no se fusionan: si tras unificar hubiera dos del mismo test, fecha y hora, se conservan las dos y se te avisa. Los datos del jugador que desaparece no se sobrescriben sobre los del que se conserva.</p>
     <h4>Eliminar este jugador</h4>
-    ${withData === 0 ? html`<p>Esta ficha no tiene sesiones, mediciones, perfiles ni targets: se puede eliminar.</p><div class="actions"><button type="button" class="secondary" disabled=${busy} onClick=${del}>Eliminar jugador</button></div>`
-      : html`<p class="muted">No se puede eliminar porque tiene datos (${c.sessions} sesiones, ${c.anthropometry} mediciones, ${c.fvProfiles} perfiles carga-velocidad, ${c.targets} targets). Puedes desactivarlo en «Datos básicos» o unificarlo con otra ficha.</p>`}
+    ${withData === 0 ? html`<p>Esta ficha no tiene sesiones, mediciones, perfiles ni targets.</p>`
+      : html`<p class="muted">Esta ficha tiene datos (${c.sessions} sesiones, ${c.anthropometry} mediciones, ${c.fvProfiles} perfiles carga-velocidad, ${c.targets} targets). Si la eliminas se borran con ella. Si solo quieres dejar de usarla, desactívala en «Datos básicos»; si es un duplicado, unifícala arriba.</p>`}
+    <div class="actions"><button type="button" class="secondary" disabled=${busy} onClick=${del}>Eliminar jugador</button></div>
     <${Msg} msg=${msg} />
   <//>`;
 }
