@@ -14,6 +14,8 @@ import { PercentilesPanel, useRefData, refContext } from './pages-percentiles.js
 import { positionOnDate } from './posiciones.js';
 import { withReferenceWeights } from './relaciones.js';
 import { isAsymVariable, asymText } from './catalogo.js';
+import { AsimTexto } from './asim-ui.js';
+import { PanelAsimetrias } from './pages-asimetrias.js';
 import { setTarget, deleteTarget, resolveTarget, distanceToTarget } from './targets.js';
 import { buildSeries, personalAverage, personalBestFor, currentResult, asymmetrySeries, setSessionExcluded, deleteSessionPermanently, correctSession } from './evolucion.js';
 import { playerLabel, nameMatchesPlayer } from './jugadores.js';
@@ -173,7 +175,7 @@ function AccionesSesion({ s, player, test, reload, many, variable }) {
 function TablaSesiones({ sessions, vars, variable, player, test, reload }) {
   const lr = variable.sides === 'LR';
   const sorted = [...sessions].sort((a, b) => (b.date + (b.time || '')).localeCompare(a.date + (a.time || '')) || b.id - a.id);
-  const cell = (s, side) => { const v = s.values?.[variable.id]?.[side]; return Number.isFinite(v) ? (isAsymVariable(variable) ? asymText(v) : nf(v)) : '—'; };
+  const cell = (s, side) => { const v = s.values?.[variable.id]?.[side]; return Number.isFinite(v) ? (isAsymVariable(variable) ? html`<${AsimTexto} pct=${v} />` : nf(v)) : '—'; };
   const reps = (s, side) => (side === 'S' ? s.reps?.total : s.reps?.[side]) ?? '—';
   return html`<div class="table-wrap"><table><caption>Sesiones de ${test.name} · ${variable.name}${variable.unit ? ` (${variable.unit})` : ''}</caption>
     <thead><tr><th>Fecha</th>${lr ? html`<th>Left</th><th>Right</th><th>Rep. L / R</th>` : html`<th>Valor</th><th>Rep.</th>`}<th>Estado</th><th>Origen</th><th>Acciones</th></tr></thead>
@@ -411,7 +413,7 @@ function AltaManualCarga({ player, catalog, reload, fixedTest = null }) {
     </form><${Msg} msg=${msg} /><//>`;
 }
 
-const BLOQUES = [['edicion', 'Edición'], ['fuerza', 'Manifestaciones de la fuerza'], ['perimetros', 'Datos antropométricos'], ['nme', 'NME']];
+const BLOQUES = [['edicion', 'Edición'], ['fuerza', 'Manifestaciones de la fuerza'], ['perimetros', 'Datos antropométricos'], ['nme', 'NME'], ['asimetrias', 'Asimetrías']];
 
 // Edición y Datos antropométricos llegan ya hechos desde la ficha (`edicion`, `antrop`); el perfil carga-velocidad (`fv`) solo se muestra en los tests de perfil F–V.
 export function ResultadosJugador({ player, query = {}, edicion = null, antrop = null, fv = null }) {
@@ -457,7 +459,7 @@ export function ResultadosJugador({ player, query = {}, edicion = null, antrop =
       ${cuerpoTest()}`;
   return html`<${Card} titulo="Resultados por bloque">
     ${test ? html`<${Migas} items=${[{ label: 'Jugadores', href: '#jugadores' }, { label: playerLabel(player) }, { label: test.name }]} />` : null}
-    <div role="tablist" aria-label="Bloques" class="tabs">${BLOQUES.map(([k, n]) => html`<button type="button" role="tab" key=${k} aria-selected=${block === k} class=${block === k ? 'tab on' : 'tab'} onClick=${() => setQ({ b: k, t: undefined, v: undefined })}>${n}${k === 'edicion' ? '' : html` <span class="muted">(${allOf(k).filter(hasSessions).length})</span>`}</button>`)}</div>
-    ${block === 'edicion' ? edicion : block === 'perimetros' ? html`${listaTests()}${antrop}` : listaTests()}
+    <div role="tablist" aria-label="Bloques" class="tabs">${BLOQUES.map(([k, n]) => html`<button type="button" role="tab" key=${k} aria-selected=${block === k} class=${block === k ? 'tab on' : 'tab'} onClick=${() => setQ({ b: k, t: undefined, v: undefined })}>${n}${k === 'edicion' || k === 'asimetrias' ? '' : html` <span class="muted">(${allOf(k).filter(hasSessions).length})</span>`}</button>`)}</div>
+    ${block === 'edicion' ? edicion : block === 'asimetrias' ? html`<${PanelAsimetrias} catalog=${catalog} sessions=${sessions} q=${query} setQ=${setQ} />` : block === 'perimetros' ? html`${listaTests()}${antrop}` : listaTests()}
   <//>`;
 }

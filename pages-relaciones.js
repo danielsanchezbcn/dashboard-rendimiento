@@ -11,7 +11,7 @@ import { playerLabel } from './jugadores.js';
 import { PAL } from './colores.js';
 import { FUENTE_GRAFICOS } from './fuentes.js';
 import { BANDS } from './percentiles.js';
-import { asymText } from './catalogo.js';
+import { AsimTexto } from './asim-ui.js';
 
 const nf = (n, d = 2) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 
@@ -136,7 +136,7 @@ function RatioTestCarga({ player, isAnkle }) {
       <details class="notas"><summary>Cómo se calcula</summary><p class="muted">Peak Force Personal Best de Supine Isometric Ankle Inversion ÷ Peak Force Personal Best de Supine Isometric Ankle Eversion, por lado (como en tu Excel, que usa el valor máximo). La asimetría es la del ratio izquierdo frente al derecho (positiva si domina la derecha, D25). El color indica la posición en La Liga (las dos piernas juntas), no «mejor/peor».</p></details>
       <div class="table-wrap"><table><thead><tr><th scope="col">Lado</th><th scope="col" class="num">Ratio</th><th scope="col">La Liga</th></tr></thead><tbody>
         ${rows.map(([k, nm, x, ev]) => html`<tr key=${k}><th scope="row">${nm}</th><td class="num" title=${det(x)}>${x.defined ? nf(x.value) : html`<span class="muted" title=${det(x)}>—</span>`}</td><td><${Chip} ev=${ev} detail=${det(x)} /></td></tr>`)}
-        <tr><th scope="row">Asimetría</th><td class="num">${m.ankleAsym === null ? '—' : asymText(m.ankleAsym, 1)}</td><td class="muted">—</td></tr>
+        <tr><th scope="row">Asimetría</th><td class="num">${m.ankleAsym === null ? '—' : html`<${AsimTexto} pct=${m.ankleAsym} d=${1} />`}</td><td class="muted">—</td></tr>
       </tbody></table></div>
     </section>`;
   }

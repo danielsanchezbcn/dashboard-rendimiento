@@ -12,6 +12,7 @@ import { PREMIER_SEASON, CUT_NAMES, findPremier, estimateRelative, placeAgainstP
 import { findNatera, classifyNatera, NATERA_SOURCE } from './natera.js';
 import { listPositions } from './posiciones.js';
 import { asymmetryPct, asymText, isAsymVariable } from './catalogo.js';
+import { asimClase } from './asim-ui.js';
 import { BANDS, MIN_N_DEFAULT, buildReference, evaluate, playerValue, perfQuantile } from './percentiles.js';
 import { PAL, colorLado } from './colores.js';
 import { isRelative, relFactor } from './relativos.js';
@@ -85,7 +86,7 @@ function EscalaG4({ filas, refs, unit, target }) {
         <circle cx=${f.cx[i]} cy=${yb + 28} r="11" fill=${colorLado(r.side)} />
         ${r.side === 'S' ? null : html`<text x=${f.cx[i]} y=${yb + 32} text-anchor="middle" font-size="12" font-weight="700" fill=${PAL.fondo}>${r.side}</text>`}
         <text x=${f.cx[i] + (f.close ? (f.cx[i] === Math.min(...f.cx) ? 4 : -4) : 0)} y=${yb + 56} text-anchor=${f.close ? (f.cx[i] === Math.min(...f.cx) ? 'end' : 'start') : 'middle'} font-size="12" fill=${T}>${nfv(r.value)}</text></g>`)}
-      ${f.asym != null && f.rows.length === 2 ? html`<g><path d=${`M ${f.cx[0]} ${yb + 72} v 6 H ${f.cx[1]} v -6`} fill="none" stroke=${T} stroke-opacity="0.6" /><text x=${Math.min(W - 90, Math.max(90, (f.cx[0] + f.cx[1]) / 2))} y=${yb + 94} text-anchor="middle" font-size="12" fill=${T}>Asimetría ${asymText(f.asym)}</text></g>` : null}</g></g>`; })}
+      ${f.asym != null && f.rows.length === 2 ? html`<g><path d=${`M ${f.cx[0]} ${yb + 72} v 6 H ${f.cx[1]} v -6`} fill="none" stroke=${T} stroke-opacity="0.6" /><text x=${Math.min(W - 90, Math.max(90, (f.cx[0] + f.cx[1]) / 2))} y=${yb + 94} text-anchor="middle" font-size="12" fill=${T}>Asimetría <tspan class=${asimClase(f.asym) || null}>${asymText(f.asym)}</tspan></text></g>` : null}</g></g>`; })}
     <text x=${L} y=${Hs - 6} text-anchor="start" font-size="11" fill=${T}>${nfv(min)} ${unit ?? ''}</text><text x=${W - R} y=${Hs - 6} text-anchor="end" font-size="11" fill=${T}>${nfv(max)} ${unit ?? ''}</text>
   </svg></div><//>${out ? html`<p class="muted">Algún valor queda fuera del rango de la referencia de La Liga: la escala se ha ampliado para mostrarlo.</p>` : null}`;
 }
@@ -114,7 +115,7 @@ function TablaSvg({ titulo, sides, filas, nat, SD }) {
       ${sides.map((sd, i) => { const c = f.cells[sd]; const x0 = sx(i);
         if (!c) return html`<g key=${sd}><text x=${x0 + cw.v / 2} y=${cy + 4} text-anchor="middle" font-size="14" fill=${T} fill-opacity="0.5">—</text></g>`;
         return html`<g key=${sd}><title>${c.tip}</title>
-          <text x=${x0 + cw.v / 2} y=${cy + 4} text-anchor="middle" font-size="14" fill=${T}>${c.valor}</text>
+          <text x=${x0 + cw.v / 2} y=${cy + 4} text-anchor="middle" font-size="14" fill=${T} class=${c.cls || null}>${c.valor}</text>
           ${c.ll.badge ? html`<g><circle cx=${x0 + cw.v + cw.l / 2} cy=${cy} r="14" fill=${bandHex(c.ll.key)[0]} /><text x=${x0 + cw.v + cw.l / 2} y=${cy + 4.5} text-anchor="middle" font-size="13" font-weight="700" fill=${bandHex(c.ll.key)[1]}>${c.ll.txt}</text></g>` : html`<text x=${x0 + cw.v + cw.l / 2} y=${cy + 4} text-anchor="middle" font-size="11" fill=${T} fill-opacity="0.6">${c.ll.txt}</text>`}
           ${c.pl ? badge(x0 + cw.v + cw.l + cw.p / 2, cy, c.pl.txt, c.pl.key, ancho(c.pl.txt)) : html`<text x=${x0 + cw.v + cw.l + cw.p / 2} y=${cy + 4} text-anchor="middle" font-size="11" fill=${T} fill-opacity="0.6">${c.plVacio}</text>`}
           ${nat ? (c.nat ? badge(x0 + cw.v + cw.l + cw.p + cw.n / 2, cy, c.nat.txt, c.nat.key, Math.min(cw.n - 8, ancho(c.nat.txt))) : html`<text x=${x0 + cw.v + cw.l + cw.p + cw.n / 2} y=${cy + 4} text-anchor="middle" font-size="12" fill=${T} fill-opacity="0.5">—</text>`) : null}</g>`; })}</g>`; })}
@@ -213,7 +214,7 @@ export function PercentilesPanel({ player, test, variable, mine, q, setQ, filter
     const llb = c.ev.sufficient && c.ev.percentileStat !== null; const bandKey = c.ev.band !== null && c.ev.band !== undefined ? BANDS[c.ev.band].key : null;
     const ll = llb && bandKey ? { badge: true, txt: nf(c.ev.percentilePerf, 0), key: bandKey } : llb ? { badge: false, txt: `P${nf(c.ev.percentileStat, 0)}` } : { badge: false, txt: 'sin muestra' };
     const k = nat ? classifyNatera(nat, c.value) : null;
-    return [sd, { valor: txt(c.value), tip: `${SD[sd]} · ${name}${c.tip ? ' · ' + c.tip : ''}${c.ev.sufficient ? ` · P50 de La Liga: ${nfv(c.ev.p50)}${u} · N = ${c.ev.n}` : ''}`, ll,
+    return [sd, { valor: txt(c.value), cls: asy ? asimClase(c.value) : '', tip: `${SD[sd]} · ${name}${c.tip ? ' · ' + c.tip : ''}${c.ev.sufficient ? ` · P50 de La Liga: ${nfv(c.ev.p50)}${u} · N = ${c.ev.n}` : ''}`, ll,
       pl: c.pl?.placed ? { txt: c.pl.text, key: c.pl.band } : null, plVacio: plRef ? 'sin ubicar' : '—', nat: k ? { txt: k.text, key: k.band } : null }]; })) }));
   const tipSpan = (t, tip) => (tip ? html`<span title=${tip} aria-label=${`${t}. ${tip}`} tabindex="0">${t}</span>` : html`${t}`);
   const escala = html`<section class="refs"><fieldset class="modes"><legend class="sec-titulo">Benchmark-Contextualized Positioning</legend>
@@ -229,7 +230,7 @@ export function PercentilesPanel({ player, test, variable, mine, q, setQ, filter
       <thead><tr><th rowspan="2" scope="col">Medida</th>${sides.map((sd) => html`<th key=${sd} colspan=${nCols} scope="colgroup">${SD[sd]}</th>`)}</tr>
         <tr>${sides.flatMap((sd) => [html`<th key=${sd + 'v'} scope="col" class="num">Valor</th>`, html`<th key=${sd + 'l'} scope="col">La Liga</th>`, html`<th key=${sd + 'p'} scope="col">Premier League</th>`, ...(nat ? [html`<th key=${sd + 'n'} scope="col" title=${`Natera: Normal desde ${nf(nat.normal, 2)} ${nat.unit} · Good desde ${nf(nat.good, 2)} · Excellent desde ${nf(nat.excellent, 2)}`}>Natera (${nat.unit})</th>`] : [])])}</tr></thead>
       <tbody>${[BASES[1], BASES[2], BASES[0]].map(([b, name]) => html`<tr key=${b}><th scope="row">${b === 'last' ? (() => { const days = [...new Set(sides.map((sd) => current?.[sd]?.date).filter(Boolean))]; return days.length ? days.map(fmtDay).join(' / ') : name; })() : name}</th>${sides.flatMap((sd) => { const c = cell[b + sd]; if (c.value == null) return [html`<td key=${sd + 'v'} class="num"><span class="muted" title=${c.tip ?? ''}>—</span></td>`, html`<td key=${sd + 'l'}>—</td>`, html`<td key=${sd + 'p'}>—</td>`, ...(nat ? [html`<td key=${sd + 'n'}>—</td>`] : [])];
-        return [html`<td key=${sd + 'v'} class="num">${tipSpan(txt(c.value), c.tip)}</td>`,
+        return [html`<td key=${sd + 'v'} class=${'num' + (asy && asimClase(c.value) ? ' ' + asimClase(c.value) : '')}>${tipSpan(txt(c.value), c.tip)}</td>`,
           html`<td key=${sd + 'l'} title=${c.ev.sufficient ? `P50 de La Liga: ${nfv(c.ev.p50)}${u} · N = ${c.ev.n}` : ''}><${CeldaPercentil} ev=${c.ev} /></td>`,
           html`<td key=${sd + 'p'}>${c.pl?.placed ? html`<span class=${`badge band-${c.pl.band}`}>${c.pl.text}</span>` : plRef ? html`<span class="muted">sin ubicar</span>` : '—'}</td>`, ...(nat ? [html`<td key=${sd + 'n'}>${(() => { const k = classifyNatera(nat, c.value); return k ? html`<span class=${`badge band-${k.band}`}>${k.text}</span>` : '—'; })()}</td>`] : [])]; })}</tr>`)}</tbody></table></div></div>
     ${pbMissing ? html`<p class="muted">${pbMissing.reason}${/catálogo/.test(pbMissing.reason) ? html` <a href=${'#catalogo-test-' + variable.testId}>Abrir el test en el catálogo</a>.` : null}</p>` : null}

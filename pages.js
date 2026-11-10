@@ -32,7 +32,8 @@ export function Bloque({ titulo, vacio, detalle }) {
 
 // ---------- Inicio ----------
 
-export function Inicio() {
+// «embebido»: el resumen va dentro de Copias de seguridad (sin título propio ni enlace a esa misma pantalla).
+export function Inicio({ embebido = false }) {
   const { db, version } = useApp();
   const [info, setInfo] = useState(null);
   useEffect(() => {
@@ -49,14 +50,14 @@ export function Inicio() {
   if (!info) return html`<p>Cargando…</p>`;
   const bs = backupState(info.lastBackup, info.days);
   return html`
-    <h2 class="page-title">Inicio</h2>
+    ${embebido ? null : html`<h2 class="page-title">Inicio</h2>`}
     <div class="grid">
       <${Card} titulo="Copia de seguridad">
         <p class=${'status ' + bs.level}>${bs.level === 'warn' ? 'Atención: ' : ''}${bs.text}</p>
         ${info.lastBackup
           ? html`<p class="muted">${info.lastBackup.name} · ${fmtMB(info.lastBackup.size)} · ${info.lastBackup.destino}${info.lastBackup.cifrada ? ' · cifrada' : ''}${info.lastBackup.gzip ? ' · comprimida' : ''}</p>`
           : null}
-        <p><a class="btn" href="#copias">Crear o restaurar una copia</a></p>
+        ${embebido ? null : html`<p><a class="btn" href="#copias">Crear o restaurar una copia</a></p>`}
       <//>
       <${Card} titulo="Almacenamiento en este navegador">
         <p class=${'status ' + (info.persistence?.persistente ? 'ok' : 'warn')}>
@@ -231,6 +232,7 @@ function RestaurarCopia() {
 export function Copias() {
   return html`
     <h2 class="page-title">Copias de seguridad</h2>
+    <${Inicio} embebido=${true} />
     <${CrearCopia} />
     <${RestaurarCopia} />
     <${Card} titulo="Qué debes saber">

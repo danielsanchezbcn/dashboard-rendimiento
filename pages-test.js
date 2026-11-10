@@ -17,6 +17,7 @@ import { pairContext, isIsoDerived } from './isohold.js';
 import { PREMIER_SEASON, findPremier, estimateRelative, placeAgainstPremier } from './premier.js';
 import { withReferenceWeights } from './relaciones.js';
 import { downloadBlob } from './io.js';
+import { AsimTexto, asimClase } from './asim-ui.js';
 import { playerLabel } from './jugadores.js';
 
 const nf = (n, d = 2) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
@@ -127,9 +128,10 @@ export function VistaTest({ id, query = {} }) {
   const cell = (c) => {
     if (c == null) return html`<span class="muted">—</span>`;
     if (c.value === null) return html`<span class="muted" title=${c.reason}>no definido</span>`;
-    const txt = isAsymVariable(variable) ? asymText(c.value) : `${nf(c.value)}${unit}`;
+    const asimV = isAsymVariable(variable), txt = asimV ? asymText(c.value) : `${nf(c.value)}${unit}`;
     const tip = mode === 'pa' ? `${fmtDay(c.from)} a ${fmtDay(c.date)}` : c.date ? fmtDay(c.date) : '';
-    return tip ? html`<span title=${tip} aria-label=${`${txt}. ${tip}`}>${txt}</span>` : html`${txt}`;
+    const cls = asimV ? asimClase(c.value) || null : null;
+    return tip ? html`<span class=${cls} title=${tip} aria-label=${`${txt}. ${tip}`}>${txt}</span>` : html`<span class=${cls}>${txt}</span>`;
   };
   const repsOf = (r) => res.sides.map((s) => r.cells[s]).filter(Boolean).map((c) => (c.sessions ? `${c.sessions} ses.${c.reps != null ? `, ${c.reps} rep.` : ''}` : c.reps ?? '—')).join(' / ');
   const hrefFor = (pid) => buildHash(`jugador-${pid}`, { ...KEEP({ ...query, m: mode }), t: id, v: variable.id, b: 'fuerza', from: query.from, to: query.to });
@@ -169,7 +171,7 @@ export function VistaTest({ id, query = {} }) {
       <tbody>${g.rows.map((r, i) => html`<tr key=${i} class=${r.playerId === originId ? 'origin' : ''}>
         <th scope="row"><a href=${hrefFor(r.playerId)}>${r.playerName}</a>${r.playerId === originId ? html` <span class="muted">(origen)</span>` : ''}${r.multi ? html`<small class="cell-date">ocupó varias posiciones</small>` : ''}<small class="cell-date">${repsOf(r)}</small></th>
         ${res.sides.map((s) => html`<td key=${s} class="num"><a href=${hrefFor(r.playerId)}>${cell(r.cells[s])}</a></td>`)}
-        ${lr ? html`<td class="num">${r.asym == null ? '—' : asymText(r.asym)}</td>` : null}
+        ${lr ? html`<td class="num">${r.asym == null ? '—' : html`<${AsimTexto} pct=${r.asym} />`}</td>` : null}
         ${pctOn ? res.sides.map((s) => html`<td key=${'p' + s}><${CeldaPercentil} ev=${pctOf(r, s)} /></td>`) : null}
         ${pctOn ? res.sides.map((s) => html`<td key=${'q' + s}><${CeldaPremier} pl=${plOf(r, s)} /></td>`) : null}</tr>`)}</tbody></table></div>`)}
     ${query.ex === '1' ? (excluded.length ? html`<div class="table-wrap"><table><caption>Sesiones excluidas (no cuentan en la tabla anterior ni en percentiles)</caption>

@@ -36,7 +36,7 @@ await guardarAngulos(db, { playerId: id, testKey: 'jurdan', results: res, date: 
 check('con otra hora sí se guarda', (await db.sessions.count()) === 2);
 let e3 = ''; try { await guardarAngulos(db, { playerId: id, testKey: 'jurdan', results: res, date: '10/11/2026', catalog }); } catch (e) { e3 = e.message; }
 check('fecha inválida rechazada', /fecha no es válida/.test(e3));
-check('la auditoría no guarda valores', (await db.auditLog.toArray()).filter((x) => x.action === 'sesion-angulos').every((x) => !/values|shin|thigh|57\.8/.test(JSON.stringify(x))));
+check('la auditoría no guarda valores', (await db.auditLog.toArray()).filter((x) => x.action === 'sesion-angulos').every((x) => !/values|shin|thigh|57\.8/.test(JSON.stringify(x).replace(/\d{4}-\d\d-\d\dT[\d:.]+Z/g, ''))))  // se quita la marca de tiempo: sus milisegundos podían coincidir con «57.8» (falso positivo intermitente);
 // la herramienta: sin red y sin almacenamiento
 const html = fs.readFileSync('angulos.html', 'utf8'); const js = ['angulos-app.js', 'angulos-engine.js', 'angulos-detector.js', 'angulos-exportar.js', 'angulos-utils.js', 'angulos-registry.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n');
 check('angulos.html: política sin red (solo mismo origen)', /default-src 'none'/.test(html) && !/https?:\/\//.test(html.replace(/<!--[\s\S]*?-->/g, '').replace(/xmlns[^"]*"[^"]*"/g, '')));
