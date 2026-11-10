@@ -65,8 +65,8 @@ check('paso 1: fichero leído con su tabla de filas', /Leído: demo\.csv/.test(t
 await click(btn(document, 'Continuar: asignar columnas'));
 check('paso 2 visible', /2\. Asigna las columnas/.test(text()));
 check('paso 2: «Continuar» desactivado sin test', btn(document, 'Continuar: vista previa').disabled);
-const sel = $$('select').find((s) => [...s.options].some((o) => o.textContent === 'Run-Specific Hip Iso-Push'));
-await setVal(sel, [...sel.options].find((o) => o.textContent === 'Run-Specific Hip Iso-Push').value, 'change');
+const sel = $$('select').find((s) => [...s.options].some((o) => o.textContent.toLowerCase() === 'run-specific hip iso-push'));
+await setVal(sel, [...sel.options].find((o) => o.textContent.toLowerCase() === 'run-specific hip iso-push').value, 'change');
 check('propuesta inicial: columna 1 jugador, 2 fecha, 3 repeticiones', selectByAria('Qué es la columna 1').value === 'jugador' && selectByAria('Qué es la columna 2').value === 'fecha' && selectByAria('Qué es la columna 3').value === 'reps');
 check('propuesta inicial: Peak Force izquierdo y derecho', selectByAria('Qué es la columna 4').value === 'valor' && selectByAria('Lado de la columna 4').value === 'L' && selectByAria('Lado de la columna 5').value === 'R');
 check('propuesta inicial: RFD at 100 ms izquierdo y derecho', selectByAria('Lado de la columna 6').value === 'L' && selectByAria('Lado de la columna 7').value === 'R');

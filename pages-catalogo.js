@@ -6,6 +6,7 @@ import { useApp } from './context.js';
 import { Card, Msg, useLoad, useRunner } from './componentes.js';
 import * as C from './catalogo.js';
 import { EnlaceAngulos } from './pages-angulos.js';
+import { dn, up } from './nombres.js';
 
 const ND = html`<span class="muted">No definido</span>`;
 const byId = (list) => Object.fromEntries(list.map((x) => [x.id, x]));
@@ -63,8 +64,8 @@ function NuevoTest({ data }) {
       return id;
     }, 'test creado.')}>
     <label>Nombre del test <input type="text" required value=${name} onInput=${(e) => setName(e.target.value)} /></label>
-    <label>Bloque <select value=${block} onChange=${(e) => { setBlock(e.target.value); setMan(''); }}>${data.blocks.map((b) => html`<option key=${b.key} value=${b.key}>${b.name}</option>`)}</select></label>
-    <label>Manifestación <select value=${man} onChange=${(e) => setMan(e.target.value)}><option value="">Sin manifestación</option>${mans.map((m) => html`<option key=${m.id} value=${m.id}>${m.name}</option>`)}</select></label>
+    <label>Bloque <select value=${block} onChange=${(e) => { setBlock(e.target.value); setMan(''); }}>${data.blocks.map((b) => html`<option key=${b.key} value=${b.key}>${up(b.name)}</option>`)}</select></label>
+    <label>Manifestación <select value=${man} onChange=${(e) => setMan(e.target.value)}><option value="">Sin manifestación</option>${mans.map((m) => html`<option key=${m.id} value=${m.id}>${up(m.name)}</option>`)}</select></label>
     <label>Zona <select value=${zone} onChange=${(e) => setZone(e.target.value)}><option value="">Sin zona</option>${data.zones.filter((z) => !z.archived).map((z) => html`<option key=${z.id} value=${z.id}>${z.name}</option>`)}</select></label>
     <div class="actions"><button type="submit" disabled=${busy}>Añadir test</button></div>
     <${Msg} msg=${msg} />
@@ -84,13 +85,13 @@ function TestsCard({ data }) {
   return html`<${Card} titulo="Tests" id="tests">
     <div class="fields">
       <label>Buscar <input type="search" value=${q} onInput=${(e) => setQ(e.target.value)} /></label>
-      <label>Bloque <select value=${block} onChange=${(e) => setBlock(e.target.value)}><option value="">Todos</option>${data.blocks.map((b) => html`<option key=${b.key} value=${b.key}>${b.name}</option>`)}</select></label>
+      <label>Bloque <select value=${block} onChange=${(e) => setBlock(e.target.value)}><option value="">Todos</option>${data.blocks.map((b) => html`<option key=${b.key} value=${b.key}>${up(b.name)}</option>`)}</select></label>
       <label class="check"><input type="checkbox" checked=${showArchived} onChange=${(e) => setShowArchived(e.target.checked)} /> Mostrar archivados</label>
     </div>
     ${rows.length === 0 ? html`<p class="muted">No hay tests con ese filtro.</p>` : html`<div class="table-wrap"><table>
       <thead><tr><th scope="col">Test</th><th scope="col">Manifestación</th><th scope="col">Zona</th><th scope="col" class="num">Variables</th></tr></thead>
       <tbody>${rows.map((t) => html`<tr key=${t.id} class=${t.archived ? 'inactive' : ''}>
-        <td><a href=${'#catalogo-test-' + t.id}>${t.name}</a><${Archivada} x=${t} /></td>
+        <td><a href=${'#catalogo-test-' + t.id}>${dn(t.name)}</a><${Archivada} x=${t} /></td>
         <td>${mans[t.manifestationId]?.name ?? '—'}</td>
         <td>${zones[t.zoneId]?.name ?? '—'}</td>
         <td class="num">${nVars[t.id] || 0}</td></tr>`)}</tbody></table></div>`}
@@ -131,7 +132,7 @@ function TestDatos({ test, data }) {
   return html`<${Card} titulo="Datos del test">
     <form class="fields" onSubmit=${run(async () => { await C.updateTest(db, test.id, { name, notes, manifestationId: man === '' ? null : Number(man), zoneId: zone === '' ? null : Number(zone) }); bump(); }, 'guardado.')}>
       <label>Nombre <input type="text" required value=${name} onInput=${(e) => setName(e.target.value)} /></label>
-      <label>Manifestación del listado <select value=${man} onChange=${(e) => setMan(e.target.value)}><option value="">Sin manifestación</option>${mans.map((m) => html`<option key=${m.id} value=${m.id}>${m.name}</option>`)}</select></label>
+      <label>Manifestación del listado <select value=${man} onChange=${(e) => setMan(e.target.value)}><option value="">Sin manifestación</option>${mans.map((m) => html`<option key=${m.id} value=${m.id}>${up(m.name)}</option>`)}</select></label>
       <label>Zona <select value=${zone} onChange=${(e) => setZone(e.target.value)}><option value="">Sin zona</option>${data.zones.map((z) => html`<option key=${z.id} value=${z.id}>${z.name}</option>`)}</select></label>
       <label>Notas <input type="text" value=${notes} onInput=${(e) => setNotes(e.target.value)} /></label>
       <div class="actions">
@@ -199,7 +200,7 @@ function VariableForm({ test, variable, rawVars, data, onDone }) {
     ${kind === 'derived' && op ? html`<p class="muted" style="flex-basis:100%">La unidad la fija la operación elegida (${C.OPERATIONS[op].unit}). Si cambias la operación, revisa también el nombre de la variable.</p>` : null}
     <label>Valores <select value=${sides} onChange=${(e) => setSides(e.target.value)}>${optionsOf(C.SIDES, 'No definido')}</select></label>
     <label>Dirección de interpretación <select value=${direction} onChange=${(e) => setDirection(e.target.value)}>${optionsOf(C.DIRECTIONS, 'No definida')}</select></label>
-    <label>Manifestación de la variable <select value=${man} onChange=${(e) => setMan(e.target.value)}><option value="">La del test</option>${mans.map((m) => html`<option key=${m.id} value=${m.id}>${m.name}</option>`)}</select></label>
+    <label>Manifestación de la variable <select value=${man} onChange=${(e) => setMan(e.target.value)}><option value="">La del test</option>${mans.map((m) => html`<option key=${m.id} value=${m.id}>${up(m.name)}</option>`)}</select></label>
     <label>Tipo <select value=${kind} disabled=${!!v} onChange=${(e) => setKind(e.target.value)}>${Object.entries(C.KINDS).map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select></label>
     ${kind === 'derived' ? html`
       <label>Operación <select value=${op} onChange=${(e) => setOp(e.target.value)}><option value="">Solo descripción</option>${Object.entries(C.OPERATIONS).filter(([k, d]) => !d.system || op === k).map(([k, d]) => html`<option key=${k} value=${k}>${d.label}</option>`)}</select></label>
@@ -225,7 +226,7 @@ function VariableRow({ v, test, rawVars, data, history }) {
   const op = v.formula?.op ? C.OPERATIONS[v.formula.op] : null;
   const src = v.formula?.operands?.[0] ? rawVars.find((r) => r.id === v.formula.operands[0])?.name : null;
   return html`<tr class=${v.archived ? 'inactive' : ''}>
-    <td>${v.name}<${Archivada} x=${v} /></td>
+    <td>${dn(v.name)}<${Archivada} x=${v} /></td>
     <td>${v.unit ?? ND}</td>
     <td>${v.sides ? C.SIDES[v.sides] : ND}</td>
     <td>${v.direction ? C.DIRECTIONS[v.direction] : ND}</td>
@@ -238,7 +239,7 @@ function VariableRow({ v, test, rawVars, data, history }) {
     <td class="acts">
       <button type="button" class="secondary" onClick=${() => setEdit(!edit)}>${edit ? 'Cerrar' : 'Editar'}</button>
       <button type="button" class="secondary" disabled=${busy} onClick=${run(async () => { await C.setVariableArchived(db, v.id, !v.archived); bump(); })}>${v.archived ? 'Activar' : 'Archivar'}</button>
-      <button type="button" class="secondary" disabled=${busy} onClick=${run(async () => { if (confirm(`¿Eliminar la variable «${v.name}»? Solo es posible si no tiene datos ni otras variables dependen de ella.`)) { await C.deleteVariable(db, v.id); bump(); } })}>Eliminar</button>
+      <button type="button" class="secondary" disabled=${busy} onClick=${run(async () => { if (confirm(`¿Eliminar la variable «${dn(v.name)}»? Solo es posible si no tiene datos ni otras variables dependen de ella.`)) { await C.deleteVariable(db, v.id); bump(); } })}>Eliminar</button>
       <${Msg} msg=${msg} />
     </td></tr>
     ${edit ? html`<tr><td colspan="7"><${VariableForm} test=${test} variable=${v} rawVars=${rawVars} data=${data} onDone=${() => setEdit(false)} /></td></tr>` : null}`;
@@ -261,7 +262,7 @@ export function TestDetalle({ id }) {
   const protocols = cat.protocols.filter((p) => p.testId === id);
   return html`
     <p><a href="#catalogo">← Volver al catálogo</a></p>
-    <h2 class="page-title">${test.name}${test.archived ? html` <span class="badge">ARCHIVADO</span>` : null}</h2>
+    <h2 class="page-title">${dn(test.name)}${test.archived ? html` <span class="badge">ARCHIVADO</span>` : null}</h2>
     ${test.name === 'Jurdan Test' ? html`<${EnlaceAngulos} />` : null}
     <${TestDatos} key=${'d' + test.id + test.updatedAt} test=${test} data=${cat} />
     <${Protocolos} test=${test} protocols=${protocols} />
@@ -281,10 +282,10 @@ export function TestDetalle({ id }) {
 export function BloqueCatalogo({ blockKey, titulo, vacio }) {
   const { db, version } = useApp();
   const { data } = useLoad(() => C.listCatalog(db), [db, version]);
-  if (!data) return html`<h2 class="page-title">${titulo}</h2><p>Cargando…</p>`;
+  if (!data) return html`<h2 class="page-title">${up(titulo)}</h2><p>Cargando…</p>`;
   const tests = data.tests.filter((t) => t.blockKey === blockKey && !t.archived);
   if (tests.length === 0) {
-    return html`<h2 class="page-title">${titulo}</h2><${Card} titulo=${vacio}><p>Los tests, protocolos, variables y unidades de este bloque los defines tú en el <a href="#catalogo">catálogo</a>. No se precarga nada.</p><//>`;
+    return html`<h2 class="page-title">${up(titulo)}</h2><${Card} titulo=${vacio}><p>Los tests, protocolos, variables y unidades de este bloque los defines tú en el <a href="#catalogo">catálogo</a>. No se precarga nada.</p><//>`;
   }
   const mans = byId(data.manifestations);
   const zones = byId(data.zones);
@@ -296,9 +297,9 @@ export function BloqueCatalogo({ blockKey, titulo, vacio }) {
   }
   const nVars = {};
   for (const v of data.variables) if (!v.archived) nVars[v.testId] = (nVars[v.testId] || 0) + 1;
-  return html`<h2 class="page-title">${titulo}</h2>
+  return html`<h2 class="page-title">${up(titulo)}</h2>
     <p class="muted">Aún no hay sesiones: los resultados llegarán con los importadores. Esto es el catálogo configurado; se edita en el <a href="#catalogo">catálogo de tests</a>.</p>
-    ${groups.map((g) => html`<${Card} key=${g.mid ?? 'sin'} titulo=${g.mid ? mans[g.mid].name : 'Sin manifestación'}>
-      <ul>${g.ts.map((t) => html`<li key=${t.id}><a href=${'#catalogo-test-' + t.id}>${t.name}</a>${t.zoneId ? html` <span class="muted">· ${zones[t.zoneId]?.name}</span>` : null} <span class="muted">· ${nVars[t.id] || 0} variables</span></li>`)}</ul>
+    ${groups.map((g) => html`<${Card} key=${g.mid ?? 'sin'} titulo=${g.mid ? up(mans[g.mid].name) : 'SIN MANIFESTACIÓN'}>
+      <ul>${g.ts.map((t) => html`<li key=${t.id}><a href=${'#catalogo-test-' + t.id}>${dn(t.name)}</a>${t.zoneId ? html` <span class="muted">· ${zones[t.zoneId]?.name}</span>` : null} <span class="muted">· ${nVars[t.id] || 0} variables</span></li>`)}</ul>
     <//>`)}`;
 }

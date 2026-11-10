@@ -12,7 +12,7 @@
 
 import { Dexie } from './libs.js';
 
-export const APP_VERSION = '9a-0.1.0';
+export const APP_VERSION = '9b-0.1.0';
 export const DB_NAME = 'dashboard-rendimiento';
 export const NON_BACKUP_TABLES = ['local'];
 

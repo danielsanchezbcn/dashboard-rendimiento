@@ -18,6 +18,7 @@ import { PAL, colorLado } from './colores.js';
 import { isRelative, relFactor } from './relativos.js';
 import { Copiable } from './copiar.js';
 import { ICONO_LALIGA, ICONO_PREMIER, ICONO_TARGET, ICONO_NATERA } from './iconos.js';
+import { dn } from './nombres.js';
 
 const nf = (n, d = 1) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 const nfv = (n) => nf(n, 2);
@@ -225,8 +226,8 @@ export function PercentilesPanel({ player, test, variable, mine, q, setQ, filter
   if (parte === 'escala') return escala;
   const tabla = html`<section class="refs"><h4 class="sec-titulo">Normative Benchmarking</h4>
     <div class="filters"><label>Referencia de La Liga <select value=${rp} onChange=${(e) => setQ({ rp: e.target.value })}><option value="all">Todas las posiciones</option>${positions.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label></div>
-    <${TablaSvg} titulo=${`${variable.name}${unit && !variable.name.includes(`(${unit})`) ? ` (${unit})` : ""}`} sides=${sides} filas=${filasTabla} nat=${nat} SD=${SD} />
-    <div class="sr"><div class="table-wrap"><table><caption>${variable.name}${unit && !variable.name.includes(`(${unit})`) ? ` (${unit})` : ''}</caption>
+    <${TablaSvg} titulo=${`${dn(variable.name)}${unit && !variable.name.includes(`(${unit})`) ? ` (${unit})` : ""}`} sides=${sides} filas=${filasTabla} nat=${nat} SD=${SD} />
+    <div class="sr"><div class="table-wrap"><table><caption>${dn(variable.name)}${unit && !variable.name.includes(`(${unit})`) ? ` (${unit})` : ''}</caption>
       <thead><tr><th rowspan="2" scope="col">Medida</th>${sides.map((sd) => html`<th key=${sd} colspan=${nCols} scope="colgroup">${SD[sd]}</th>`)}</tr>
         <tr>${sides.flatMap((sd) => [html`<th key=${sd + 'v'} scope="col" class="num">Valor</th>`, html`<th key=${sd + 'l'} scope="col">La Liga</th>`, html`<th key=${sd + 'p'} scope="col">Premier League</th>`, ...(nat ? [html`<th key=${sd + 'n'} scope="col" title=${`Natera: Normal desde ${nf(nat.normal, 2)} ${nat.unit} · Good desde ${nf(nat.good, 2)} · Excellent desde ${nf(nat.excellent, 2)}`}>Natera (${nat.unit})</th>`] : [])])}</tr></thead>
       <tbody>${[BASES[1], BASES[2], BASES[0]].map(([b, name]) => html`<tr key=${b}><th scope="row">${b === 'last' ? (() => { const days = [...new Set(sides.map((sd) => current?.[sd]?.date).filter(Boolean))]; return days.length ? days.map(fmtDay).join(' / ') : name; })() : name}</th>${sides.flatMap((sd) => { const c = cell[b + sd]; if (c.value == null) return [html`<td key=${sd + 'v'} class="num"><span class="muted" title=${c.tip ?? ''}>—</span></td>`, html`<td key=${sd + 'l'}>—</td>`, html`<td key=${sd + 'p'}>—</td>`, ...(nat ? [html`<td key=${sd + 'n'}>—</td>`] : [])];

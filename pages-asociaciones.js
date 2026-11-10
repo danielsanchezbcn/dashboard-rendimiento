@@ -12,6 +12,7 @@ import { MIN_N_DEFAULT } from './percentiles.js';
 import { expandRelative } from './relativos.js';
 import { withReferenceWeights } from './relaciones.js';
 import { variableOptions, crossSectional, withinPlayer } from './asociaciones.js';
+import { dn } from './nombres.js';
 
 const nf = (n, d = 2) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 const ci = (c) => (c ? `[${nf(c[0])} ; ${nf(c[1])}]` : 'no calculable (correlación perfecta o muy pocos datos)');
@@ -28,8 +29,8 @@ function Dispersion({ res, xo, yo }) {
   const xt = niceTicks(Math.min(...xs), Math.max(...xs)), yt = niceTicks(Math.min(...ys), Math.max(...ys));
   const X = (v) => L + ((v - xt[0]) / (xt.at(-1) - xt[0])) * (W - L - R), Y = (v) => H - B - ((v - yt[0]) / (yt.at(-1) - yt[0])) * (H - B - T);
   const lines = res.mode === 'within' ? [...Map.groupBy(res.obs, (o) => o.id).values()].map((g) => g.sort((a, b) => a.x - b.x)) : [];
-  const xl = `${xo.test.name} · ${xo.variable.name}${xo.unit ? ` (${xo.unit})` : ''}${xo.side !== 'S' ? ` · ${xo.side === 'L' ? 'Izq.' : 'Der.'}` : ''}`;
-  const yl = `${yo.test.name} · ${yo.variable.name}${yo.unit ? ` (${yo.unit})` : ''}${yo.side !== 'S' ? ` · ${yo.side === 'L' ? 'Izq.' : 'Der.'}` : ''}`;
+  const xl = `${dn(xo.test.name)} · ${dn(xo.variable.name)}${xo.unit ? ` (${xo.unit})` : ''}${xo.side !== 'S' ? ` · ${xo.side === 'L' ? 'Izq.' : 'Der.'}` : ''}`;
+  const yl = `${dn(yo.test.name)} · ${dn(yo.variable.name)}${yo.unit ? ` (${yo.unit})` : ''}${yo.side !== 'S' ? ` · ${yo.side === 'L' ? 'Izq.' : 'Der.'}` : ''}`;
   return html`<${Copiable} nombre="dispersion"><svg class="scatter" viewBox=${`0 0 ${W} ${H}`} width="100%" role="img" aria-label=${`Dispersión: ${xl} (horizontal) frente a ${yl} (vertical), ${res.n} observaciones`}>
     ${xt.map((t) => html`<g key=${'x' + t}><line x1=${X(t)} x2=${X(t)} y1=${T} y2=${H - B} class="gridline" /><text x=${X(t)} y=${H - B + 16} text-anchor="middle">${nf(t, 1)}</text></g>`)}
     ${yt.map((t) => html`<g key=${'y' + t}><line x1=${L} x2=${W - R} y1=${Y(t)} y2=${Y(t)} class="gridline" /><text x=${L - 6} y=${Y(t) + 4} text-anchor="end">${nf(t, 1)}</text></g>`)}
@@ -98,7 +99,7 @@ export function Relaciones({ query = {} }) {
       ${res.sufficient && mode === 'within' ? html`${res.rm.defined ? html`<div class="table-wrap"><table><thead><tr><th>Método</th><th class="num">r intra-jugador</th><th>IC 95 %</th><th class="num">Pares</th><th class="num">Jugadores</th><th class="num">gl</th></tr></thead><tbody>
         <tr><th scope="row">Correlación de medidas repetidas</th><td class="num">${nf(res.rm.r)}</td><td>${ci(res.rm.ci)}</td><td class="num">${res.rm.N}</td><td class="num">${res.rm.k}</td><td class="num">${res.rm.df}</td></tr></tbody></table></div>
         <details class="notas"><summary>Cómo se calcula</summary><p class="muted">Correlación de medidas repetidas (Bakdash y Marusich, 2017): cada jugador tiene su propio nivel y comparte una pendiente común; mide si, cuando una variable sube en un jugador, la otra tiende a subir o bajar <em>en ese mismo jugador</em>. Las líneas del gráfico unen los días de cada jugador. Es distinta de la relación entre jugadores y puede tener signo opuesto.</p></details>` : html`<p class="status warn">${res.rm.reason}</p>`}` : null}
-      ${res.n ? html`<details><summary>Tabla de observaciones (${res.n})</summary><div class="table-wrap"><table><thead><tr><th>Jugador</th>${mode === 'within' ? html`<th>Fecha</th>` : html`<th>Periodo</th>`}<th class="num">${xo.variable.name}${xo.unit ? ` (${xo.unit})` : ''}</th><th class="num">${yo.variable.name}${yo.unit ? ` (${yo.unit})` : ''}</th></tr></thead>
+      ${res.n ? html`<details><summary>Tabla de observaciones (${res.n})</summary><div class="table-wrap"><table><thead><tr><th>Jugador</th>${mode === 'within' ? html`<th>Fecha</th>` : html`<th>Periodo</th>`}<th class="num">${dn(xo.variable.name)}${xo.unit ? ` (${xo.unit})` : ''}</th><th class="num">${dn(yo.variable.name)}${yo.unit ? ` (${yo.unit})` : ''}</th></tr></thead>
         <tbody>${res.obs.map((o, i) => html`<tr key=${i}><th scope="row">${o.name}${o.synthetic ? ' (sintético)' : ''}</th><td>${mode === 'within' ? fmtDay(o.date) : `${fmtDay(o.from)} a ${fmtDay(o.to)}`}</td><td class="num">${nf(o.x)}</td><td class="num">${nf(o.y)}</td></tr>`)}</tbody></table></div></details>` : null}
       <p class="muted">Criterio estadístico <strong>provisional</strong>: pendiente de tu confirmación. Descripción de asociaciones; no implica causalidad.</p>
     <//>`}`;

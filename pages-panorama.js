@@ -11,6 +11,7 @@ import { evaluate, buildReference } from './percentiles.js';
 import { placeAgainstPremier } from './premier.js';
 import { fmtDay } from './fechas.js';
 import { AsimTexto } from './asim-ui.js';
+import { dn } from './nombres.js';
 
 export const PANORAMA_TESTS = ['CMJ', 'Double-Leg Hop Test', 'DL Drop Jump 30 cm', 'DL Drop Jump 45 cm']; // CMJ y Reactive Strength
 export const esPanorama = (test) => PANORAMA_TESTS.includes(test?.name) || test?.blockKey === 'perimetros';
@@ -78,7 +79,7 @@ export function Panorama({ player, test, catalog, sessions, refData, q, setQ, se
   const tieneLR = cols.some((c) => c.sides.length === 2), tienePl = cols.some((c) => c.hayPl), tieneS = cols.some((c) => c.sides.length === 1);
   const lastDate = cols.map((c) => c.date).filter(Boolean).sort().at(-1);
   const paFrom = cols.map((c) => c.from).filter(Boolean).sort()[0];
-  const nombre = (v) => v.name + (v.unit && !v.name.includes(`(${v.unit})`) ? '' : '');
+  const nombre = (v) => dn(v.name) + (v.unit && !v.name.includes(`(${v.unit})`) ? '' : '');
   const pick = (id) => { setQ({ v: id }); setTimeout(() => document.getElementById('detalle-variable')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250); };
   const crit = vars.find((v) => v.pbCriterion)?.pbCriterion ?? null;
   const critCorto = crit ? (/\bRSI\b/i.test(crit.name) ? 'RSI' : crit.name) : '';
@@ -90,10 +91,10 @@ export function Panorama({ player, test, catalog, sessions, refData, q, setQ, se
     return `Personal Average${paFrom && lastDate ? (paFrom === lastDate ? ` (${fmtDay(lastDate)})` : ` (${fmtDay(paFrom)} – ${fmtDay(lastDate)})`) : ''}`;
   };
   const tipVal = (c, sd) => { const x = c.o[sd]; return x ? `${sd === 'S' ? '' : sd === 'L' ? 'Left · ' : 'Right · '}${base === 'pa' ? `${fmtDay(x.from)} a ${fmtDay(x.date)}` : fmtDay(x.date)}` : ''; };
-  return html`<section class="panorama" aria-label=${`${test.name}: todas las variables`}>
-    <h4 class="sec-titulo">${test.name} · todas las variables</h4>
+  return html`<section class="panorama" aria-label=${`${dn(test.name)}: todas las variables`}>
+    <h4 class="sec-titulo"><span class="nombre">${dn(test.name)}</span> · todas las variables</h4>
     <fieldset class="modes"><legend>Valor mostrado</legend>${bases.map(([k, n]) => html`<label class="check" key=${k}><input type="radio" name="pano-base" checked=${base === k} onChange=${() => setQ({ pn: k })} /> ${etq(k, n)}</label>`)}</fieldset>
-    <div class="table-wrap pano-wrap"><table class="pano"><caption class="sr">${test.name}: valor y percentiles de cada variable del jugador (${etq(base, '')})</caption>
+    <div class="table-wrap pano-wrap"><table class="pano"><caption class="sr">${dn(test.name)}: valor y percentiles de cada variable del jugador (${etq(base, '')})</caption>
       <thead><tr><td class="pano-lab"></td>${cols.map((c) => html`<th key=${c.v.id} scope="col" class=${c.v.id === selectedId ? 'sel' : ''}><button type="button" class="pano-th" aria-pressed=${c.v.id === selectedId} title="Ver el gráfico longitudinal de esta variable" onClick=${() => pick(c.v.id)}><span class="pano-nm">${nombre(c.v)}</span>${c.v.unit ? html`<small>${c.v.unit}</small>` : null}</button></th>`)}</tr></thead>
       <tbody>
         <tr><th scope="row" class="pano-lab">Valor</th>${cols.map((c) => html`<td key=${c.v.id} class=${'num' + (c.v.id === selectedId ? ' sel' : '')}>${c.sides.length === 1 ? (c.valor != null ? html`<strong title=${tipVal(c, 'S')}>${nf(c.valor)}</strong>` : '—') : html`<span class="lr"><span class="l" title=${tipVal(c, 'L')}>L ${nf(c.o.L?.value)}</span><span class="r" title=${tipVal(c, 'R')}>R ${nf(c.o.R?.value)}</span></span>`}</td>`)}</tr>

@@ -17,6 +17,7 @@ const nf = (n, d = 2) => (n === null || n === undefined ? '—' : Number(n).toLo
 const fx = (v) => Number(v).toLocaleString('es-ES', { minimumFractionDigits: digits(v), maximumFractionDigits: digits(v) });
 const digits = (v) => (Math.abs(v) >= 100 ? 0 : Math.abs(v) >= 10 ? 1 : 2);
 import { FUENTE_GRAFICOS } from './fuentes.js';
+import { dn } from './nombres.js';
 const FONT = FUENTE_GRAFICOS;
 const LILA = '#ffffff'; /* valores del jugador: blanco (9/11/2026) */ const MORADO = '#b8a2c9'; const AMARILLO = '#fec900'; const BLANCO = '#ffffff';
 const W = 1000; const H = 484; const CX = 500; const CY = 260; const RREF = 130;
@@ -118,9 +119,9 @@ function RadarEditor({ cfg, tests, variables, onSaved, onCancel }) {
   };
   const reset = async () => { await clearSetting(db, 'radarConfig'); onSaved(); };
   return html`<div class="inline-form" role="group" aria-label="Variables del radar">
-    <label>Test <select value=${testName} onChange=${(e) => { setTestName(e.target.value); setSel([]); }}>${tests.map((t) => html`<option key=${t.id} value=${t.name}>${t.name}</option>`)}</select></label>
+    <label>Test <select value=${testName} onChange=${(e) => { setTestName(e.target.value); setSel([]); }}>${tests.map((t) => html`<option key=${t.id} value=${t.name}>${dn(t.name)}</option>`)}</select></label>
     <fieldset><legend>Variables (de ${RADAR_MIN_AXES} a ${RADAR_MAX_AXES}; el orden es el de marcado: ${sel.length} elegidas)</legend>
-      ${opts.length ? opts.map((v) => html`<label key=${v.id} class="check"><input type="checkbox" checked=${sel.includes(v.name)} onChange=${() => toggle(v.name)} /> ${v.name}${v.unit ? ` (${v.unit})` : ''}</label>`) : html`<p class="muted">Este test no tiene variables de un solo valor con «más alto es mejor».</p>`}
+      ${opts.length ? opts.map((v) => html`<label key=${v.id} class="check"><input type="checkbox" checked=${sel.includes(v.name)} onChange=${() => toggle(v.name)} /> ${dn(v.name)}${v.unit ? ` (${v.unit})` : ''}</label>`) : html`<p class="muted">Este test no tiene variables de un solo valor con «más alto es mejor».</p>`}
     </fieldset>
     <p class="muted">Orden actual de los ejes: ${sel.length ? sel.join(' → ') : '—'}. Se guarda en este navegador y vale para todos los jugadores.</p>
     <button type="button" onClick=${save}>Guardar variables</button> <button type="button" class="secondary" onClick=${reset}>Volver al perfil por defecto (CMJ)</button> <button type="button" class="secondary" onClick=${onCancel}>Cancelar</button><${Msg} msg=${msg} /></div>`;
@@ -175,7 +176,7 @@ export function RadarPanel({ player, testName }) {
       : html`<p class="muted">No hay datos suficientes para dibujar el radar: hacen falta al menos 3 variables con dato del jugador y P50 suficiente de La Liga.</p>`}
     ${radar.axes.length && draw.length ? html`<div class="table-wrap"><table><caption>Valores originales y normalización (cada referencia ÷ P50 de La Liga, todas las posiciones)</caption>
       <thead><tr><th>Variable</th><th class="num">P50 La Liga (N)</th>${draw.filter((k) => k !== 'p50').map((k) => html`<th key=${k} class="num">${refLabel(k, posName, radar.dates)}</th>`)}</tr></thead>
-      <tbody>${radar.axes.map((a) => html`<tr key=${a.variable.id}><th scope="row">${a.label}<small class="cell-date">${a.variable.name}</small></th>
+      <tbody>${radar.axes.map((a) => html`<tr key=${a.variable.id}><th scope="row">${a.label}<small class="cell-date">${dn(a.variable.name)}</small></th>
         <td class="num">${nf(a.laLiga.p50, digits(a.laLiga.p50))} ${a.unit} (${a.laLiga.n})</td>
         ${draw.filter((k) => k !== 'p50').map((k) => html`<td key=${k} class="num">${nf(a.refs[k], digits(a.refs[k]))} ${a.unit} <span class="muted">· ${nf(a.ratios[k] * 100, 0)} %</span></td>`)}</tr>`)}</tbody></table></div>` : null}
     ${radar.omitted.length ? html`<p class="muted">Variables que no entran en el radar: ${radar.omitted.map((o) => `${o.label} (${o.reason})`).join(' · ')}</p>` : null}

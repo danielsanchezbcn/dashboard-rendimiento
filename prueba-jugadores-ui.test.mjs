@@ -69,7 +69,7 @@ await setVal(field(card('Lista'), 'Buscar'), '');
 // crear jugador real con posición inicial
 let nc = card('Nuevo jugador');
 await setVal(field(nc, 'Alias (nombre en camiseta'), 'Real Uno');
-const alfaId = $$('option', field(nc, 'Posición principal inicial')).find((o) => o.textContent === 'Alfa').value;
+const alfaId = $$('option', field(nc, 'Posición principal inicial')).find((o) => o.textContent.toLowerCase() === 'alfa').value;
 await setVal(field(nc, 'Posición principal inicial'), alfaId, 'change');
 await click(btn(nc, 'Crear jugador'), 500);
 check('jugador real creado con su posición', /jugador creado/.test(text()) && cellsOf(card('Lista')).some((r) => r.join('|') === 'Real Uno|Alfa|Activo'), cellsOf(card('Lista')).find((r) => /Real Uno/.test(r[0]))?.join('|'));

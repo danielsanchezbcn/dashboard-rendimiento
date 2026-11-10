@@ -16,6 +16,7 @@ import { fmtDay } from './fechas.js';
 import { baseName, playerLabel } from './jugadores.js';
 import { ImportarImagen } from './pages-imagen.js';
 import { ImportarCargas } from './pages-cargas.js';
+import { dn } from './nombres.js';
 
 const show = (v) => (v === null || v === undefined ? '' : v instanceof Date ? v.toISOString().slice(0, 10) : String(v));
 const STEPS = [['archivo', '1. Archivo'], ['mapeo', '2. Columnas'], ['vista', '3. Vista previa'], ['jugadores', '4. Jugadores'], ['resumen', '5. Resumen'], ['resultado', '6. Informe']];
@@ -217,7 +218,7 @@ function PasoMapeo({ cat, importable, headers, grid, headerRow, subHeader, testI
   return html`<${Card} titulo="2. Asigna las columnas">
     <p>Elige el test y di qué es cada columna. Si hay columnas con un valor por lado, asigna <strong>una columna por lado</strong> (por ejemplo, «Peak Force» izquierdo y «Peak Force» derecho). Las variables calculadas (relativos, asimetrías) no se importan: la aplicación las calcula.</p>
     <div class="fields">
-      <label>Test <select value=${testId} onChange=${(e) => chooseTest(e.target.value)}><option value="">Elige un test…</option>${importable.map((t) => html`<option key=${t.id} value=${t.id}>${t.name}</option>`)}</select></label>
+      <label>Test <select value=${testId} onChange=${(e) => chooseTest(e.target.value)}><option value="">Elige un test…</option>${importable.map((t) => html`<option key=${t.id} value=${t.id}>${dn(t.name)}</option>`)}</select></label>
       ${testId && protocols?.length ? html`<label>Protocolo (opcional) <select value=${protocolId} onChange=${(e) => setProtocolId(e.target.value)}><option value="">Sin protocolo</option>${protocols.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label>` : null}
       ${testId && !hasDate ? html`<label>Fecha única para todo el fichero <input type="date" value=${fixedDate} onInput=${(e) => setFixedDate(e.target.value)} /></label>` : null}
     </div>

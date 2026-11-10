@@ -19,6 +19,7 @@ import { withReferenceWeights } from './relaciones.js';
 import { downloadBlob } from './io.js';
 import { AsimTexto, asimClase } from './asim-ui.js';
 import { playerLabel } from './jugadores.js';
+import { dn } from './nombres.js';
 
 const nf = (n, d = 2) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 export const Migas = ({ items }) => html`<nav aria-label="Ruta de navegación"><ol class="crumbs">${items.map((it, i) => html`<li key=${i}>${it.href ? html`<a href=${it.href}>${it.label}</a>` : html`<span aria-current="page">${it.label}</span>`}</li>`)}</ol></nav>`;
@@ -101,8 +102,8 @@ export function VistaTest({ id, query = {} }) {
   const playersById = Object.fromEntries(players.map((p) => [p.id, p]));
   const histories = {}; for (const r of records) (histories[r.playerId] ??= []).push(r);
   const backLink = (pid) => buildHash(`jugador-${pid}`, { ...KEEP(query), t: id, v: variable?.id, b: 'fuerza' });
-  const crumbs = [{ label: 'Jugadores', href: '#jugadores' }, ...(origin ? [{ label: playerLabel(origin), href: backLink(origin.id) }] : []), { label: `${test.name} · todos los jugadores` }];
-  if (!variable) return html`<${Card} titulo=${test.name}><${Migas} items=${crumbs} /><p class="muted">Ningún jugador tiene sesiones válidas de este test con variables que mostrar.</p><//>`;
+  const crumbs = [{ label: 'Jugadores', href: '#jugadores' }, ...(origin ? [{ label: playerLabel(origin), href: backLink(origin.id) }] : []), { label: `${dn(test.name)} · todos los jugadores` }];
+  if (!variable) return html`<${Card} titulo=${dn(test.name)}><${Migas} items=${crumbs} /><p class="muted">Ningún jugador tiene sesiones válidas de este test con variables que mostrar.</p><//>`;
   // Filtro de posición (la posición única del jugador): 'all', 'none' (sin posición) o el id de una posición.
   const posQ = query.pos ?? 'all';
   const posOfPlayer = (pid) => positionOnDate(histories[pid] ?? []).principal?.positionId ?? null;
@@ -147,11 +148,11 @@ export function VistaTest({ id, query = {} }) {
     const slug = (s) => String(s).normalize('NFD').replace(/\p{M}/gu, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
     downloadBlob(new Blob([buildCsv(header, rows)], { type: 'text/csv;charset=utf-8' }), `${slug(test.name)}_${slug(variable.name)}_${mode}.csv`);
   };
-  return html`<${Card} titulo=${`${test.name} · todos los jugadores`}>
-    <div class="test-sticky"><h3>${test.name}</h3><span class="muted">· todos los jugadores</span></div>
+  return html`<${Card} titulo=${`${dn(test.name)} · todos los jugadores`}>
+    <div class="test-sticky"><h3>${dn(test.name)}</h3><span class="muted">· todos los jugadores</span></div>
     <${Migas} items=${crumbs} />
     <div class="filters">
-      <label>Variable <select value=${variable.id} onChange=${(e) => set({ v: e.target.value })}>${vars.map((v) => html`<option key=${v.id} value=${v.id}>${v.name}${v.unit && !v.name.includes(`(${v.unit})`) ? ` (${v.unit})` : ''}${v.sides === 'LR' ? ' · I/D' : ''}</option>`)}</select></label>
+      <label>Variable <select value=${variable.id} onChange=${(e) => set({ v: e.target.value })}>${vars.map((v) => html`<option key=${v.id} value=${v.id}>${dn(v.name)}${v.unit && !v.name.includes(`(${v.unit})`) ? ` (${v.unit})` : ''}${v.sides === 'LR' ? ' · I/D' : ''}</option>`)}</select></label>
       ${protocols.length ? html`<label>Protocolo <select value=${proto} onChange=${(e) => set({ p: e.target.value })}><option value="all">Todos</option><option value="none">Sin protocolo</option>${protocols.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label>` : null}
       <label>Posición <select value=${posQ} onChange=${(e) => set({ pos: e.target.value })}><option value="all">Todas</option><option value="none">Sin posición</option>${positions.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label>
       <label>Desde <input type="date" value=${query.from ?? ''} onInput=${(e) => set({ from: e.target.value })} /></label>

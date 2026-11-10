@@ -7,6 +7,7 @@ import { listCatalog } from './catalogo.js';
 import { todayIso, isIsoDay, fmtDay } from './fechas.js';
 import { playerLabel } from './jugadores.js';
 import { parseLoadSheet, loadTests, guessLoadTest, proposeLinks, commitLoads } from './cargas-excel.js';
+import { dn } from './nombres.js';
 
 const nf = (n) => Number(n).toLocaleString('es-ES', { maximumFractionDigits: 2 });
 
@@ -56,7 +57,7 @@ export function ImportarCargas() {
       ${hojas.map((h) => html`<section key=${h.name} class="refs"><h4>Hoja «${h.name}»</h4>
         ${!h.parsed.ok ? html`<p class="muted">${h.parsed.reason}</p>` : html`
         <div class="filters"><label class="check"><input type="checkbox" checked=${h.on} onChange=${(e) => setHoja(h.name, { on: e.target.checked })} /> Importar esta hoja</label>
-          <label>Test <select value=${h.testId} onChange=${(e) => setHoja(h.name, { testId: e.target.value })}><option value="">Elige…</option>${tests.map((t) => html`<option key=${t.id} value=${t.id}>${t.name}</option>`)}</select></label></div>
+          <label>Test <select value=${h.testId} onChange=${(e) => setHoja(h.name, { testId: e.target.value })}><option value="">Elige…</option>${tests.map((t) => html`<option key=${t.id} value=${t.id}>${dn(t.name)}</option>`)}</select></label></div>
         ${h.on ? html`<div class="table-wrap"><table><caption>Columna de carga: ${h.parsed.loadCol + 1} · nombres: columna ${h.parsed.nameCol + 1} · ${h.parsed.rows.length} filas con nombre</caption>
           <thead><tr><th>Nombre en el Excel</th><th>Jugador</th><th class="num">Carga (kg)</th><th>Estado</th></tr></thead>
           <tbody>${h.parsed.rows.map((r) => { const pid = playerFor(h, r); const L = h.links[r.name]; const ids = new Set((L?.candidates ?? []).map((c) => c.id));

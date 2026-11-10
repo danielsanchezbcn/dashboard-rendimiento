@@ -492,3 +492,9 @@ table.asim thead th:nth-child(1) { width: 26%; } table.asim thead th:nth-child(2
 table.asim th[scope=row] { text-align: left; font-weight: 600; white-space: normal; overflow-wrap: anywhere; text-transform: none; letter-spacing: normal; }
 .asim-svg { display: block; width: 100%; height: 1.4rem; }
 .asim-svg .bar-l { fill: var(--side-l); } .asim-svg .bar-r { fill: var(--side-r); } .asim-svg .asim-eje { stroke: var(--muted); stroke-width: 1; }
+
+/* Nombres: variables y tests en minúscula (nombres.js); bloques y subbloques en mayúscula */
+.nombre { text-transform: none; letter-spacing: normal; }
+.tabs .tab, .tabs-nav a.tab { text-transform: uppercase; letter-spacing: .06em; font-size: .78rem; }
+.asimetrias .asim-h-sub { text-transform: uppercase; letter-spacing: .08em; }
+.asim-falta { margin: .2rem 0 0; font-size: .8rem; }

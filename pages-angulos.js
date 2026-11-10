@@ -7,6 +7,7 @@ import { todayIso } from './fechas.js';
 import { listCatalog } from './catalogo.js';
 import { playerLabel, baseName } from './jugadores.js';
 import { mapearAngulos, guardarAngulos, hayDestino } from './angulos-mapa.js';
+import { dn } from './nombres.js';
 
 export const EnlaceAngulos = () => html`<${Card} titulo="Medir ángulos">
   <p>Mide el Jurdan Test a partir de dos fotografías y guarda los resultados en el jugador, sin pasar por el Excel.</p>
@@ -54,7 +55,7 @@ export function Angulos({ jugadorId = null }) {
       </form>
       ${sinDestino ? html`<p class="status warn">Este test de la herramienta todavía no tiene destino en el catálogo: puedes medir, pero no guardar. Cómo añadirlo: ver ANGULOS.md.</p>` : null}
       ${map?.error ? html`<p class="status fail">${map.error}</p>` : null}
-      ${map && !map.error ? html`<div class="table-wrap"><table><caption>${map.test.name}: lo que se guardará (${completo ? 'completo' : `faltan ${map.faltan.length} medidas: carga y revisa las dos fotos`})</caption>
+      ${map && !map.error ? html`<div class="table-wrap"><table><caption>${dn(map.test.name)}: lo que se guardará (${completo ? 'completo' : `faltan ${map.faltan.length} medidas: carga y revisa las dos fotos`})</caption>
         <thead><tr><th scope="col">Variable</th><th scope="col" class="num">Izquierda</th><th scope="col" class="num">Derecha</th></tr></thead>
         <tbody>${map.filas.map((f) => html`<tr key=${f.variable}><th scope="row">${f.variable}</th><td class="num">${fmt(f.L)}</td><td class="num">${fmt(f.R)}</td></tr>`)}</tbody></table></div>` : null}
       <${Msg} msg=${msg} />

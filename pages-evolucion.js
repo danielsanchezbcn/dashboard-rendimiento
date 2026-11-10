@@ -27,6 +27,7 @@ import { RadarPanel } from './pages-radar.js';
 import { Angulos } from './pages-angulos.js';
 import { Panorama, esPanorama } from './pages-panorama.js';
 import { ICONO_TARGET } from './iconos.js';
+import { dn } from './nombres.js';
 
 // Bandera de Target (icono del usuario): se dibuja al final de la línea de target.
 const flagImg = typeof Image === 'undefined' ? null : Object.assign(new Image(), { src: ICONO_TARGET });
@@ -141,7 +142,7 @@ function FormCorregir({ s, variable, done, cancel }) {
     <p><strong>Corregir esta sesión</strong>: sustituye los datos guardados (no se crea otra sesión). Queda anotado en el registro de auditoría qué campos cambian, sin los valores.</p>
     <label>Fecha <input type="date" value=${f.date} onInput=${set('date')} required /></label>
     <label>Hora (opcional) <input type="time" value=${f.time} onInput=${set('time')} /></label>
-    ${sides.map((sd) => html`<label key=${'v' + sd}>${name[sd]} (${variable.name}${variable.unit ? `, ${variable.unit}` : ''}) <input inputmode="decimal" value=${f['v' + sd]} onInput=${set('v' + sd)} /></label>`)}
+    ${sides.map((sd) => html`<label key=${'v' + sd}>${name[sd]} (${dn(variable.name)}${variable.unit ? `, ${variable.unit}` : ''}) <input inputmode="decimal" value=${f['v' + sd]} onInput=${set('v' + sd)} /></label>`)}
     ${sides.map((sd) => html`<label key=${'r' + sd}>Repeticiones${sides.length === 2 ? ' ' + name[sd].toLowerCase() : ''} <input inputmode="numeric" value=${f['r' + sd]} onInput=${set('r' + sd)} /></label>`)}
     <p class="muted">Cambiar las repeticiones modifica el peso de la sesión en el Personal Average. Solo se corrige la variable que estás viendo; las demás variables de la sesión no cambian.</p>
     <button type="submit" disabled=${busy}>Guardar corrección</button> <button type="button" class="secondary" onClick=${cancel}>Cancelar</button><${Msg} msg=${msg} /></form>`;
@@ -159,7 +160,7 @@ function AccionesSesion({ s, player, test, reload, many, variable }) {
     <button type="button" disabled=${busy} onClick=${run(async () => { await setSessionExcluded(db, s.id, true, reason); done(); })}>Excluir (reversible)</button>
     <button type="button" class="secondary" onClick=${() => setOpen(null)}>Cancelar</button><${Msg} msg=${msg} /></div>`;
   if (open === 'eliminar') return html`<div class="inline-form" role="group" aria-label="Eliminación definitiva">
-    <p><strong>Eliminar definitivamente</strong> la sesión de <em>${playerLabel(player)}</em> en <em>${test.name}</em> del <em>${fmtDay(s.date)}</em>${s.time ? ` (${s.time})` : ''}. No se borra ninguna otra sesión. Las copias de seguridad antiguas pueden conservarla.</p>
+    <p><strong>Eliminar definitivamente</strong> la sesión de <em>${playerLabel(player)}</em> en <em>${dn(test.name)}</em> del <em>${fmtDay(s.date)}</em>${s.time ? ` (${s.time})` : ''}. No se borra ninguna otra sesión. Las copias de seguridad antiguas pueden conservarla.</p>
     <label>Escribe el nombre del jugador <input value=${cn} onInput=${(e) => setCn(e.target.value)} /></label>
     <label>Escribe la fecha (AAAA-MM-DD) <input value=${cd} onInput=${(e) => setCd(e.target.value)} placeholder=${s.date} /></label>
     <button type="button" class="danger" disabled=${busy || !nameMatchesPlayer(player, cn) || cd.trim() !== s.date} onClick=${run(async () => { await deleteSessionPermanently(db, s.id, { playerName: cn, date: cd }); done(); })}>Eliminar para siempre</button>
@@ -177,7 +178,7 @@ function TablaSesiones({ sessions, vars, variable, player, test, reload }) {
   const sorted = [...sessions].sort((a, b) => (b.date + (b.time || '')).localeCompare(a.date + (a.time || '')) || b.id - a.id);
   const cell = (s, side) => { const v = s.values?.[variable.id]?.[side]; return Number.isFinite(v) ? (isAsymVariable(variable) ? html`<${AsimTexto} pct=${v} />` : nf(v)) : '—'; };
   const reps = (s, side) => (side === 'S' ? s.reps?.total : s.reps?.[side]) ?? '—';
-  return html`<div class="table-wrap"><table><caption>Sesiones de ${test.name} · ${variable.name}${variable.unit ? ` (${variable.unit})` : ''}</caption>
+  return html`<div class="table-wrap"><table><caption>Sesiones de ${dn(test.name)} · ${dn(variable.name)}${variable.unit ? ` (${variable.unit})` : ''}</caption>
     <thead><tr><th>Fecha</th>${lr ? html`<th>Left</th><th>Right</th><th>Rep. L / R</th>` : html`<th>Valor</th><th>Rep.</th>`}<th>Estado</th><th>Origen</th><th>Acciones</th></tr></thead>
     <tbody>${sorted.map((s) => html`<tr key=${s.id} class=${s.status === 'excluded' ? 'excluded' : ''}>
       <td>${fmtDay(s.date)}${s.time ? ` ${s.time}` : ''}</td>
@@ -225,7 +226,7 @@ function TargetPanel({ player, variable, sides, targets, positions, positionId, 
   }, 'Target guardado.');
   const remove = (t) => run(async () => { await deleteTarget(db, t.id); setForm({ ...form, ...(t.scope === 'player' ? { own: {}, ownNote: '' } : { pos: {}, posNote: '' }) }); reload(); }, 'Target eliminado.');
   return html`<section class="targets"><h4>Target</h4>
-    ${rows.length ? html`<div class="table-wrap"><table><caption>Target aplicable a ${playerLabel(player)} en ${variable.name}</caption><thead><tr><th>Lado</th><th class="num">Target</th><th>Origen</th><th>Resultado actual</th><th>Personal Average</th></tr></thead>
+    ${rows.length ? html`<div class="table-wrap"><table><caption>Target aplicable a ${playerLabel(player)} en ${dn(variable.name)}</caption><thead><tr><th>Lado</th><th class="num">Target</th><th>Origen</th><th>Resultado actual</th><th>Personal Average</th></tr></thead>
       <tbody>${rows.map((r) => html`<tr key=${r.sd}><th scope="row">${sideName[r.sd]}</th><td class="num">${nf(r.t.value)}${u}</td><td>${r.t.origin}${r.t.note ? html` <span class="muted">· ${r.t.note}</span>` : null}</td>
         <td>${r.cur ? html`<span title=${`${fmtDay(r.cur.date)} · frente al target: ${fmt(distanceToTarget(r.cur.value, r.t.value, variable.direction))}`} tabindex="0">${nf(r.cur.value)}${u}</span>` : '—'}</td><td>${r.pa.defined ? html`<span title=${`frente al target: ${fmt(distanceToTarget(r.pa.value, r.t.value, variable.direction))}`} tabindex="0">${nf(r.pa.value)}${u}</span>` : '—'}</td></tr>`)}</tbody></table></div>
       ${variable.direction !== 'higher' && variable.direction !== 'lower' ? html`<p class="muted">Esta variable no tiene dirección «más alto» ni «más bajo» en el catálogo: se muestra la distancia, pero no si el target está alcanzado.</p>` : null}`
@@ -289,7 +290,7 @@ function CompararPanel({ variable, sides, series, cmp, setCmp, refData, protocol
     </div>
     ${pa && pb && pa.sessionId === pb.sessionId ? html`<p class="status warn">Elige dos medidas distintas.</p>` : null}
     ${res ? html`
-      <div class="table-wrap"><table><caption>${variable.name}${sides.length === 2 ? ` · ${sideName[side]}` : ''}: ${fmtDay(ant.date)} → ${fmtDay(pos.date)}</caption><tbody>
+      <div class="table-wrap"><table><caption>${dn(variable.name)}${sides.length === 2 ? ` · ${sideName[side]}` : ''}: ${fmtDay(ant.date)} → ${fmtDay(pos.date)}</caption><tbody>
         <tr><th scope="row">Medida anterior</th><td>${fmtDay(ant.date)}${ant.time ? ' ' + ant.time : ''}</td><td class="num">${nf(ant.value)}${u}</td></tr>
         <tr><th scope="row">Medida posterior</th><td>${fmtDay(pos.date)}${pos.time ? ' ' + pos.time : ''}</td><td class="num">${nf(pos.value)}${u}</td></tr>
         <tr><th scope="row">Diferencia</th><td></td><td class="num">${sgn(res.diff)}${u}${res.pct !== null ? ` (${res.pct > 0 ? '+' : res.pct < 0 ? '−' : ''}${nf(Math.abs(res.pct), 1)} %)` : ''}</td></tr>
@@ -350,14 +351,14 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const key = [player.id, test.id, variable.id, proto, from, to, sessions.map((s) => s.id + s.status).join(), sides.map((sd) => (tg[sd] ? tg[sd].origin + tg[sd].value : '-')).join()].join('|');
   const allUrl = buildHash(`test-${test.id}`, { ...KEEP(q), v: variable.id, m: q.m ?? 'pa', j: player.id });
   const pano = esPanorama(test), cmj = test.name === 'CMJ'; // CMJ y Perímetros: cuadro con todas las variables arriba del todo; en CMJ, justo debajo el radar y el cuadrante EUR
-  const radarEl = html`<${RadarPanel} key=${'radar' + test.id + player.id} player=${player} testName=${test.name} />`;
+  const radarEl = html`<${RadarPanel} key=${'radar' + test.id + player.id} player=${player} testName=${dn(test.name)} />`;
   const relEl = html`<${RelacionTest} key=${'rel' + test.id + player.id} player=${player} test=${test} />`;
   return html`<div class="evo">
     ${pano ? html`<${Panorama} key=${'pano' + test.id + player.id} player=${player} test=${test} catalog=${catalog} sessions=${sessions} refData=${refData} q=${q} setQ=${setQ} selectedId=${variable.id} />` : null}
     ${cmj ? html`${radarEl}${relEl}` : null}
     <p id="detalle-variable"><a class="button" href=${allUrl}>Ver todos los jugadores en este test</a></p>
     <div class="filters">
-      <label>Variable <select value=${variable.id} onChange=${(e) => setQ({ v: e.target.value })}>${vars.map((v) => html`<option key=${v.id} value=${v.id}>${v.name}${v.unit && !v.name.includes(`(${v.unit})`) ? ` (${v.unit})` : ''}${v.sides === 'LR' ? ' · I/D' : ''}</option>`)}</select></label>
+      <label>Variable <select value=${variable.id} onChange=${(e) => setQ({ v: e.target.value })}>${vars.map((v) => html`<option key=${v.id} value=${v.id}>${dn(v.name)}${v.unit && !v.name.includes(`(${v.unit})`) ? ` (${v.unit})` : ''}${v.sides === 'LR' ? ' · I/D' : ''}</option>`)}</select></label>
       ${protocols.length ? html`<label>Protocolo <select value=${proto} onChange=${(e) => setQ({ p: e.target.value })}><option value="all">Todos</option><option value="none">Sin protocolo</option>${protocols.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label>` : null}
       <label>Desde <input type="date" value=${from} onInput=${(e) => setQ({ from: e.target.value })} /></label>
       <label>Hasta <input type="date" value=${to} onInput=${(e) => setQ({ to: e.target.value })} /></label>
@@ -367,7 +368,7 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
     <${PercentilesPanel} key=${variable.id} player=${player} test=${test} variable=${variable} mine=${sessions} q=${q} setQ=${setQ} filters=${f} targets=${tg} refData=${refData} abs=${abs} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} parte="escala" posJugador=${positionId} />
     <fieldset class="modes"><legend class="sec-titulo">Longitudinal Performance Relative to Benchmarks</legend>${opts.map(([k, label, , , , v]) => { const off = v == null; return html`<label class="check" key=${k} title=${off ? (k.startsWith('pa') ? 'Sin sesiones válidas en el periodo.' : k.endsWith('pos') && positionId == null ? 'El jugador no tiene posición principal.' : k.startsWith('premier') ? 'Esta variable no figura en las tablas de la Premier League.' : `Sin muestra suficiente (mínimo ${ctx?.minN ?? 10} jugadores).`) : ''}><input type="checkbox" disabled=${off} checked=${!off && chosen.includes(k)} onChange=${(e) => setQ({ rl: (e.target.checked ? [...chosen, k] : chosen.filter((x) => x !== k)).join(',') || 'none' })} /> ${label}</label>`; })}</fieldset>
     ${sides.some((sd) => series[sd].valid.length)
-      ? html`<${Grafico} onPoint=${onPoint} deps=${[key, 'lineas', refLines.map((r) => r.k + r.value).join(), !!ctx, selIds.join()]} nombre=${`evolucion-${variable.name}`} label=${`Evolución de ${variable.name}: ${sides.map((sd) => `${sideName[sd]} ${series[sd].valid.length} sesiones`).join(', ')}`} build=${(c) => lineConfig(c, { sides, series, unit: variable.unit, yMin, yMax, tg, refLines, info: ctx ? (v) => ctx.info(v, 'last') : null, sel: selIds })} />`
+      ? html`<${Grafico} onPoint=${onPoint} deps=${[key, 'lineas', refLines.map((r) => r.k + r.value).join(), !!ctx, selIds.join()]} nombre=${`evolucion-${dn(variable.name)}`} label=${`Evolución de ${dn(variable.name)}: ${sides.map((sd) => `${sideName[sd]} ${series[sd].valid.length} sesiones`).join(', ')}`} build=${(c) => lineConfig(c, { sides, series, unit: variable.unit, yMin, yMax, tg, refLines, info: ctx ? (v) => ctx.info(v, 'last') : null, sel: selIds })} />`
       : html`<p class="muted">Sin sesiones válidas en el periodo.</p>`}
     ${sides.some((sd) => series[sd].valid.length >= 2) ? html`<${CompararPanel} key=${'cmp' + variable.id} variable=${variable} sides=${sides} series=${series} cmp=${cmpV} setCmp=${setCmpV} refData=${refData} protocolId=${protocolId} />` : null}
     <${TargetRapido} key=${'tr' + variable.id + player.id} player=${player} variable=${variable} sides=${sides} own=${targets.find((t) => t.scope === 'player' && t.playerId === player.id && t.variableId === variable.id)} reload=${reload} />
@@ -377,7 +378,7 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
       <details class="notas"><summary>Cómo se calcula la asimetría</summary>
       <p class="muted">${variable.unit === '°' ? 'Variables en grados: right − left, en grados (como en tu Excel); positivo = valor mayor en el lado right. ' : null}|D − I| ÷ máx × 100 (en variables que no son grados) y la letra del lado con el valor más alto (L left, R right). Como en VALD: barra azul hacia la izquierda del eje si el lado left es mayor, naranja hacia la derecha si lo es el right.</p>
       </details>
-      <${Grafico} deps=${[key, 'asim']} nombre=${`asimetria-${variable.name}`} alto=${`${Math.max(9, 3.2 + asym.length * 2.2)}rem`} label=${`Asimetría de ${variable.name}: ${asym.length} sesiones`} build=${(c) => asymConfig(c, asym, variable, variable.unit === '°')} /></section>` : null}
+      <${Grafico} deps=${[key, 'asim']} nombre=${`asimetria-${dn(variable.name)}`} alto=${`${Math.max(9, 3.2 + asym.length * 2.2)}rem`} label=${`Asimetría de ${dn(variable.name)}: ${asym.length} sesiones`} build=${(c) => asymConfig(c, asym, variable, variable.unit === '°')} /></section>` : null}
     ${cmj ? null : relEl}
     <${OrzTest} key=${'orz' + test.id + player.id} player=${player} test=${test} />
     <${RatioTest} key=${'rat' + test.id + player.id} player=${player} test=${test} />
@@ -405,7 +406,7 @@ function AltaManualCarga({ player, catalog, reload, fixedTest = null }) {
     <p class="muted">La carga de estos tests no viene de VALD: escríbela aquí. Se guarda una sesión con la carga (kg); las variables calculadas (MVIC, %PIMA, %BW/%SW, 1RM estimado) se obtienen solas. Si te equivocas, corrígela desde la tabla de sesiones del test.</p>
     <p class="muted">Las variables calculadas (MVIC iso-push, %PIMA, %BW/%SW) <strong>aparecen en el selector de variables solo después de guardar la primera carga</strong> y requieren, además, una sesión del Iso-Push emparejado y la masa corporal (o el peso de referencia) del jugador.</p>
     <form class="filters" onSubmit=${save} aria-label="Alta manual de carga">
-      ${fixedTest ? html`<p><strong>${fixedTest.name}</strong></p>` : html`<label>Test <select value=${f.testId} onChange=${set('testId')} required><option value="">Elige…</option>${tests.map((t) => html`<option key=${t.id} value=${t.id}>${t.name}</option>`)}</select></label>`}
+      ${fixedTest ? html`<p><strong>${fixedTest.name}</strong></p>` : html`<label>Test <select value=${f.testId} onChange=${set('testId')} required><option value="">Elige…</option>${tests.map((t) => html`<option key=${t.id} value=${t.id}>${dn(t.name)}</option>`)}</select></label>`}
       <label>Fecha <input type="date" value=${f.date} onInput=${set('date')} required /></label>
       <label>Hora (opcional) <input type="time" value=${f.time} onInput=${set('time')} /></label>
       <label>Carga (kg) <input inputmode="decimal" value=${f.load} onInput=${set('load')} required /></label>
@@ -449,16 +450,16 @@ export function ResultadosJugador({ player, query = {}, edicion = null, antrop =
   const rank = (t) => { const z = (zName(t) ?? '').toLowerCase(); return z.startsWith('ankle') ? 0 : z.startsWith('knee') ? 1 : z.startsWith('hip') ? 2 : z.startsWith('groin') ? 3 : 4; }; // Ankle, Knee, Hip, Groin; sin zona al final
   const ordered = (g) => tests.filter((t) => mName(t) === g).map((t, i) => [t, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([t]) => t);
   const cuerpoTest = () => !test ? html`<p class="muted">Elige un test de la lista.</p>` : html`
-      <div class="test-sticky"><span class="muted">${playerLabel(player)} ·</span> <h3>${test.name}</h3></div>
+      <div class="test-sticky"><span class="muted">${playerLabel(player)} ·</span> <h3>${dn(test.name)}</h3></div>
       ${hasSessions(test) ? html`<${PanelTest} key=${test.id} player=${player} test=${test} catalog=${catalog} sessions=${sessions.filter((s) => s.testId === test.id)} omitted=${omitted} reload=${reload} q=${query} setQ=${setQ} targets=${targets} positions=${positions} positionId=${positionId} />` : html`<p class="muted">Este jugador aún no tiene sesiones de este test.</p>`}
       ${loadTest(test) ? html`<${AltaManualCarga} key=${'am' + test.id} player=${player} catalog=${catalog} reload=${reload} fixedTest=${test} />` : null}
       ${vbtTest(test) ? fv : null}
       ${angTest(test) ? html`<${Card} titulo="Medir ángulos con fotografías"><p class="muted">Carga las dos fotos, revisa los puntos y guarda: las medidas se añaden a este jugador.</p><${Angulos} key=${'ang' + player.id} jugadorId=${player.id} /><//>` : null}`;
   const listaTests = () => !tests.length ? html`<p class="muted">Bloque sin tests definidos.</p>` : html`
-      <div class=${`test-list cols-${Math.min(5, groups.length)}`}>${groups.map((g) => html`<div key=${g}>${g === 'Sin manifestación' ? null : html`<h3>${g}</h3>`}<div class="test-items">${ordered(g).map((t) => { const ok = selectable(t); return html`<button type="button" key=${t.id} disabled=${!ok} title=${!ok ? 'Sin sesiones de este test' : hasSessions(t) ? t.name : 'Aún sin datos: pulsa para añadirlos'} class=${(test && t.id === test.id ? 'test-item on' : 'test-item') + (!hasSessions(t) && ok ? ' vacio' : '')} aria-pressed=${!!test && t.id === test.id} onClick=${() => setQ({ t: t.id, v: undefined })}>${zName(t) ? zName(t) + ' · ' : ''}${t.name}${!hasSessions(t) && ok ? html` <span class="sin-datos">· sin datos aún</span>` : null}</button>`; })}</div></div>`)}</div>
+      <div class=${`test-list cols-${Math.min(5, groups.length)}`}>${groups.map((g) => html`<div key=${g}>${g === 'Sin manifestación' ? null : html`<h3>${g}</h3>`}<div class="test-items">${ordered(g).map((t) => { const ok = selectable(t); return html`<button type="button" key=${t.id} disabled=${!ok} title=${!ok ? 'Sin sesiones de este test' : hasSessions(t) ? t.name : 'Aún sin datos: pulsa para añadirlos'} class=${(test && t.id === test.id ? 'test-item on' : 'test-item') + (!hasSessions(t) && ok ? ' vacio' : '')} aria-pressed=${!!test && t.id === test.id} onClick=${() => setQ({ t: t.id, v: undefined })}>${zName(t) ? zName(t) + ' · ' : ''}${dn(t.name)}${!hasSessions(t) && ok ? html` <span class="sin-datos">· sin datos aún</span>` : null}</button>`; })}</div></div>`)}</div>
       ${cuerpoTest()}`;
   return html`<${Card} titulo="Resultados por bloque">
-    ${test ? html`<${Migas} items=${[{ label: 'Jugadores', href: '#jugadores' }, { label: playerLabel(player) }, { label: test.name }]} />` : null}
+    ${test ? html`<${Migas} items=${[{ label: 'Jugadores', href: '#jugadores' }, { label: playerLabel(player) }, { label: dn(test.name) }]} />` : null}
     <div role="tablist" aria-label="Bloques" class="tabs">${BLOQUES.map(([k, n]) => html`<button type="button" role="tab" key=${k} aria-selected=${block === k} class=${block === k ? 'tab on' : 'tab'} onClick=${() => setQ({ b: k, t: undefined, v: undefined })}>${n}${k === 'edicion' || k === 'asimetrias' ? '' : html` <span class="muted">(${allOf(k).filter(hasSessions).length})</span>`}</button>`)}</div>
     ${block === 'edicion' ? edicion : block === 'asimetrias' ? html`<${PanelAsimetrias} catalog=${catalog} sessions=${sessions} q=${query} setQ=${setQ} />` : block === 'perimetros' ? html`${listaTests()}${antrop}` : listaTests()}
   <//>`;

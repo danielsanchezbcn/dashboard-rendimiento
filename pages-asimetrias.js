@@ -8,7 +8,10 @@ import { isAsymVariable, asymmetryPct, asymText } from './catalogo.js';
 import { buildSeries, personalAverage, personalBestFor, currentResult } from './evolucion.js';
 import { AsimTexto } from './asim-ui.js';
 import { fmtDay } from './fechas.js';
+import { dn } from './nombres.js';
 
+// Variables de asimetría (VALD) del catálogo de un test en las que este jugador no tiene ningún valor.
+export const asimSinDatos = (test, catalog, tsess) => orderVars(candidatas(test, catalog).filter((v) => isAsymVariable(v) && isViewable(v) && !hasData(v, tsess)));
 export const BLOQUES_ASIM = [['fuerza', 'Manifestaciones de la fuerza'], ['perimetros', 'Datos antropométricos'], ['nme', 'NME']];
 const BASES = [['pa', 'Personal Average'], ['pb', 'Personal Best'], ['last', 'Actual']];
 const nf = (n, d = 1) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
@@ -22,8 +25,13 @@ function own(sessions, v, side, base) {
   const a = personalAverage(val); return a.defined ? { value: a.value, date: a.to } : null;
 }
 
+// Excluido por ahora de este bloque (pedido el 10/11/2026): el test Nordic Hamstring Exercise completo (Max Force, Max Force Asymmetry y Torque) y las variables Torque,
+// Force at 100 ms y RFD at 100 ms (Run-Specific Iso-Push). Solo afecta a esta pestaña.
+export const TESTS_EXCLUIDOS = ['Nordic Hamstring Exercise'];
+export const VARIABLE_EXCLUIDA = (name) => /\btorque\b/i.test(name) || /^(force|rfd) at 100\s*ms$/i.test(String(name).trim());
+const candidatas = (test, catalog) => (TESTS_EXCLUIDOS.includes(test.name) ? [] : catalog.variables.filter((v) => v.testId === test.id && !v.archived && !VARIABLE_EXCLUIDA(v.name) && (v.sides === 'LR' || isAsymVariable(v))));
 export function filasAsimetria(test, catalog, tsess, base) {
-  const vars = orderVars(catalog.variables.filter((v) => v.testId === test.id && isViewable(v) && !isRelative(v) && hasData(v, tsess) && (v.sides === 'LR' || isAsymVariable(v))));
+  const vars = orderVars(candidatas(test, catalog).filter((v) => isViewable(v) && !isRelative(v) && hasData(v, tsess)));
   const rows = [];
   for (const v of vars) {
     if (v.sides === 'LR') {
@@ -56,7 +64,7 @@ export function PanelAsimetrias({ catalog, sessions, q, setQ }) {
   const zName = (t) => catalog.zones.find((z) => z.id === t.zoneId)?.name ?? null;
   const rank = (t) => { const z = (zName(t) ?? '').toLowerCase(); return z.startsWith('ankle') ? 0 : z.startsWith('knee') ? 1 : z.startsWith('hip') ? 2 : z.startsWith('groin') ? 3 : 4; };
   const bloques = BLOQUES_ASIM.map(([key, nombre]) => {
-    const tests = catalog.tests.filter((t) => (t.blockKey ?? 'fuerza') === key && !t.archived).map((t) => ({ t, rows: filasAsimetria(t, catalog, sessions.filter((s) => s.testId === t.id), base) })).filter((x) => x.rows.length);
+    const tests = catalog.tests.filter((t) => (t.blockKey ?? 'fuerza') === key && !t.archived && sessions.some((s) => s.testId === t.id)).map((t) => { const ts = sessions.filter((s) => s.testId === t.id); return { t, rows: filasAsimetria(t, catalog, ts, base), falta: asimSinDatos(t, catalog, ts) }; }).filter((x) => x.rows.length || x.falta.length);
     const grupos = [...new Set(tests.map((x) => mName(x.t)))].map((g) => ({ g, tests: tests.filter((x) => mName(x.t) === g).map((x, i) => [x, i]).sort((a, b) => rank(a[0].t) - rank(b[0].t) || a[1] - b[1]).map(([x]) => x) }));
     return { key, nombre, grupos };
   }).filter((b) => b.grupos.length);
@@ -66,17 +74,17 @@ export function PanelAsimetrias({ catalog, sessions, q, setQ }) {
   const hayDeg = todas.some((r) => r.deg);
   return html`<section class="asimetrias" aria-label="Asimetrías del jugador">
     <fieldset class="modes"><legend>Valor mostrado</legend>${BASES.map(([k, n]) => html`<label class="check" key=${k}><input type="radio" name="asim-base" checked=${base === k} onChange=${() => setQ({ am: k })} /> ${n}</label>`)}</fieldset>
-    ${!todas.length ? html`<p class="muted">Este jugador aún no tiene asimetrías calculables (hacen falta tests con valores por lado —izquierda y derecha— o variables de asimetría de VALD).</p>` : html`
+    ${!bloques.length ? html`<p class="muted">Este jugador aún no tiene asimetrías calculables (hacen falta tests con valores por lado —izquierda y derecha— o variables de asimetría de VALD).</p>` : html`
       <p class="muted">Barra hacia la izquierda y <span class="asim-l">azul</span>: domina Left. Hacia la derecha y <span class="asim-r">naranja</span>: domina Right. Escala común de ±${limPct} % (la barra llena = ese valor o más)${hayDeg ? `; las medidas en grados (°) usan su propia escala de ±${limDeg} °` : ''}. Asimetría = |R − L| ÷ máx × 100 con el valor del lado más alto.</p>
       ${bloques.map((b) => html`<div class="asim-bloque" key=${b.key}><h3 class="asim-h-bloque">${b.nombre}</h3>
         ${b.grupos.map((g) => html`<div key=${g.g ?? '-'}>${g.g ? html`<h4 class="asim-h-sub">${g.g}</h4>` : null}
-          ${g.tests.map(({ t, rows }) => html`<div class="table-wrap asim-test" key=${t.id}><table class="asim"><caption><strong>${t.name}</strong>${zName(t) ? html` <span class="muted">· ${zName(t)}</span>` : null}</caption>
+          ${g.tests.map(({ t, rows, falta }) => html`<div class="table-wrap asim-test" key=${t.id}><table class="asim"><caption><strong>${dn(t.name)}</strong>${zName(t) ? html` <span class="muted">· ${zName(t)}</span>` : null}</caption>
             <thead><tr><th scope="col">Variable</th><th scope="col" class="asim-th-barra"><span class="asim-l">◄ Left</span> <span class="asim-r">Right ►</span></th><th scope="col">Asimetría</th><th scope="col">Valores</th></tr></thead>
             <tbody>${rows.map((r) => html`<tr key=${r.v.id} title=${fmtDay(r.date)}>
-              <th scope="row">${r.v.name}</th>
+              <th scope="row">${dn(r.v.name)}</th>
               <td class="asim-barra"><${Barra} pct=${r.pct} lim=${r.deg ? limDeg : limPct} /></td>
               <td class="num">${r.deg ? html`<${AsimTexto} pct=${r.pct} texto=${Math.abs(r.pct) < 0.05 ? '0 °' : `${nf(Math.abs(r.pct))} ° ${r.pct > 0 ? 'R' : 'L'}`} />` : html`<${AsimTexto} pct=${r.pct} />`}</td>
-              <td class="num muted">${r.vald ? 'VALD' : html`<span class="asim-l">L ${nf(r.L, 2)}</span> · <span class="asim-r">R ${nf(r.R, 2)}</span>${r.v.unit ? ' ' + r.v.unit : ''}`}</td></tr>`)}</tbody></table></div>`)}
+              <td class="num muted">${r.vald ? 'VALD' : html`<span class="asim-l">L ${nf(r.L, 2)}</span> · <span class="asim-r">R ${nf(r.R, 2)}</span>${r.v.unit ? ' ' + r.v.unit : ''}`}</td></tr>`)}</tbody></table>${falta.length ? html`<p class="muted asim-falta">Sin valores en este jugador: ${falta.map((v) => dn(v.name)).join(', ')}. Para verlas hay que importar esas columnas de VALD en su sesión.</p>` : null}</div>`)}
         </div>`)}</div>`)}`}
   </section>`;
 }
