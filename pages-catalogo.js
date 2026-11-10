@@ -5,6 +5,7 @@ import { html, useState } from './libs.js';
 import { useApp } from './context.js';
 import { Card, Msg, useLoad, useRunner } from './componentes.js';
 import * as C from './catalogo.js';
+import { EnlaceAngulos } from './pages-angulos.js';
 
 const ND = html`<span class="muted">No definido</span>`;
 const byId = (list) => Object.fromEntries(list.map((x) => [x.id, x]));
@@ -261,6 +262,7 @@ export function TestDetalle({ id }) {
   return html`
     <p><a href="#catalogo">← Volver al catálogo</a></p>
     <h2 class="page-title">${test.name}${test.archived ? html` <span class="badge">ARCHIVADO</span>` : null}</h2>
+    ${test.name === 'Jurdan Test' ? html`<${EnlaceAngulos} />` : null}
     <${TestDatos} key=${'d' + test.id + test.updatedAt} test=${test} data=${cat} />
     <${Protocolos} test=${test} protocols=${protocols} />
     <${Card} titulo="Variables">

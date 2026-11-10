@@ -18,8 +18,11 @@ import { setTarget, deleteTarget, resolveTarget, distanceToTarget } from './targ
 import { buildSeries, personalAverage, personalBest, currentResult, asymmetrySeries, setSessionExcluded, deleteSessionPermanently, correctSession } from './evolucion.js';
 import { playerLabel, nameMatchesPlayer } from './jugadores.js';
 import { PAL, colorLado } from './colores.js';
+import { buildReference } from './percentiles.js';
+import { consecutiveDiffs, changeTest } from './cambio.js';
 import { Copiable } from './copiar.js';
 import { RadarPanel } from './pages-radar.js';
+import { Angulos } from './pages-angulos.js';
 import { ICONO_TARGET } from './iconos.js';
 
 // Bandera de Target (icono del usuario): se dibuja al final de la línea de target.
@@ -51,16 +54,28 @@ function useTheme() {
 
 // Gráfico con Chart.js (solo líneas/puntos/barras, D20) con el aspecto de los informes del usuario (fondo oscuro, colores de colores.js).
 // `build` recibe los colores y devuelve la configuración. Clic sobre el gráfico: copiar imagen.
-function Grafico({ build, label, deps, nombre = 'grafico', alto }) {
+function Grafico({ build, label, deps, nombre = 'grafico', alto, onPoint = null }) {
   const ref = useRef(null);
+  const hit = useRef(null); // un clic sobre un punto selecciona la medida y no abre el menú de copiar
   useEffect(() => {
     if (!ref.current || !Chart) return undefined;
     const colors = { text: PAL.texto, muted: PAL.texto, line: PAL.rejilla, accent: PAL.jugador, ok: PAL.texto, fail: PAL.jugador, warn: PAL.texto };
     let chart;
-    try { chart = new Chart(ref.current, { plugins: [flagPlugin], ...build(colors) }); } catch (e) { /* sin gráfico: la tabla de datos sigue disponible */ }
+    try {
+      const cfg = build(colors);
+      if (onPoint) {
+        const punto = (els) => { const x = els.find((el) => cfg.data.datasets[el.datasetIndex].side && cfg.data.datasets[el.datasetIndex].data[el.index]?.p); return x ? { side: cfg.data.datasets[x.datasetIndex].side, p: cfg.data.datasets[x.datasetIndex].data[x.index].p } : null; };
+        cfg.options.interaction = { mode: 'nearest', intersect: true };
+        cfg.options.onClick = (e, els) => { const pt = punto(els); if (pt) onPoint(pt.side, pt.p); };
+        hit.current = { punto, cfg };
+        cfg.options.onHover = (e, els) => { if (e.native?.target) e.native.target.style.cursor = punto(els) ? 'pointer' : 'default'; };
+      }
+      chart = new Chart(ref.current, { plugins: [flagPlugin], ...cfg });
+      if (hit.current) hit.current.chart = chart;
+    } catch (e) { /* sin gráfico: la tabla de datos sigue disponible */ }
     return () => chart?.destroy();
   }, [...deps]);
-  return html`<${Copiable} nombre=${nombre}><div class="chart-box doc" style=${alto ? `height:${alto}` : ''}><canvas ref=${ref} role="img" aria-label=${label}></canvas></div><//>`;
+  return html`<${Copiable} nombre=${nombre} omitir=${(e) => !!(onPoint && hit.current?.chart && hit.current.punto(hit.current.chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, false)))}><div class="chart-box doc" style=${alto ? `height:${alto}` : ''}><canvas ref=${ref} role="img" aria-label=${label}></canvas></div><//>`;
 }
 
 const baseOptions = (c, unit, yMin, yMax) => ({
@@ -73,7 +88,7 @@ const baseOptions = (c, unit, yMin, yMax) => ({
 });
 
 // Gráfico único con los dos lados (azul = izquierda, naranja = derecha): sesiones, Personal Average (discontinua), Personal Best (punteada) y Target (verde con bandera).
-function lineConfig(c, { sides, series, unit, yMin, yMax, tg, refLines = [], info }) {
+function lineConfig(c, { sides, series, unit, yMin, yMax, tg, refLines = [], info, sel = [] }) {
   const lr = sides.length === 2;
   const sfx = (sd) => (lr ? ` (${sd === 'L' ? 'I' : 'D'})` : '');
   const all = sides.flatMap((sd) => series[sd].valid.map((p) => dayNum(p.date)));
@@ -81,7 +96,7 @@ function lineConfig(c, { sides, series, unit, yMin, yMax, tg, refLines = [], inf
   const datasets = [];
   for (const sd of sides) {
     const col = colorLado(sd);
-    datasets.push({ side: sd, label: `Average de sesión${sfx(sd)}`, data: series[sd].valid.map((p) => ({ x: dayNum(p.date), y: p.value, p })), borderColor: col, backgroundColor: col, pointRadius: 4, tension: 0, borderWidth: 2 });
+    datasets.push({ side: sd, label: `Average de sesión${sfx(sd)}`, data: series[sd].valid.map((p) => ({ x: dayNum(p.date), y: p.value, p })), borderColor: col, backgroundColor: col, pointRadius: series[sd].valid.map((p) => (sel.includes(sd + ':' + p.sessionId) ? 9 : 4)), pointBorderColor: series[sd].valid.map((p) => (sel.includes(sd + ':' + p.sessionId) ? '#FFFFFF' : col)), pointBorderWidth: series[sd].valid.map((p) => (sel.includes(sd + ':' + p.sessionId) ? 3 : 1)), hitRadius: 12, tension: 0, borderWidth: 2 });
     if (series[sd].excluded.length) datasets.push({ label: `Sesión excluida${sfx(sd)}`, data: series[sd].excluded.map((p) => ({ x: dayNum(p.date), y: p.value })), showLine: false, borderColor: PAL.texto, backgroundColor: 'transparent', pointStyle: 'crossRot', pointRadius: 6, borderWidth: 2 });
     // el Personal Best no se dibuja como línea (es el punto más alto) y el Personal Average solo si se marca entre las líneas de referencia (10/11/2026)
   }
@@ -110,7 +125,7 @@ function FormCorregir({ s, variable, done, cancel }) {
     ...Object.fromEntries(sides.map((sd) => ['r' + sd, String((sd === 'S' ? s.reps?.total : s.reps?.[sd]) ?? '')])),
   }));
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
-  const name = { L: 'Izquierda', R: 'Derecha', S: 'Valor' };
+  const name = { L: 'Left', R: 'Right', S: 'Valor' };
   const save = run(async () => {
     const values = { [variable.id]: Object.fromEntries(sides.filter((sd) => sd in (s.values?.[variable.id] ?? {})).map((sd) => [sd, numIn(f['v' + sd])])) };
     for (const sd of Object.keys(values[variable.id])) if (values[variable.id][sd] === null || Number.isNaN(values[variable.id][sd])) throw new Error('Escribe un número en cada valor.');
@@ -160,7 +175,7 @@ function TablaSesiones({ sessions, vars, variable, player, test, reload }) {
   const cell = (s, side) => { const v = s.values?.[variable.id]?.[side]; return Number.isFinite(v) ? (isAsymVariable(variable) ? asymText(v) : nf(v)) : '—'; };
   const reps = (s, side) => (side === 'S' ? s.reps?.total : s.reps?.[side]) ?? '—';
   return html`<div class="table-wrap"><table><caption>Sesiones de ${test.name} · ${variable.name}${variable.unit ? ` (${variable.unit})` : ''}</caption>
-    <thead><tr><th>Fecha</th>${lr ? html`<th>Izquierda</th><th>Derecha</th><th>Rep. I / D</th>` : html`<th>Valor</th><th>Rep.</th>`}<th>Estado</th><th>Origen</th><th>Acciones</th></tr></thead>
+    <thead><tr><th>Fecha</th>${lr ? html`<th>Left</th><th>Right</th><th>Rep. L / R</th>` : html`<th>Valor</th><th>Rep.</th>`}<th>Estado</th><th>Origen</th><th>Acciones</th></tr></thead>
     <tbody>${sorted.map((s) => html`<tr key=${s.id} class=${s.status === 'excluded' ? 'excluded' : ''}>
       <td>${fmtDay(s.date)}${s.time ? ` ${s.time}` : ''}</td>
       ${lr ? html`<td>${cell(s, 'L')}</td><td>${cell(s, 'R')}</td><td>${reps(s, 'L')} / ${reps(s, 'R')}</td>` : html`<td>${cell(s, 'S')}</td><td>${reps(s, 'S')}</td>`}
@@ -195,7 +210,7 @@ function TargetPanel({ player, variable, sides, targets, positions, positionId, 
   const pos = positionId == null ? null : targets.find((t) => t.scope === 'position' && t.positionId === positionId && t.variableId === variable.id);
   const posName = positions.find((p) => p.id === positionId)?.name;
   const [form, setForm] = useState({ own: { ...(own?.values ?? {}) }, ownNote: own?.note ?? '', pos: { ...(pos?.values ?? {}) }, posNote: pos?.note ?? '' });
-  const sideName = { L: 'Izquierda', R: 'Derecha', S: 'Valor' };
+  const sideName = { L: 'Left', R: 'Right', S: 'Valor' };
   const u = variable.unit ? ` ${variable.unit}` : '';
   const rows = sides.map((sd) => { const t = resolveTarget(targets, { playerId: player.id, positionId, variableId: variable.id, side: sd }); return t ? { sd, t, cur: current[sd], pa: stats[sd].pa } : null; }).filter(Boolean);
   const fmt = (d) => (d ? `${d.diff > 0 ? '+' : ''}${nf(d.diff)}${u}${d.pct !== null ? ` (${d.pct > 0 ? '+' : ''}${nf(d.pct, 1)} %)` : ''}${d.reached === true ? ' · alcanzado' : d.reached === false ? ' · no alcanzado' : ''}` : '—');
@@ -237,12 +252,65 @@ function asymConfig(c, asym, variable, deg = false) {
   return { type: 'bar', plugins: [etiquetas], data: { labels: asym.map((a) => fmtDay(a.date)), datasets: [{ label: deg ? 'Asimetría (°)' : 'Asimetría (%)', data: asym.map((a) => a.pct), backgroundColor: asym.map((a) => (a.pct >= 0 ? PAL.der : PAL.izq)), barPercentage: 0.7 }] },
     options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { right: 36, left: 4 } },
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: (it) => `${fmtA(it.parsed.x)} · I ${nf(asym[it.dataIndex].left)} / D ${nf(asym[it.dataIndex].right)} ${variable.unit ?? ''}` } } },
-      scales: { x: { min: -lim, max: lim, title: { display: true, text: deg ? 'Asimetría interlateral (°, derecha − izquierda) · izquierda ◄  ► derecha' : 'Asimetría interlateral (%) · izquierda ◄  ► derecha', color: PAL.texto }, ticks: { color: PAL.texto, callback: (v) => `${Math.abs(v)}` }, grid: { color: (ctx) => (ctx.tick.value === 0 ? PAL.texto : PAL.rejilla) } },
+      scales: { x: { min: -lim, max: lim, title: { display: true, text: deg ? 'Asimetría interlateral (°, right − left) · left ◄  ► right' : 'Asimetría interlateral (%) · left ◄  ► right', color: PAL.texto }, ticks: { color: PAL.texto, callback: (v) => `${Math.abs(v)}` }, grid: { color: (ctx) => (ctx.tick.value === 0 ? PAL.texto : PAL.rejilla) } },
         y: { ticks: { color: PAL.texto }, grid: { display: false } } } } };
+}
+
+// Comparar dos medidas de un jugador (clic en dos puntos del gráfico o elección aquí): ¿el cambio supera el error de medida? Método y límites: cambio.js.
+const nfp = (p) => (p < 0.001 ? '< 0,001' : p.toLocaleString('es-ES', { minimumFractionDigits: 3, maximumFractionDigits: 3 }));
+function CompararPanel({ variable, sides, series, cmp, setCmp, refData, protocolId }) {
+  const side = sides.includes(cmp.side) ? cmp.side : sides[0];
+  const pts = series[side].valid;
+  const pa = pts.find((p) => p.sessionId === cmp.a), pb = pts.find((p) => p.sessionId === cmp.b);
+  const u = variable.unit ? ` ${variable.unit}` : '';
+  const lbl = (p) => `${fmtDay(p.date)}${p.time ? ' ' + p.time : ''} · ${nf(p.value)}${u}`;
+  const sideName = { L: 'Left', R: 'Right', S: 'Valor' };
+  let res = null, ant = null, pos = null;
+  if (pa && pb && pa.sessionId !== pb.sessionId && refData) {
+    [ant, pos] = (pa.date + pa.time) <= (pb.date + pb.time) ? [pa, pb] : [pb, pa];
+    const playersById = Object.fromEntries(refData.players.map((x) => [x.id, x]));
+    const by = new Map(); for (const s of refData.sessions) { if (playersById[s.playerId]?.synthetic) continue; (by.get(s.playerId) ?? by.set(s.playerId, []).get(s.playerId)).push(s); }
+    const diffs = consecutiveDiffs([...by.values()].map((list) => buildSeries(list, variable.id, side, { protocolId }).valid.map((p) => p.value)));
+    const between = buildReference({ sessions: refData.sessions, variable, side, players: playersById, histories: {}, basis: 'pa', protocolId }).map((e) => e.value);
+    res = changeTest({ a: ant, b: pos, diffs, between, direction: variable.direction, minDiffs: refData.minN });
+  }
+  const word = res?.improves === true ? 'mejora' : res?.improves === false ? 'empeoramiento' : 'cambio';
+  const sgn = (x) => (x > 0 ? '+' : x < 0 ? '−' : '') + nf(Math.abs(x));
+  return html`<section class="comparar"><h4 class="sec-titulo">Comparar dos medidas</h4>
+    <p class="muted">Pulsa dos puntos del gráfico (del mismo lado) o elígelos aquí, para ver si el cambio es mayor que el error de medida.</p>
+    <div class="filters">
+      ${sides.length === 2 ? html`<label>Lado <select value=${side} onChange=${(e) => setCmp({ side: e.target.value, a: null, b: null })}>${sides.map((sd) => html`<option key=${sd} value=${sd}>${sideName[sd]}</option>`)}</select></label>` : null}
+      <label>Medida A <select value=${cmp.a ?? ''} onChange=${(e) => setCmp({ side, a: e.target.value ? Number(e.target.value) : null, b: cmp.b })}><option value="">Elige…</option>${pts.map((p) => html`<option key=${p.sessionId} value=${p.sessionId}>${lbl(p)}</option>`)}</select></label>
+      <label>Medida B <select value=${cmp.b ?? ''} onChange=${(e) => setCmp({ side, a: cmp.a, b: e.target.value ? Number(e.target.value) : null })}><option value="">Elige…</option>${pts.map((p) => html`<option key=${p.sessionId} value=${p.sessionId}>${lbl(p)}</option>`)}</select></label>
+      ${cmp.a != null || cmp.b != null ? html`<button type="button" class="secondary" onClick=${() => setCmp({ side, a: null, b: null })}>Quitar selección</button>` : null}
+    </div>
+    ${pa && pb && pa.sessionId === pb.sessionId ? html`<p class="status warn">Elige dos medidas distintas.</p>` : null}
+    ${res ? html`
+      <div class="table-wrap"><table><caption>${variable.name}${sides.length === 2 ? ` · ${sideName[side]}` : ''}: ${fmtDay(ant.date)} → ${fmtDay(pos.date)}</caption><tbody>
+        <tr><th scope="row">Medida anterior</th><td>${fmtDay(ant.date)}${ant.time ? ' ' + ant.time : ''}</td><td class="num">${nf(ant.value)}${u}</td></tr>
+        <tr><th scope="row">Medida posterior</th><td>${fmtDay(pos.date)}${pos.time ? ' ' + pos.time : ''}</td><td class="num">${nf(pos.value)}${u}</td></tr>
+        <tr><th scope="row">Diferencia</th><td></td><td class="num">${sgn(res.diff)}${u}${res.pct !== null ? ` (${res.pct > 0 ? '+' : res.pct < 0 ? '−' : ''}${nf(Math.abs(res.pct), 1)} %)` : ''}</td></tr>
+        ${res.defined ? html`
+          <tr><th scope="row">Valor de p (bilateral)</th><td>t = ${nf(res.t)} · gl = ${res.df}</td><td class="num">${nfp(res.p)}</td></tr>
+          <tr><th scope="row">IC 95 % de la diferencia</th><td></td><td class="num">${sgn(res.ci[0])} a ${sgn(res.ci[1])}${u}</td></tr>
+          <tr><th scope="row">Cambio mínimo detectable (95 %)</th><td>error típico = ${nf(res.te)}${u}</td><td class="num">±${nf(res.mdc95)}${u}</td></tr>` : null}
+        ${res.swc !== null ? html`<tr><th scope="row">Cambio mínimo importante (SWC)</th><td>0,2 × SD entre jugadores</td><td class="num">${nf(res.swc)}${u}</td></tr>` : null}
+      </tbody></table></div>
+      ${res.defined
+        ? html`<p class=${'status ' + (res.significant ? 'ok' : 'warn')} role="status">${res.significant
+          ? `${word[0].toUpperCase() + word.slice(1)} estadísticamente significativ${word === 'mejora' ? 'a' : 'o'} (p = ${nfp(res.p)}): la diferencia supera el cambio mínimo detectable (±${nf(res.mdc95)}${u}).`
+          : `La diferencia (${sgn(res.diff)}${u}) no se distingue del error de medida (p = ${nfp(res.p)}): no se puede afirmar que haya ${res.improves === false ? 'empeoramiento' : res.improves === true ? 'mejora' : 'cambio'}.`}
+          ${res.exceedsSwc === null ? '' : res.exceedsSwc ? ' Además supera el cambio mínimo importante (SWC).' : ' No llega al cambio mínimo importante (SWC).'}</p>`
+        : html`<p class="status warn" role="status">${res.reason}</p>`}` : null}
+    <details class="notas"><summary>Cómo se calcula y límites</summary>
+      <p class="muted">Cada sesión guarda solo la media de sus repeticiones, así que no hay varianza dentro de la sesión y no se puede hacer un contraste t entre dos sesiones. El error de medida se estima con la propia plantilla (sin datos sintéticos): se toman las diferencias entre sesiones consecutivas de cada jugador (mismo test, lado y protocolo). Para dos medidas sueltas, el error típico de su diferencia es la desviación típica de esas diferencias; t = diferencia ÷ esa desviación, con n − 1 grados de libertad; el cambio mínimo detectable es t crítico × esa desviación (Hopkins 2000, <em>Sports Medicine</em> 30:1-15; Weir 2005, <em>J Strength Cond Res</em> 19:231-240; Jacobson y Truax 1991). El cambio mínimo importante (SWC) es 0,2 × la desviación típica entre jugadores de su Personal Average (Hopkins y cols. 2009, <em>Med Sci Sports Exerc</em> 41:3-13).</p>
+      <p class="muted">Límites: las diferencias entre sesiones incluyen también cambios reales (entrenamiento, lesión), así que el error estimado tiende a ser mayor que el real y el criterio es conservador; se aplica a este jugador el error medio de la plantilla; un valor de p pequeño no dice que el cambio sea relevante para el rendimiento, por eso se indica también el SWC; criterio provisional, pendiente de tu confirmación.</p></details>
+  </section>`;
 }
 
 function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, setQ, targets = [], positions = [], positionId = null }) {
   const refData = useRefData(test);
+  const [cmp, setCmp] = useState({ varId: null, side: null, a: null, b: null });
   const protocols = catalog.protocols.filter((p) => p.testId === test.id);
   const vars = orderVars(catalog.variables.filter((v) => v.testId === test.id && isViewable(v) && hasData(v, sessions)));
   const proto = q.p ?? 'all';
@@ -270,7 +338,12 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const pad = all.length ? (Math.max(...all) - Math.min(...all)) * 0.1 || Math.abs(Math.max(...all)) * 0.1 || 1 : 1;
   const yMin = all.length ? Math.min(...all) - pad : undefined, yMax = all.length ? Math.max(...all) + pad : undefined; // mismo eje para ambos lados
   const asym = variable.sides === 'LR' ? asymmetrySeries(sessions, variable.id, { ...f, diff: variable.unit === '°' }) : null;
-  const sideName = { L: 'Izquierda', R: 'Derecha', S: 'Valor' };
+  const sideName = { L: 'Left', R: 'Right', S: 'Valor' };
+  const cmpV = cmp.varId === variable.id ? cmp : { varId: variable.id, side: null, a: null, b: null };
+  const setCmpV = (c) => setCmp({ ...c, varId: variable.id });
+  const onPoint = (side, p) => setCmp(() => { const c = cmpV; if (c.side !== side) return { varId: variable.id, side, a: p.sessionId, b: null }; if (c.a === p.sessionId) return { ...c, a: c.b, b: null }; if (c.b === p.sessionId) return { ...c, b: null }; if (c.a == null) return { ...c, a: p.sessionId }; if (c.b == null) return { ...c, b: p.sessionId }; return { varId: variable.id, side, a: p.sessionId, b: null }; });
+  const selSide = sides.includes(cmpV.side) ? cmpV.side : sides[0];
+  const selIds = [cmpV.a, cmpV.b].filter((x) => x != null).map((id) => selSide + ':' + id);
   const key = [player.id, test.id, variable.id, proto, from, to, sessions.map((s) => s.id + s.status).join(), sides.map((sd) => (tg[sd] ? tg[sd].origin + tg[sd].value : '-')).join()].join('|');
   const allUrl = buildHash(`test-${test.id}`, { ...KEEP(q), v: variable.id, m: q.m ?? 'pa', j: player.id });
   return html`<div class="evo">
@@ -282,18 +355,19 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
       <label>Hasta <input type="date" value=${to} onInput=${(e) => setQ({ to: e.target.value })} /></label>
     </div>
     <${NotaRelativa} variable=${variable} omitted=${omitted} catalog=${catalog} />
-    <${PercentilesPanel} key=${variable.id} player=${player} test=${test} variable=${variable} mine=${sessions} q=${q} setQ=${setQ} filters=${f} targets=${tg} refData=${refData} abs=${abs} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} parte="escala" posJugador=${positionId} />
     <${PercentilesPanel} key=${'t' + variable.id} player=${player} test=${test} variable=${variable} mine=${sessions} q=${q} setQ=${setQ} filters=${f} targets=${tg} refData=${refData} abs=${abs} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} parte="tabla" />
-    <fieldset class="modes"><legend class="sec-titulo">Líneas de referencia en el gráfico</legend>${opts.map(([k, label, , , , v]) => { const off = v == null; return html`<label class="check" key=${k} title=${off ? (k.startsWith('pa') ? 'Sin sesiones válidas en el periodo.' : k.endsWith('pos') && positionId == null ? 'El jugador no tiene posición principal.' : k.startsWith('premier') ? 'Esta variable no figura en las tablas de la Premier League.' : `Sin muestra suficiente (mínimo ${ctx?.minN ?? 10} jugadores).`) : ''}><input type="checkbox" disabled=${off} checked=${!off && chosen.includes(k)} onChange=${(e) => setQ({ rl: (e.target.checked ? [...chosen, k] : chosen.filter((x) => x !== k)).join(',') || 'none' })} /> ${label}</label>`; })}</fieldset>
+    <${PercentilesPanel} key=${variable.id} player=${player} test=${test} variable=${variable} mine=${sessions} q=${q} setQ=${setQ} filters=${f} targets=${tg} refData=${refData} abs=${abs} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} parte="escala" posJugador=${positionId} />
+    <fieldset class="modes"><legend class="sec-titulo">Longitudinal Performance Relative to Benchmarks</legend>${opts.map(([k, label, , , , v]) => { const off = v == null; return html`<label class="check" key=${k} title=${off ? (k.startsWith('pa') ? 'Sin sesiones válidas en el periodo.' : k.endsWith('pos') && positionId == null ? 'El jugador no tiene posición principal.' : k.startsWith('premier') ? 'Esta variable no figura en las tablas de la Premier League.' : `Sin muestra suficiente (mínimo ${ctx?.minN ?? 10} jugadores).`) : ''}><input type="checkbox" disabled=${off} checked=${!off && chosen.includes(k)} onChange=${(e) => setQ({ rl: (e.target.checked ? [...chosen, k] : chosen.filter((x) => x !== k)).join(',') || 'none' })} /> ${label}</label>`; })}</fieldset>
     ${sides.some((sd) => series[sd].valid.length)
-      ? html`<${Grafico} deps=${[key, 'lineas', refLines.map((r) => r.k + r.value).join(), !!ctx]} nombre=${`evolucion-${variable.name}`} label=${`Evolución de ${variable.name}: ${sides.map((sd) => `${sideName[sd]} ${series[sd].valid.length} sesiones`).join(', ')}`} build=${(c) => lineConfig(c, { sides, series, unit: variable.unit, yMin, yMax, tg, refLines, info: ctx ? (v) => ctx.info(v, 'last') : null })} />`
+      ? html`<${Grafico} onPoint=${onPoint} deps=${[key, 'lineas', refLines.map((r) => r.k + r.value).join(), !!ctx, selIds.join()]} nombre=${`evolucion-${variable.name}`} label=${`Evolución de ${variable.name}: ${sides.map((sd) => `${sideName[sd]} ${series[sd].valid.length} sesiones`).join(', ')}`} build=${(c) => lineConfig(c, { sides, series, unit: variable.unit, yMin, yMax, tg, refLines, info: ctx ? (v) => ctx.info(v, 'last') : null, sel: selIds })} />`
       : html`<p class="muted">Sin sesiones válidas en el periodo.</p>`}
+    ${sides.some((sd) => series[sd].valid.length >= 2) ? html`<${CompararPanel} key=${'cmp' + variable.id} variable=${variable} sides=${sides} series=${series} cmp=${cmpV} setCmp=${setCmpV} refData=${refData} protocolId=${protocolId} />` : null}
     <${TargetRapido} key=${'tr' + variable.id + player.id} player=${player} variable=${variable} sides=${sides} own=${targets.find((t) => t.scope === 'player' && t.playerId === player.id && t.variableId === variable.id)} reload=${reload} />
     <${TargetPanel} key=${'t' + variable.id} player=${player} variable=${variable} sides=${sides} targets=${targets} positions=${positions} positionId=${positionId} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} reload=${reload} />
-    ${asym && asym.length ? html`<section><h4 class="sec-titulo">Asimetría por sesión</h4>
+    ${asym && asym.length ? html`<section><h4 class="sec-titulo">Interlimb Asymmetry Over Time</h4>
       <p class="leyenda" aria-label="Leyenda"><span class="leyenda-chip" style=${`background:${PAL.izq}`}>LEFT</span> <span class="leyenda-chip" style=${`background:${PAL.der}`}>RIGHT</span></p>
       <details class="notas"><summary>Cómo se calcula la asimetría</summary>
-      <p class="muted">${variable.unit === '°' ? 'Variables en grados: derecha − izquierda, en grados (como en tu Excel); positivo = valor mayor a la derecha. ' : null}|D − I| ÷ máx × 100 (en variables que no son grados) y la letra del lado con el valor más alto (L izquierda, R derecha). Como en VALD: barra azul hacia la izquierda si el lado izquierdo es mayor, naranja hacia la derecha si lo es el derecho.</p>
+      <p class="muted">${variable.unit === '°' ? 'Variables en grados: right − left, en grados (como en tu Excel); positivo = valor mayor en el lado right. ' : null}|D − I| ÷ máx × 100 (en variables que no son grados) y la letra del lado con el valor más alto (L left, R right). Como en VALD: barra azul hacia la izquierda del eje si el lado left es mayor, naranja hacia la derecha si lo es el right.</p>
       </details>
       <${Grafico} deps=${[key, 'asim']} nombre=${`asimetria-${variable.name}`} alto=${`${Math.max(9, 3.2 + asym.length * 2.2)}rem`} label=${`Asimetría de ${variable.name}: ${asym.length} sesiones`} build=${(c) => asymConfig(c, asym, variable, variable.unit === '°')} /></section>` : null}
     <${RelacionTest} key=${'rel' + test.id + player.id} player=${player} test=${test} />
@@ -321,6 +395,7 @@ function AltaManualCarga({ player, catalog, reload, fixedTest = null }) {
   }, 'Sesión guardada.');
   return html`<${Card} titulo="Alta manual de carga (Iso-Hold y RM)" id="alta-manual">
     <p class="muted">La carga de estos tests no viene de VALD: escríbela aquí. Se guarda una sesión con la carga (kg); las variables calculadas (MVIC, %PIMA, %BW/%SW, 1RM estimado) se obtienen solas. Si te equivocas, corrígela desde la tabla de sesiones del test.</p>
+    <p class="muted">Las variables calculadas (MVIC iso-push, %PIMA, %BW/%SW) <strong>aparecen en el selector de variables solo después de guardar la primera carga</strong> y requieren, además, una sesión del Iso-Push emparejado y la masa corporal (o el peso de referencia) del jugador.</p>
     <form class="filters" onSubmit=${save} aria-label="Alta manual de carga">
       ${fixedTest ? html`<p><strong>${fixedTest.name}</strong></p>` : html`<label>Test <select value=${f.testId} onChange=${set('testId')} required><option value="">Elige…</option>${tests.map((t) => html`<option key=${t.id} value=${t.id}>${t.name}</option>`)}</select></label>`}
       <label>Fecha <input type="date" value=${f.date} onInput=${set('date')} required /></label>
@@ -355,7 +430,8 @@ export function ResultadosJugador({ player, query = {}, edicion = null, antrop =
   const hasSessions = (t) => sessions.some((s) => s.testId === t.id);
   const loadTest = (t) => catalog.variables.some((v) => v.testId === t.id && !v.archived && v.kind !== 'derived' && LOAD_VARIABLE_NAMES.includes(v.name)); // Iso-Hold y RM: la carga se escribe a mano
   const vbtTest = (t) => /velocity profile/i.test(t.name); // perfiles fuerza–velocidad: el perfil carga-velocidad se introduce aquí
-  const selectable = (t) => hasSessions(t) || loadTest(t) || vbtTest(t);
+  const angTest = (t) => t.name === 'Jurdan Test'; // test de ángulos: se mide a partir de fotografías (herramienta integrada)
+  const selectable = (t) => hasSessions(t) || loadTest(t) || vbtTest(t) || angTest(t);
   const allOf = (b) => catalog.tests.filter((t) => (t.blockKey ?? 'fuerza') === b && !t.archived);
   const tests = allOf(block);
   const test = tests.find((t) => t.id === testId && selectable(t)) ?? tests.find(hasSessions) ?? null;
@@ -368,7 +444,8 @@ export function ResultadosJugador({ player, query = {}, edicion = null, antrop =
       <div class="test-sticky"><span class="muted">${playerLabel(player)} ·</span> <h3>${test.name}</h3></div>
       ${hasSessions(test) ? html`<${PanelTest} key=${test.id} player=${player} test=${test} catalog=${catalog} sessions=${sessions.filter((s) => s.testId === test.id)} omitted=${omitted} reload=${reload} q=${query} setQ=${setQ} targets=${targets} positions=${positions} positionId=${positionId} />` : html`<p class="muted">Este jugador aún no tiene sesiones de este test.</p>`}
       ${loadTest(test) ? html`<${AltaManualCarga} key=${'am' + test.id} player=${player} catalog=${catalog} reload=${reload} fixedTest=${test} />` : null}
-      ${vbtTest(test) ? fv : null}`;
+      ${vbtTest(test) ? fv : null}
+      ${angTest(test) ? html`<${Card} titulo="Medir ángulos con fotografías"><p class="muted">Carga las dos fotos, revisa los puntos y guarda: las medidas se añaden a este jugador.</p><${Angulos} key=${'ang' + player.id} jugadorId=${player.id} /><//>` : null}`;
   const listaTests = () => !tests.length ? html`<p class="muted">Bloque sin tests definidos.</p>` : html`
       <div class=${`test-list cols-${Math.min(5, groups.length)}`}>${groups.map((g) => html`<div key=${g}>${g === 'Sin manifestación' ? null : html`<h3>${g}</h3>`}<div class="test-items">${ordered(g).map((t) => { const ok = selectable(t); return html`<button type="button" key=${t.id} disabled=${!ok} title=${!ok ? 'Sin sesiones de este test' : hasSessions(t) ? t.name : 'Aún sin datos: pulsa para añadirlos'} class=${(test && t.id === test.id ? 'test-item on' : 'test-item') + (!hasSessions(t) && ok ? ' vacio' : '')} aria-pressed=${!!test && t.id === test.id} onClick=${() => setQ({ t: t.id, v: undefined })}>${zName(t) ? zName(t) + ' · ' : ''}${t.name}${!hasSessions(t) && ok ? html` <span class="sin-datos">· sin datos aún</span>` : null}</button>`; })}</div></div>`)}</div>
       ${cuerpoTest()}`;

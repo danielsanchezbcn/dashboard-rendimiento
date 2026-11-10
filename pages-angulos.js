@@ -12,11 +12,12 @@ export const EnlaceAngulos = () => html`<${Card} titulo="Medir ángulos">
   <p>Mide el Jurdan Test a partir de dos fotografías y guarda los resultados en el jugador, sin pasar por el Excel.</p>
   <p><a class="button" href="#nme-angulos">Abrir «Medir ángulos»</a></p><//>`;
 
-export function Angulos() {
+// jugadorId: dentro de la ficha de un jugador (Jurdan Test) el jugador ya está elegido.
+export function Angulos({ jugadorId = null }) {
   const { db, version, bump } = useApp();
   const marco = useRef(null);
   const { data } = useLoad(async () => ({ catalog: await listCatalog(db), players: (await db.players.toArray()).filter((p) => p.active).sort((a, b) => baseName(a).localeCompare(baseName(b), 'es')) }), [db, version]);
-  const [playerId, setPlayerId] = useState('');
+  const [playerId, setPlayerId] = useState(jugadorId ? String(jugadorId) : '');
   const [date, setDate] = useState(todayIso());
   const [time, setTime] = useState('');
   const [medida, setMedida] = useState(null); // último mensaje de la herramienta
@@ -29,7 +30,7 @@ export function Angulos() {
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
   }, []);
-  if (!data) return html`<h2 class="page-title">Medir ángulos</h2><p>Cargando…</p>`;
+  if (!data) return html`${jugadorId ? null : html`<h2 class="page-title">Medir ángulos</h2>`}<p>Cargando…</p>`;
   const map = medida && hayDestino(medida.test) ? mapearAngulos(medida.test, medida.results, data.catalog) : null;
   const sinDestino = medida && !hayDestino(medida.test);
   const completo = !!map && !map.error && map.faltan.length === 0;
@@ -42,11 +43,11 @@ export function Angulos() {
     return r;
   }, 'medidas guardadas en el jugador. La herramienta queda lista para el siguiente.');
   const jug = data.players.find((p) => p.id === Number(playerId));
-  return html`<p><a href="#nme">← NME</a></p>
-    <h2 class="page-title">Medir ángulos</h2>
+  return html`${jugadorId ? null : html`<p><a href="#nme">← NME</a></p>
+    <h2 class="page-title">Medir ángulos</h2>`}
     <${Card} titulo="Guardar en el jugador">
       <form class="filters" onSubmit=${guardar} aria-label="Guardar medidas">
-        <label>Jugador <select value=${playerId} onChange=${(e) => setPlayerId(e.target.value)} required><option value="">Elige…</option>${data.players.map((p) => html`<option key=${p.id} value=${p.id}>${playerLabel(p)}</option>`)}</select></label>
+        ${jugadorId ? html`<p><strong>${jug ? playerLabel(jug) : ''}</strong></p>` : html`<label>Jugador <select value=${playerId} onChange=${(e) => setPlayerId(e.target.value)} required><option value="">Elige…</option>${data.players.map((p) => html`<option key=${p.id} value=${p.id}>${playerLabel(p)}</option>`)}</select></label>`}
         <label>Fecha <input type="date" value=${date} onInput=${(e) => setDate(e.target.value)} required /></label>
         <label>Hora (opcional) <input type="time" value=${time} onInput=${(e) => setTime(e.target.value)} /></label>
         <button type="submit" disabled=${busy || !completo || !playerId}>Guardar en ${jug ? playerLabel(jug) : 'el jugador'}</button>

@@ -35,7 +35,7 @@ export async function chartToBlob(box) {
   return new Promise((ok, no) => c.toBlob((b) => (b ? ok(b) : no(new Error('No se pudo generar el PNG.'))), 'image/png'));
 }
 
-export function Copiable({ children, nombre = 'grafico' }) {
+export function Copiable({ children, nombre = 'grafico', omitir = null }) {
   const box = useRef(null);
   const [open, setOpen] = useState(false);
   const [msg, setMsg] = useState('');
@@ -57,7 +57,7 @@ export function Copiable({ children, nombre = 'grafico' }) {
     }
   };
   const download = async () => { setOpen(false); try { downloadBlob(await chartToBlob(box.current), `${nombre}.png`.replace(/[^\w.-]+/g, '_')); setMsg('Imagen descargada (PNG).'); } catch (e) { setMsg(`No se pudo descargar: ${e.message}`); } };
-  return html`<div class="copiable" ref=${box} onClick=${(e) => { if (!e.target.closest?.('.copiable-menu')) setOpen(true); }} onKeyDown=${(e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === box.current) { e.preventDefault(); setOpen((v) => !v); } }} tabindex="0" role="group" aria-label="Gráfico: pulsa para copiar la imagen">
+  return html`<div class="copiable" ref=${box} onClick=${(e) => { if (omitir?.(e)) return; if (!e.target.closest?.('.copiable-menu')) setOpen(true); }} onKeyDown=${(e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === box.current) { e.preventDefault(); setOpen((v) => !v); } }} tabindex="0" role="group" aria-label="Gráfico: pulsa para copiar la imagen">
     ${children}
     ${open ? html`<div class="copiable-menu" role="menu"><button type="button" role="menuitem" onClick=${copy}>Copiar imagen</button><button type="button" role="menuitem" class="secondary" onClick=${download}>Descargar PNG</button></div>` : null}
     ${msg ? html`<p class="muted copiable-msg" role="status">${msg}</p>` : null}

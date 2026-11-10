@@ -35,7 +35,13 @@ const REF_STYLE = {
   premier50: { color: MORADO, w: 4, dash: '0.1 9', cap: 'round' }, premier75: { color: MORADO, w: 3, dash: '12 7' },
   pa: { color: LILA, w: 3.5 }, pb: { color: LILA, w: 3, dash: '12 7' }, first: { color: GRIS, w: 3, dash: '14 6 2 6' }, last: { color: GRIS, w: 3 },
 };
-const refLabel = (k, posName) => { const l = RADAR_REFS.find((r) => r.key === k)?.label ?? k; return k.endsWith('pos') && posName ? `${l} (${posName})` : l; };
+// «Primera» y «última medida» se rotulan con su fecha (si las variables del radar tienen fechas distintas, el intervalo).
+const refLabel = (k, posName, dates = null) => {
+  const l = RADAR_REFS.find((r) => r.key === k)?.label ?? k;
+  const d = (k === 'first' || k === 'last') ? dates?.[k] : null;
+  if (d) return d[0] === d[1] ? fmtDay(d[0]) : `${fmtDay(d[0])} – ${fmtDay(d[1])}`;
+  return k.endsWith('pos') && posName ? `${l} (${posName})` : l;
+};
 
 export function RadarSvg({ profile, radar, playerName, shown = ['p50', 'premier50', 'pa'], posName = '', svgRef }) {
   const n = radar.axes.length;
@@ -48,9 +54,9 @@ export function RadarSvg({ profile, radar, playerName, shown = ['p50', 'premier5
   const pt = (i, ratio) => [CX + Math.cos(ang(i)) * unit * ratio, CY + Math.sin(ang(i)) * unit * ratio];
   const poly = (ratios) => ratios.map((r, i) => pt(i, r).map((x) => x.toFixed(1)).join(',')).join(' ');
   const rows = Math.ceil(draw.length / 2); const HH = H + (rows ? rows * 26 + 8 : 0);
-  const basisText = mainKey ? refLabel(mainKey) : '';
+  const basisText = mainKey ? refLabel(mainKey, '', radar.dates) : '';
   return html`<svg ref=${svgRef} xmlns="http://www.w3.org/2000/svg" viewBox=${`0 0 ${W} ${HH}`} width="100%" role="img" class="radar-svg"
-      aria-label=${`Radar ${profile.title} de ${playerName}: ${radar.axes.map((a) => `${a.label}${val(a) != null ? ` ${fx(val(a))} ${a.unit}` : ''}`).join('; ')}. Referencias dibujadas: ${draw.map((k) => refLabel(k, posName)).join(', ')}`}>
+      aria-label=${`Radar ${profile.title} de ${playerName}: ${radar.axes.map((a) => `${a.label}${val(a) != null ? ` ${fx(val(a))} ${a.unit}` : ''}`).join('; ')}. Referencias dibujadas: ${draw.map((k) => refLabel(k, posName, radar.dates)).join(', ')}`}>
     <rect width=${W} height=${HH} fill="#000" />
     ${draw.map((k) => { const st = REF_STYLE[k]; return html`<polygon key=${k} points=${poly(radar.axes.map((a) => a.ratios[k]))} fill="none" stroke=${st.color} stroke-width=${st.w} stroke-dasharray=${st.dash ?? null} stroke-linecap=${st.cap ?? 'butt'} stroke-linejoin="round" />`; })}
     <text x=${CX} y=${CY + 12} text-anchor="middle" font-family=${FONT} font-size="34" font-weight="700" fill=${BLANCO}>${profile.center}</text>
@@ -72,11 +78,11 @@ export function RadarSvg({ profile, radar, playerName, shown = ['p50', 'premier5
         <text x=${lx + (right ? wid + 26 : -wid - 26)} y=${vtxY + 5} text-anchor=${right ? 'start' : 'end'} font-family=${FONT} font-size="20" fill=${LILA}>${vtxt}</text></g>`;
     })}
     <g font-family=${FONT} font-size="19">${(() => {
-      const itemW = (k) => 72 + refLabel(k, posName).length * 9; const GAP = 60;
+      const itemW = (k) => 72 + refLabel(k, posName, radar.dates).length * 9; const GAP = 60;
       const rowsK = []; for (let q = 0; q < draw.length; q += 2) rowsK.push(draw.slice(q, q + 2));
       return rowsK.map((row, r) => { const total = row.reduce((a, k) => a + itemW(k), 0) + GAP * (row.length - 1); let x = (W - total) / 2; const y = H + r * 26;
         return row.map((k) => { const st = REF_STYLE[k]; const x0 = x; x += itemW(k) + GAP;
-          return html`<g key=${k}><line x1=${x0} x2=${x0 + 60} y1=${y} y2=${y} stroke=${st.color} stroke-width=${st.w} stroke-dasharray=${st.dash ?? null} stroke-linecap=${st.cap ?? 'butt'} /><text x=${x0 + 72} y=${y + 6} fill=${st.color}>${refLabel(k, posName)}</text></g>`; }); });
+          return html`<g key=${k}><line x1=${x0} x2=${x0 + 60} y1=${y} y2=${y} stroke=${st.color} stroke-width=${st.w} stroke-dasharray=${st.dash ?? null} stroke-linecap=${st.cap ?? 'butt'} /><text x=${x0 + 72} y=${y + 6} fill=${st.color}>${refLabel(k, posName, radar.dates)}</text></g>`; }); });
     })()}</g>
   </svg>`;
 }
@@ -162,13 +168,13 @@ export function RadarPanel({ player, testName }) {
     <div class="filters">
       <label>Posición para las referencias por posición <select value=${rp} onChange=${(e) => setRp(e.target.value)}><option value="all">Ninguna (sin referencias por posición)</option>${data.positions.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label>
     </div>
-    <fieldset class="modes"><legend>Referencias del radar</legend>${RADAR_REFS.map((r) => { const why = radar.axes.length ? unavailable(r) : null; return html`<label class="check" key=${r.key} title=${why ?? ''}><input type="checkbox" checked=${shown.includes(r.key)} disabled=${!!why} onChange=${() => toggleRef(r.key)} /> ${r.label}${why ? html` <span class="muted">(no disponible)</span>` : null}</label>`; })}</fieldset>
+    <fieldset class="modes"><legend>Referencias del radar</legend>${RADAR_REFS.map((r) => { const why = radar.axes.length ? unavailable(r) : null; return html`<label class="check" key=${r.key} title=${why ?? ''}><input type="checkbox" checked=${shown.includes(r.key)} disabled=${!!why} onChange=${() => toggleRef(r.key)} /> ${refLabel(r.key, '', radar.dates)}${why ? html` <span class="muted">(no disponible)</span>` : null}</label>`; })}</fieldset>
     ${radar.drawable ? html`<${Copiable} nombre=${`radar-${profile.center}-${baseName(player)}`}><${RadarSvg} profile=${profile} radar=${radar} playerName=${playerLabel(player)} shown=${shown} posName=${posName} svgRef=${svgRef} /><//>
       <div class="actions"><button type="button" class="secondary" onClick=${() => toPng(svgRef.current, `radar-${profile.center}-${baseName(player)}.png`.replace(/[^\w.-]+/g, '_')).catch((e) => setMsg({ type: 'error', text: e.message }))}>Descargar imagen (PNG)</button></div>
       <${Msg} msg=${msg} />`
       : html`<p class="muted">No hay datos suficientes para dibujar el radar: hacen falta al menos 3 variables con dato del jugador y P50 suficiente de La Liga.</p>`}
     ${radar.axes.length && draw.length ? html`<div class="table-wrap"><table><caption>Valores originales y normalización (cada referencia ÷ P50 de La Liga, todas las posiciones)</caption>
-      <thead><tr><th>Variable</th><th class="num">P50 La Liga (N)</th>${draw.filter((k) => k !== 'p50').map((k) => html`<th key=${k} class="num">${refLabel(k, posName)}</th>`)}</tr></thead>
+      <thead><tr><th>Variable</th><th class="num">P50 La Liga (N)</th>${draw.filter((k) => k !== 'p50').map((k) => html`<th key=${k} class="num">${refLabel(k, posName, radar.dates)}</th>`)}</tr></thead>
       <tbody>${radar.axes.map((a) => html`<tr key=${a.variable.id}><th scope="row">${a.label}<small class="cell-date">${a.variable.name}</small></th>
         <td class="num">${nf(a.laLiga.p50, digits(a.laLiga.p50))} ${a.unit} (${a.laLiga.n})</td>
         ${draw.filter((k) => k !== 'p50').map((k) => html`<td key=${k} class="num">${nf(a.refs[k], digits(a.refs[k]))} ${a.unit} <span class="muted">· ${nf(a.ratios[k] * 100, 0)} %</span></td>`)}</tr>`)}</tbody></table></div>` : null}

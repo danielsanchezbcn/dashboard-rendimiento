@@ -12,7 +12,7 @@ import { audit } from './db.js';
 import { SW_FACTOR_DEFAULT, testUsage } from './catalogo.js';
 import { ISO_PAIRS, RM12_TESTS, RM_EST_FACTOR_DEFAULT, pairFactor } from './isohold.js';
 
-export const CATALOG_SEED_VERSION = 10;
+export const CATALOG_SEED_VERSION = 11;
 
 const BLOCKS = [
   { key: 'fuerza', name: 'Manifestaciones de la fuerza' },
@@ -168,6 +168,7 @@ export async function seedInitialCatalog(db) {
     await ensurePerimeters(db, ts, counts);
     await ensureJurdan(db, ts, counts);
     await ensureToeTouch(db, ts, counts);
+    await ensureNordicRelative(db, ts, counts);
     counts.direccionesAsignadas = await defaultDirections(db, ts);
     await db.meta.put({ key: 'catalogSeeded', value: { version: CATALOG_SEED_VERSION, at: ts, vacioAlSembrar: empty } });
     await audit(db, 'catalogo-inicial-cargado', { version: CATALOG_SEED_VERSION, ...counts });
@@ -342,6 +343,22 @@ async function ensureGroinAnkle(db, ts, counts) {
   }
 }
 
+// 10/11/2026: Nordic Hamstring Exercise — «Max Force relativo (BW)»: fuerza máxima de cada pierna (N) ÷ (masa corporal × 9,80665), igual que el Peak Force relativo de los Iso-Push.
+// La variable absoluta (N) se conserva (las referencias de la Premier y los umbrales publicados son absolutos). Se muestra primero la relativa. Idempotente, por nombre.
+async function ensureNordicRelative(db, ts, counts) {
+  const lc = (x) => String(x ?? '').trim().toLowerCase();
+  const t = (await db.tests.toArray()).find((x) => lc(x.name) === lc('Nordic Hamstring Exercise'));
+  if (!t) return;
+  const vars = await db.variables.where('testId').equals(t.id).toArray();
+  const mf = vars.find((x) => lc(x.name) === 'max force' && x.kind === 'raw');
+  if (!mf || vars.some((x) => lc(x.name) === 'max force relativo (bw)')) return;
+  let order = (await db.variables.orderBy('order').last())?.order ?? 0;
+  const formula = { op: 'REL_BW', operands: [mf.id], params: {}, text: '' };
+  const id = await db.variables.add({ testId: t.id, name: 'Max Force relativo (BW)', unit: 'BW', sides: 'LR', direction: 'higher', manifestationId: mf.manifestationId ?? null, kind: 'derived', formula, formulaVersion: 1, notes: 'Max Force (N) ÷ (masa corporal × 9,80665), por pierna. Añadida el 10/11/2026 a petición del usuario.', archived: false, order: ++order, createdAt: ts, updatedAt: ts, source: 'inicial' });
+  await db.formulaHistory.add({ variableId: id, version: 1, formula, at: ts, reason: 'Catálogo inicial (10/11/2026)' });
+  counts.variablesAnadidas = (counts.variablesAnadidas ?? 0) + 1; counts.variables = (counts.variables ?? 0) + (counts.tests !== undefined ? 1 : 0);
+}
+
 // Actualiza un catálogo ya cargado con una versión anterior de la semilla, sin pisar nada que el usuario haya editado:
 // solo rellena unidades y tipos de valor que estén sin definir, añade las variables que falten, mueve los Iso-Hold a
 // Max Isometric Strength si siguen en la manifestación antigua y elimina el duplicado «Run-Specific Ankle Iso-Hold 20 s»
@@ -439,6 +456,7 @@ async function migrateCatalog(db, prev) {
     await ensurePerimeters(db, ts, res);
     await ensureJurdan(db, ts, res);
     await ensureToeTouch(db, ts, res);
+    await ensureNordicRelative(db, ts, res);
     res.direccionesAsignadas = await defaultDirections(db, ts);
     await db.meta.put({ key: 'catalogSeeded', value: { ...(cur?.value ?? {}), version: CATALOG_SEED_VERSION, actualizadoEn: ts } });
     await audit(db, 'catalogo-inicial-actualizado', { version: CATALOG_SEED_VERSION, ...res });

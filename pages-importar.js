@@ -15,6 +15,7 @@ import { fmtDate } from './util.js';
 import { fmtDay } from './fechas.js';
 import { baseName, playerLabel } from './jugadores.js';
 import { ImportarImagen } from './pages-imagen.js';
+import { ImportarCargas } from './pages-cargas.js';
 
 const show = (v) => (v === null || v === undefined ? '' : v instanceof Date ? v.toISOString().slice(0, 10) : String(v));
 const STEPS = [['archivo', '1. Archivo'], ['mapeo', '2. Columnas'], ['vista', '3. Vista previa'], ['jugadores', '4. Jugadores'], ['resumen', '5. Resumen'], ['resultado', '6. Informe']];
@@ -419,6 +420,7 @@ export function Importar() {
   const [vista, setVista] = useState('ficheros');
   return html`<div class="modes" role="tablist" aria-label="Tipo de importación">
       <button type="button" role="tab" aria-selected=${vista === 'ficheros'} class=${vista === 'ficheros' ? '' : 'secondary'} onClick=${() => setVista('ficheros')}>Datos de tests (Excel / VALD)</button>
-      <button type="button" role="tab" aria-selected=${vista === 'imagen'} class=${vista === 'imagen' ? '' : 'secondary'} onClick=${() => setVista('imagen')}>Antropometría desde imagen</button></div>
-    ${vista === 'ficheros' ? html`<${ImportarFicheros} />` : html`<${ImportarImagen} />`}`;
+      <button type="button" role="tab" aria-selected=${vista === 'imagen'} class=${vista === 'imagen' ? '' : 'secondary'} onClick=${() => setVista('imagen')}>Antropometría desde imagen</button>
+      <button type="button" role="tab" aria-selected=${vista === 'cargas'} class=${vista === 'cargas' ? '' : 'secondary'} onClick=${() => setVista('cargas')}>Cargas Iso-Hold / RM (Excel)</button></div>
+    ${vista === 'ficheros' ? html`<${ImportarFicheros} />` : vista === 'cargas' ? html`<${ImportarCargas} />` : html`<${ImportarImagen} />`}`;
 }

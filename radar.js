@@ -72,9 +72,11 @@ export function buildRadar({ profile, test, variables, sessions, players, histor
       const others = entries.filter((e) => e.playerId !== playerId).map((e) => e.value);
       const q = (vals, p) => (vals.length >= (minN ?? 1) ? quantile(vals, p) : null);
       const posVals = positionId === null ? [] : buildReference({ sessions, variable, side: 'S', players, histories, basis: 'pa', positionId }).filter((e) => e.playerId !== playerId).map((e) => e.value);
+      const ownDate = (b) => playerValue(sessions.filter((s) => s.testId === test.id && s.playerId === playerId), variable, 'S', { basis: b, positionId: null, histories, playerId })?.date ?? null;
       const own = (b) => playerValue(sessions.filter((s) => s.testId === test.id && s.playerId === playerId), variable, 'S', { basis: b, positionId: null, histories, playerId })?.value ?? null;
       const refs = { p50: ev.p50, p75: q(others, 0.75), p50pos: q(posVals, 0.5), p75pos: q(posVals, 0.75), premier50: premierP50, premier75: pr && !pr.signed && Number.isFinite(pr.cuts[3]) ? pr.cuts[3] : null, first: own('first'), pa: own('pa'), pb: own('pb'), last: own('last') };
       axis.refs = refs;
+      axis.dates = { first: ownDate('first'), last: ownDate('last') };
       axis.ratios = Object.fromEntries(Object.entries(refs).map(([k, v]) => [k, v === null || v === undefined ? null : v / ev.p50]));
     }
     axes.push(axis);
@@ -82,5 +84,7 @@ export function buildRadar({ profile, test, variables, sessions, players, histor
   const premierComplete = axes.length > 0 && axes.every((a) => a.premier !== null);
   // Referencia dibujable solo si todos los ejes dibujados la tienen.
   const complete = Object.fromEntries(RADAR_REFS.map((r) => [r.key, axes.length > 0 && axes.every((a) => a.ratios?.[r.key] != null)]));
-  return { axes, omitted, premierComplete, drawable: axes.length >= 3, complete };
+  // Fechas de la primera y la última medida (una por eje: pueden diferir entre variables): se muestran en lugar de «primera/última medida».
+  const dates = Object.fromEntries(['first', 'last'].map((k) => { const d = [...new Set(axes.map((a) => a.dates?.[k]).filter(Boolean))].sort(); return [k, d.length ? [d[0], d[d.length - 1]] : null]; }));
+  return { axes, omitted, premierComplete, drawable: axes.length >= 3, complete, dates };
 }

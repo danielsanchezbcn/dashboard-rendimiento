@@ -52,7 +52,7 @@ function Page({ route }) {
       return html`<${BloqueCatalogo} blockKey="perimetros" titulo="Datos antropométricos" vacio="No hay medidas de perímetro definidas." />`;
     case 'nme':
       if (route.view === 'angulos') return html`<${Angulos} />`;
-      return html`<${BloqueCatalogo} blockKey="nme" titulo="NME" vacio="Bloque sin definir." /><${EnlaceAngulos} />`;
+      return html`<${EnlaceAngulos} /><${BloqueCatalogo} blockKey="nme" titulo="NME" vacio="Bloque sin definir." />`;
     case 'catalogo':
       return route.param ? html`<${TestDetalle} id=${route.param} />` : html`<${Catalogo} />`;
     case 'importar':

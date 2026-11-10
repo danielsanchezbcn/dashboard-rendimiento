@@ -21,7 +21,7 @@ import { ICONO_LALIGA, ICONO_PREMIER, ICONO_TARGET, ICONO_NATERA } from './icono
 const nf = (n, d = 1) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 const nfv = (n) => nf(n, 2);
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-const SIDE = { L: 'Izquierda', R: 'Derecha', S: 'Valor' };
+const SIDE = { L: 'Left', R: 'Right', S: 'Valor' };
 const BASIS = { pa: 'Personal Average', last: 'Última sesión válida' };
 
 export function Banda({ ev }) {
@@ -45,7 +45,8 @@ function EscalaG4({ filas, refs, unit, target }) {
   const rows0 = filas[0].rows;
   const vals = filas.flatMap((f) => f.rows.flatMap((r) => [r.ev.min, r.ev.max, r.value, r.ev.p50])).concat(refs.map((m) => m.v), (target ?? []).map((t) => t?.value)).filter((v) => v != null);
   const min = Math.min(...vals), max = Math.max(...vals), span = max - min || 1;
-  const W = 640, L = 40, R = 40;
+  const hayEtiq = filas.length > 1 || filas[0].base !== 'pa'; // etiquetas PA / PB / fecha a la izquierda, a la altura del valor
+  const W = 640, L = hayEtiq ? 100 : 40, R = 40;
   const x = (v) => L + ((v - min) / span) * (W - L - R);
   const T = PAL.texto;
   const lo = L - 6, hi = W - R + 6;
@@ -67,7 +68,7 @@ function EscalaG4({ filas, refs, unit, target }) {
   const y0 = 84 + levels * 36;
   const unaFila = dibujar.length === 1;
   const conEtiqueta = (f) => !unaFila || f.base !== 'pa';
-  const alto = (f) => (f.asym != null && f.rows.length === 2 ? 100 : 62) + (conEtiqueta(f) ? 16 : 0);
+  const alto = (f) => (f.asym != null && f.rows.length === 2 ? 100 : 62);
   let yy = y0; const pos = dibujar.map((f) => { const y = yy; yy += alto(f) + (unaFila ? 0 : 6); return y; });
   const Hs = yy + 34;
   const marker = (m) => html`<g key=${m.key}><title>${m.label}</title>
@@ -79,8 +80,8 @@ function EscalaG4({ filas, refs, unit, target }) {
     <line x1=${L} x2=${W - R} y1=${y0} y2=${y0} stroke=${T} stroke-opacity="0.5" stroke-width="3" />
     ${marks.map(marker)}
     ${dibujar.map((f, fi) => { const yb = pos[fi]; return html`<g key=${'f' + f.base}>
-      ${conEtiqueta(f) ? html`<text x=${L - 34} y=${yb + 10} font-size="12" font-weight="700" fill=${T} fill-opacity="0.85">${f.etiqueta}</text>` : null}
-      <g transform=${`translate(0 ${conEtiqueta(f) ? 16 : 0})`}>${f.rows.map((r, i) => html`<g key=${'p' + r.side}><title>${f.etiqueta}, ${SIDE[r.side]}: ${nfv(r.value)} ${unit ?? ''}${r.info ? ` — ${r.info}` : ''}</title>
+      ${conEtiqueta(f) ? html`<text x="8" y=${yb + 32} font-size="12" font-weight="700" fill=${T} fill-opacity="0.85">${f.etiqueta}</text>` : null}
+      <g>${f.rows.map((r, i) => html`<g key=${'p' + r.side}><title>${f.etiqueta}, ${SIDE[r.side]}: ${nfv(r.value)} ${unit ?? ''}${r.info ? ` — ${r.info}` : ''}</title>
         <circle cx=${f.cx[i]} cy=${yb + 28} r="11" fill=${colorLado(r.side)} />
         ${r.side === 'S' ? null : html`<text x=${f.cx[i]} y=${yb + 32} text-anchor="middle" font-size="12" font-weight="700" fill=${PAL.fondo}>${r.side}</text>`}
         <text x=${f.cx[i] + (f.close ? (f.cx[i] === Math.min(...f.cx) ? 4 : -4) : 0)} y=${yb + 56} text-anchor=${f.close ? (f.cx[i] === Math.min(...f.cx) ? 'end' : 'start') : 'middle'} font-size="12" fill=${T}>${nfv(r.value)}</text></g>`)}
@@ -187,7 +188,7 @@ export function PercentilesPanel({ player, test, variable, mine, q, setQ, filter
   }
   if (!BASES.some(([b]) => sides.some((sd) => cell[b + sd].value != null))) return html`<p class="muted">Sin sesiones válidas para calcular percentiles en este periodo.</p>`;
   const posName = positionId === null ? 'todas las posiciones' : positions.find((p) => p.id === positionId)?.name ?? 'posición eliminada';
-  const SD = { L: 'Izquierda', R: 'Derecha', S: 'Valor' };
+  const SD = { L: 'Left', R: 'Right', S: 'Valor' };
   // Escala: bases del jugador (Resultado actual, Personal Best, Personal Average) y marcas de referencia, todas opcionales. Por defecto: Personal Average, P50 La Liga y P50 Premier League.
   const nat = findNatera(test, variable); // referencias de Natera (solo Iso-Push): tres marcas opcionales y una columna en el cuadro
   const diasActual = [...new Set(sides.map((sd) => current?.[sd]?.date).filter(Boolean))];
@@ -215,16 +216,16 @@ export function PercentilesPanel({ player, test, variable, mine, q, setQ, filter
     return [sd, { valor: txt(c.value), tip: `${SD[sd]} · ${name}${c.tip ? ' · ' + c.tip : ''}${c.ev.sufficient ? ` · P50 de La Liga: ${nfv(c.ev.p50)}${u} · N = ${c.ev.n}` : ''}`, ll,
       pl: c.pl?.placed ? { txt: c.pl.text, key: c.pl.band } : null, plVacio: plRef ? 'sin ubicar' : '—', nat: k ? { txt: k.text, key: k.band } : null }]; })) }));
   const tipSpan = (t, tip) => (tip ? html`<span title=${tip} aria-label=${`${t}. ${tip}`} tabindex="0">${t}</span>` : html`${t}`);
-  const escala = html`<section class="refs"><fieldset class="modes"><legend class="sec-titulo">Marcadores de la escala</legend>
+  const escala = html`<section class="refs"><fieldset class="modes"><legend class="sec-titulo">Benchmark-Contextualized Positioning</legend>
       ${[BASES[2], BASES[1], BASES[0]].map(([b, n]) => html`<label class="check" key=${b} title=${baseOff(b) ? 'Sin sesiones válidas en el periodo.' : ''}><input type="checkbox" disabled=${baseOff(b)} checked=${!baseOff(b) && chosenSm.includes(b)} onChange=${(e) => toggleSm(b, e.target.checked)} /> ${b === 'last' ? etiquetaActual : n}</label>`)}
       ${REFS.map(([k, n]) => html`<label class="check" key=${k} title=${refOff(k) ? (k.startsWith('premier') ? 'Esta variable no figura en las tablas de la Premier League.' : k.endsWith('pos') && posJugador == null ? 'El jugador no tiene posición principal.' : `Sin muestra suficiente (mínimo ${minN} jugadores).`) : ''}><input type="checkbox" disabled=${refOff(k)} checked=${!refOff(k) && chosenSm.includes(k)} onChange=${(e) => toggleSm(k, e.target.checked)} /> ${n}</label>`)}</fieldset>
     ${filas.length ? html`<${EscalaG4} filas=${filas} refs=${refsSel} unit=${unit} target=${sides.map((sd) => targets[sd]).filter(Boolean).filter((t, i, a) => a.findIndex((v) => v.value === t.value) === i)} />` : html`<p class="muted">Marca al menos un marcador del jugador (Resultado actual, Personal Best o Personal Average) para ver la escala.</p>`}
     ${insuf ? html`<p class="status warn">Muestra insuficiente para clasificar: no se dibuja la mediana ni se colorea (N inferior a ${minN}).</p>` : null}</section>`;
   if (parte === 'escala') return escala;
-  const tabla = html`<section class="refs"><h4 class="sec-titulo">Resultados y percentiles</h4>
+  const tabla = html`<section class="refs"><h4 class="sec-titulo">Normative Benchmarking</h4>
     <div class="filters"><label>Referencia de La Liga <select value=${rp} onChange=${(e) => setQ({ rp: e.target.value })}><option value="all">Todas las posiciones</option>${positions.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label></div>
-    <${TablaSvg} titulo=${`${variable.name}${unit && !variable.name.includes(`(${unit})`) ? ` (${unit})` : ""}${plRef ? ` · Premier League ${PREMIER_SEASON}` : ""}`} sides=${sides} filas=${filasTabla} nat=${nat} SD=${SD} />
-    <div class="sr"><div class="table-wrap"><table><caption>${variable.name}${unit && !variable.name.includes(`(${unit})`) ? ` (${unit})` : ''}${plRef ? ` · Premier League ${PREMIER_SEASON}` : ''}</caption>
+    <${TablaSvg} titulo=${`${variable.name}${unit && !variable.name.includes(`(${unit})`) ? ` (${unit})` : ""}`} sides=${sides} filas=${filasTabla} nat=${nat} SD=${SD} />
+    <div class="sr"><div class="table-wrap"><table><caption>${variable.name}${unit && !variable.name.includes(`(${unit})`) ? ` (${unit})` : ''}</caption>
       <thead><tr><th rowspan="2" scope="col">Medida</th>${sides.map((sd) => html`<th key=${sd} colspan=${nCols} scope="colgroup">${SD[sd]}</th>`)}</tr>
         <tr>${sides.flatMap((sd) => [html`<th key=${sd + 'v'} scope="col" class="num">Valor</th>`, html`<th key=${sd + 'l'} scope="col">La Liga</th>`, html`<th key=${sd + 'p'} scope="col">Premier League</th>`, ...(nat ? [html`<th key=${sd + 'n'} scope="col" title=${`Natera: Normal desde ${nf(nat.normal, 2)} ${nat.unit} · Good desde ${nf(nat.good, 2)} · Excellent desde ${nf(nat.excellent, 2)}`}>Natera (${nat.unit})</th>`] : [])])}</tr></thead>
       <tbody>${[BASES[1], BASES[2], BASES[0]].map(([b, name]) => html`<tr key=${b}><th scope="row">${b === 'last' ? (() => { const days = [...new Set(sides.map((sd) => current?.[sd]?.date).filter(Boolean))]; return days.length ? days.map(fmtDay).join(' / ') : name; })() : name}</th>${sides.flatMap((sd) => { const c = cell[b + sd]; if (c.value == null) return [html`<td key=${sd + 'v'} class="num"><span class="muted" title=${c.tip ?? ''}>—</span></td>`, html`<td key=${sd + 'l'}>—</td>`, html`<td key=${sd + 'p'}>—</td>`, ...(nat ? [html`<td key=${sd + 'n'}>—</td>`] : [])];

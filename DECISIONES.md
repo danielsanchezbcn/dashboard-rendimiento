@@ -328,3 +328,21 @@ Estilo y biblioteca (D20) cerrados el 6 de noviembre de 2026. Ese mismo día se 
 (87) 10/11/2026 — Ángulos: signo de asimetría como el resto del dashboard; AKET solo calcula (sin registro); archivos de ejecución de MediaPipe incluidos, falta el modelo .task.
 
 (88) 10/11/2026 — Escala: marcas escalonadas sin solapes (la de la izquierda sube sobre las que se le solapan); «Resultado actual» se muestra con la fecha del test; marcas opcionales de Natera (Normal/Good/Excellent, solo Iso-Push). El cuadro «Resultados y percentiles» pasa a imagen SVG copiable/descargable (tabla accesible oculta debajo). Orden de zonas: Ankle, Knee, Hip, Groin. Tests sin datos pero con herramienta (Iso-Hold/RM y perfiles F–V) en gris «sin datos aún», clicables. Encabezados de sección destacados.
+
+(89) 10/11/2026 — Nordic Hamstring Exercise: añadida «Max Force relativo (BW)» (fuerza por pierna ÷ masa corporal × g, como el Peak Force relativo de los Iso-Push; la absoluta se conserva por las referencias Premier y los umbrales publicados, que son absolutos). Semilla v11, idempotente. Radar: «primera/última medida» se rotulan con su fecha (intervalo si las variables difieren). Gráfico de evolución: «Comparar dos medidas» (clic en dos puntos o selección): p, IC 95 %, cambio mínimo detectable y SWC con el error de medida estimado con la plantilla (cambio.js; PROVISIONAL).
+
+(90) 10/11/2026 — El Jurdan Test se puede abrir desde la ficha del jugador (NME) aunque no tenga sesiones: muestra la herramienta de ángulos con el jugador ya elegido. Enlace a «Medir ángulos» también en el detalle del test del catálogo y encima de la lista en NME. Criterio de significancia estadística aceptado como válido por ahora (el usuario lo afinará).
+
+## 91. Rediseño de títulos y orden del perfil, y percentil Premier en «todos los jugadores» (10/11/2026)
+- Orden en cada test del perfil: Normative Benchmarking (tabla de resultados y percentiles) → Benchmark-Contextualized Positioning (escala) → Longitudinal Performance Relative to Benchmarks → … → Interlimb Asymmetry Over Time. Los cuatro títulos usan el mismo estilo destacado (`.sec-titulo`; la regla `.refs h4` lo pisaba en los dos que se veían distintos).
+- «Izquierda/Derecha» pasan a «Left/Right» en estas pantallas. El título de la imagen del cuadro lleva solo la variable.
+- Tabla de todos los jugadores: añade la zona de la Premier League (sin interpolar; estimada en medidas relativas, igual que en el perfil), sin columna de repeticiones (pasa bajo el nombre) y con celdas compactas: sin desplazamiento horizontal. El CSV incluye la zona de la Premier.
+- Iso-Hold: MVIC iso-push, %PIMA, %BW/%SW ya estaban implementados (isohold.js); comprobado con los valores del Excel (78 kg, 420/396 N, 12,5 kg → 18,98 kg · 65,84 % · 55,26 %). Se calculan al abrir el test y exigen sesiones de Iso-Push emparejadas y masa.
+
+## 92. Percentil medio por posición y requisitos del Iso-Hold visibles (10/11/2026)
+- «Todos los jugadores»: cada tabla por posición lleva en el encabezado el percentil medio de La Liga por lado (media aritmética de los percentiles de rendimiento de los jugadores con muestra suficiente, con su n). Es descriptivo: la media de percentiles no es el percentil de la media. La Premier no se promedia (son zonas, no percentiles).
+- Iso-Hold: las variables derivadas existen en el catálogo pero solo aparecen en el selector tras guardar la primera carga (y requieren Iso-Push emparejado y masa); se avisa en el formulario de alta de carga.
+
+## 93. Importación de cargas desde Excel y etiquetas de la escala (10/11/2026)
+- Importar → «Cargas Iso-Hold / RM (Excel)»: lee las hojas con una columna de nombres (A) y una cabecera de carga («ADDED EXTERNAL LOAD», «EXTERNAL LOAD ADDED», «Carga externa»); asigna cada hoja a un test (propuesta por el nombre HIP/KNEE/ANKLE), pide UNA fecha para toda la importación (el Excel no la trae) y guarda una sesión manual por jugador con addManualLoad. Solo se leen valores, no fórmulas. Vinculación automática solo con coincidencia completa única; el resto, a elegir o se omite (y el nombre elegido a mano queda como alias «Excel»). Cargas vacías o no válidas se omiten; 0 kg es válido; repetir la importación no duplica.
+- Escala (Benchmark-Contextualized Positioning): las etiquetas PA / PB / fecha van a la izquierda, a la altura de los marcadores.
