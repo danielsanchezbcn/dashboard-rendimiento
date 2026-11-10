@@ -9,14 +9,14 @@
  * DETECTOR LOCAL (integracion en el dashboard, 10/11/2026): el dashboard no permite conexiones a internet, asi que MediaPipe se carga
  * desde ESTA misma carpeta (mismo origen) y no desde una CDN. Archivos necesarios junto a angulos.html (ver ANGULOS.md):
  *   vision_bundle.mjs, vision_wasm_internal.js/.wasm, vision_wasm_nosimd_internal.js/.wasm  (paquete npm @mediapipe/tasks-vision 0.10.14)
- *   pose_landmarker_heavy.task                                                                (modelo de MediaPipe)
+ *   pose_landmarker_full.task                                                                 (modelo de MediaPipe, ~9 MB; el «heavy» de ~29 MB no cabe en la subida por navegador de GitHub, límite 25 MB)
  * Si no estan, la carga falla y la foto pasa a MANUAL (colocar los puntos a mano): todo lo demas funciona igual. Version original: CDN
  * jsdelivr + storage.googleapis (comentada abajo).
  */
 // const AI_DETECTOR_CDN_BASE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
 // const AI_DETECTOR_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task";
 const AI_DETECTOR_BASE = new URL('.', location.href).href.replace(/\/$/, '');
-const AI_DETECTOR_MODEL_URL = AI_DETECTOR_BASE + '/pose_landmarker_heavy.task';
+const AI_DETECTOR_MODEL_URL = AI_DETECTOR_BASE + '/pose_landmarker_full.task'; // 10/11/2026: «full» en vez de «heavy» (por el límite de 25 MB de la subida por navegador); menos preciso, pero la calidad se sigue avisando con AUTO / REVISAR
 
 const LM = { LEFT_HIP: 23, RIGHT_HIP: 24, LEFT_KNEE: 25, RIGHT_KNEE: 26, LEFT_ANKLE: 27, RIGHT_ANKLE: 28 };
 

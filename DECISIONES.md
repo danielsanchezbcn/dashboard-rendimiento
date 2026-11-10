@@ -429,3 +429,6 @@ Estilo y biblioteca (D20) cerrados el 6 de noviembre de 2026. Ese mismo día se 
 - Por defecto solo se dibuja con 2 o más variables con datos (una sola columna repetiría el cuadro de percentiles); si el usuario la marca a mano en el Catálogo, se dibuja siempre. Se puede quitar test a test.
 - Sin opción Personal Best cuando no hay criterio (RSI…) ni dirección en ninguna variable. Mantiene: Jurdan (percentil por lado, asimetría en °), Perímetros y el resto de comportamientos.
 - Herramienta de ángulos: Thigh/RF cerrado (fue un error de referencias, ya resuelto); foto por jugador descartada; el detector sigue configurado para `pose_landmarker_heavy.task` (el modelo más preciso de MediaPipe); sin ese archivo en la carpeta, los puntos se colocan a mano.
+
+## 110. Modelo de pose «full» en lugar de «heavy» (9l)
+- El modelo `pose_landmarker_heavy.task` pesa 29,2 MB y la subida por navegador de GitHub admite 25 MB por archivo; el usuario elige el modelo `full` (~9 MB) para poder subirlo arrastrando. Es algo menos preciso que `heavy` (compromiso aceptado por el usuario). La calidad de cada detección se sigue marcando AUTO / REVISAR y siempre se puede corregir a mano. Ruta no probada con el modelo real (no se puede descargar desde el entorno de trabajo); si el archivo no está, la foto pasa a MANUAL como antes.
