@@ -9,7 +9,7 @@ import { listCatalog, SIDES } from './catalogo.js';
 import { replaceQuery, buildHash } from './rutas.js';
 import { Migas, KEEP, NotaRelativa } from './pages-test.js';
 import { RelacionTest, OrzTest, RatioTest } from './pages-relaciones.js';
-import { expandRelative, isViewable, hasData, orderVars, isRelative, defaultVar } from './relativos.js';
+import { expandRelative, isViewable, hasData, orderVars, isRelative, defaultVar, prefiereRsi } from './relativos.js';
 import { PercentilesPanel, useRefData, refContext } from './pages-percentiles.js';
 import { positionOnDate } from './posiciones.js';
 import { withReferenceWeights } from './relaciones.js';
@@ -319,7 +319,7 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const vars = orderVars(catalog.variables.filter((v) => v.testId === test.id && isViewable(v) && hasData(v, sessions)));
   const proto = q.p ?? 'all';
   const from = q.from ?? '', to = q.to ?? '';
-  const variable = vars.find((v) => String(v.id) === String(q.v)) ?? defaultVar(vars, sessions);
+  const variable = vars.find((v) => String(v.id) === String(q.v)) ?? defaultVar(vars, sessions, prefiereRsi(test, catalog));
   if (!variable) return html`<p class="muted">Este test no tiene variables con datos.</p>`;
   const protocolId = proto === 'all' ? undefined : proto === 'none' ? null : Number(proto);
   const f = { from: from || null, to: to || null, protocolId };
@@ -350,10 +350,12 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const selIds = [cmpV.a, cmpV.b].filter((x) => x != null).map((id) => selSide + ':' + id);
   const key = [player.id, test.id, variable.id, proto, from, to, sessions.map((s) => s.id + s.status).join(), sides.map((sd) => (tg[sd] ? tg[sd].origin + tg[sd].value : '-')).join()].join('|');
   const allUrl = buildHash(`test-${test.id}`, { ...KEEP(q), v: variable.id, m: q.m ?? 'pa', j: player.id });
-  const pano = esPanorama(test), cmj = test.name === 'CMJ'; // CMJ y Perímetros: cuadro con todas las variables arriba del todo; en CMJ, justo debajo el radar y el cuadrante EUR
+  const pano = esPanorama(test), cmj = test.name === 'CMJ', relArriba = ['squat jump', 'sl cmj'].includes(String(test.name ?? '').trim().toLowerCase()); // Squat Jump (EUR) y SL CMJ (DSI): su cuadrante va arriba del todo // CMJ y Perímetros: cuadro con todas las variables arriba del todo; en CMJ, justo debajo el radar y el cuadrante EUR
   const radarEl = html`<${RadarPanel} key=${'radar' + test.id + player.id} player=${player} testName=${test.name} />`;
   const relEl = html`<${RelacionTest} key=${'rel' + test.id + player.id} player=${player} test=${test} />`;
   return html`<div class="evo">
+    <${OrzTest} key=${'orz' + test.id + player.id} player=${player} test=${test} />
+    ${relArriba ? relEl : null}
     ${pano ? html`<${Panorama} key=${'pano' + test.id + player.id} player=${player} test=${test} catalog=${catalog} sessions=${sessions} refData=${refData} q=${q} setQ=${setQ} selectedId=${variable.id} />` : null}
     ${cmj ? html`${radarEl}${relEl}` : null}
     <p id="detalle-variable"><a class="button" href=${allUrl}>Ver todos los jugadores en este test</a></p>
@@ -379,8 +381,7 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
       <p class="muted">${esGrados(variable) ? 'Variables en grados: right − left, en grados (como en tu Excel); positivo = valor mayor en el lado right. ' : null}|D − I| ÷ máx × 100 (en variables que no son grados) y la letra del lado con el valor más alto (L left, R right). Como en VALD: barra azul hacia la izquierda del eje si el lado left es mayor, naranja hacia la derecha si lo es el right.</p>
       </details>
       <${Grafico} deps=${[key, 'asim']} nombre=${`asimetria-${variable.name}`} alto=${`${Math.max(9, 3.2 + asym.length * 2.2)}rem`} label=${`Asimetría de ${dn(variable.name)}: ${asym.length} sesiones`} build=${(c) => asymConfig(c, asym, variable, esGrados(variable))} /></section>` : null}
-    ${cmj ? null : relEl}
-    <${OrzTest} key=${'orz' + test.id + player.id} player=${player} test=${test} />
+    ${cmj || relArriba ? null : relEl}
     <${RatioTest} key=${'rat' + test.id + player.id} player=${player} test=${test} />
     ${cmj ? null : radarEl}
     <${TablaSesiones} sessions=${sessions.filter((s) => s.values?.[variable.id] && (protocolId === undefined || (s.protocolId ?? null) === protocolId) && (!f.from || s.date >= f.from) && (!f.to || s.date <= f.to))} variable=${variable} player=${player} test=${test} reload=${reload} />

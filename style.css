@@ -500,3 +500,12 @@ table.asim th[scope=row] { text-align: left; font-weight: 600; white-space: norm
 .asim-falta { margin: .2rem 0 0; font-size: .8rem; }
 
 ul.plain { list-style: none; padding-left: 0; margin: .4rem 0; }
+
+/* Jurdan Test: L y R lado a lado dentro de cada columna del panel */
+table.pano .lr.lr-h { flex-direction: row; justify-content: center; align-items: center; gap: 1rem; }
+
+/* Perfil carga-velocidad: la conclusión del perfil es lo primero que se lee (blanco, grande), no una etiqueta gris */
+.fv-conclusion { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem .8rem; margin: .8rem 0; padding: .7rem 1rem; border: 1px solid var(--text, #f1f1f1); border-left-width: 4px; border-radius: .4rem; background: rgba(255, 255, 255, .05); }
+.fv-conclusion strong { font-size: 1.35rem; font-weight: 750; color: var(--text, #f1f1f1); }
+.fv-conclusion-rot { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.fv-conclusion.sint { border-color: var(--warn); }

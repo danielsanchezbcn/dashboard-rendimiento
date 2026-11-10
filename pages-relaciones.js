@@ -163,6 +163,6 @@ function OrzCarga({ player }) {
   return html`<section class="refs"><h4>Optimal Reactive Zone (ORZ)</h4>
     <details class="notas"><summary>Cómo se calcula</summary><p class="muted">Altura del Drop Jump (30 o 45 cm) con mayor RSI (FLIGHT TIME / CONTACT TIME), Personal Average, con toda la historia del jugador. Hace falta al menos una sesión válida en cada altura. Empate exacto: sin ORZ.</p></details>
     ${o.hidden ? html`<p class="muted">Sin datos de ambas alturas: no se muestra la ORZ (hace falta al menos una sesión válida de 30 cm y otra de 45 cm).</p>` : o.defined
-      ? html`<p><strong>ORZ: ${o.height} cm</strong> — RSI Personal Average: 30 cm ${nf(o.pa30)} · 45 cm ${nf(o.pa45)}.</p>` : html`<p>${o.reason} (30 cm ${nf(o.pa30)} · 45 cm ${nf(o.pa45)})</p>`}
+      ? html`<p class="fv-conclusion orz-conclusion" role="status"><span class="fv-conclusion-rot">Conclusión ORZ</span><strong>${o.height} cm</strong> <span class="muted">RSI Personal Average: 30 cm ${nf(o.pa30)} · 45 cm ${nf(o.pa45)}</span></p>` : html`<p>${o.reason} (30 cm ${nf(o.pa30)} · 45 cm ${nf(o.pa45)})</p>`}
   </section>`;
 }

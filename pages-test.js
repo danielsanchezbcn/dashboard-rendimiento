@@ -12,7 +12,7 @@ import { getSetting } from './db.js';
 import { MIN_N_DEFAULT, buildReference, evaluate } from './percentiles.js';
 import { CeldaPercentil } from './pages-percentiles.js';
 import { buildCsv } from './exportar.js';
-import { expandRelative, isViewable, isRelative, relFactor, hasData, orderVars, defaultVar } from './relativos.js';
+import { expandRelative, isViewable, isRelative, relFactor, hasData, orderVars, defaultVar, prefiereRsi } from './relativos.js';
 import { pairContext, isIsoDerived } from './isohold.js';
 import { PREMIER_SEASON, findPremier, estimateRelative, placeAgainstPremier } from './premier.js';
 import { withReferenceWeights } from './relaciones.js';
@@ -91,7 +91,7 @@ export function VistaTest({ id, query = {} }) {
   const path = `test-${id}`;
   const set = (patch) => replaceQuery(path, { ...query, ...patch });
   const vars = orderVars(catalog.variables.filter((v) => v.testId === id && isViewable(v) && hasData(v, sessions)));
-  const variable = vars.find((v) => String(v.id) === String(query.v)) ?? defaultVar(vars, sessions);
+  const variable = vars.find((v) => String(v.id) === String(query.v)) ?? defaultVar(vars, sessions, prefiereRsi(test, catalog));
   const protocols = catalog.protocols.filter((p) => p.testId === id);
   const mode = MODES.some(([k]) => k === query.m) ? query.m : 'pa';
   const proto = query.p ?? 'all';

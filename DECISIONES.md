@@ -407,3 +407,25 @@ Estilo y biblioteca (D20) cerrados el 6 de noviembre de 2026. Ese mismo día se 
 ## 105. Asimetrías angulares en grados también en «todos los jugadores» (9g)
 - Confirmado por el usuario (10/11/2026): la asimetría de variables angulares va en grados (R − L, letra del lado mayor). La comparativa usaba el % D25 para todo; ahora usa `asimetriaLR` como el perfil del jugador. Tabla y CSV: «Asimetría (°)». Resto de variables sin cambios (% D25).
 - Convención de signo (comprobada): VALD «11 L» = lado izquierdo con el valor más alto; internamente L = −, R = +; en pantalla y exportaciones siempre «magnitud % + letra», sin signo (guía, línea de la asimetría; no se usa el signo del Excel). Es la misma `parseAsym` para todos los tests de VALD.
+
+## 106. Jurdan Test con tabla de columnas por lado (9h)
+- Petición del usuario (10/11/2026): mismo tipo de cuadro que Perímetros. Una columna por variable; filas: Valor (L y R lado a lado) · Percentil La Liga de cada lado (L · R) · Asimetría en grados (R − L, letra del lado mayor, color del lado).
+- El percentil de cada lado se calcula frente a la misma referencia que el cuadro «Normative Benchmarking» (valores de ambos lados de todos los jugadores juntos), para que coincidan. Los ángulos no tienen dirección: sin Personal Best y percentil sin color de rendimiento.
+- No incluye «Percentil asimetría» (no se pidió; la asimetría en grados no tiene referencia comparable). Si lo quieres, se añade.
+- Implementación: `PERFILES_POR_DEFECTO['jurdan test'] = { panel: true, porLado: true }` y `usaPercentilPorLado(test)` en catalogo.js; solo cambia `pages-panorama.js` con ese indicador. Perímetros, CMJ y Reactive Strength no cambian. `ensurePerfiles` marca `panelColumnas` en el test existente sin tocar tus datos; se puede quitar desde el Catálogo como en el resto.
+- Prueba: 4 comprobaciones nuevas en `prueba-navegador.cjs` (con Jurdan sintético).
+
+## 107. Cuadrantes arriba, RSI por defecto, gráfico carga-velocidad y etiquetas de ángulo (9i, 10/11/2026)
+- Squat Jump (cuadrante EUR) y SL CMJ (cuadrante DSI): el cuadrante pasa a ser lo primero de la pantalla del test. CMJ y Knee Iso-Push no cambian.
+- Fast Dynamic Strength y Reactive Strength: la variable mostrada por defecto es el RSI si el test tiene alguno con datos (no se toma una asimetría de RSI); si no hay, la de siempre (Squat Jump). Solo es el valor inicial: lo elegido por el usuario o en la URL manda. Se aplica en el perfil del jugador y en «todos los jugadores». `defaultVar(vars, sessions, preferRsi)` y `prefiereRsi(test, catalog)` en relativos.js.
+- Gráfico carga-velocidad (petición directa del usuario, único gráfico tocado): línea Balanced en el amarillo de La Liga (`PAL.laLiga`); ecuación «y = …» arriba a la derecha, 12 px y sin negrita; la conclusión del perfil pasa de etiqueta gris a un bloque destacado («Conclusión del perfil», texto blanco grande). Mantiene el aviso «clasificación de tu Excel, no validada».
+- Herramienta de ángulos: la caja del ángulo ya no va sobre la pierna; se coloca en la perpendicular del segmento, en el lado más despejado, con una línea guía fina (`placeLabel`, función pura, probada con 1000 piernas aleatorias en angulos-pruebas-geometria.js).
+
+## 108. Conclusión ORZ destacada y primera en Drop Jump 30/45 cm (9j)
+- El bloque ORZ pasa a ser lo primero de la pantalla del test (encima del cuadro de columnas) y su conclusión («Conclusión ORZ: 30 o 45 cm») se muestra con el mismo estilo destacado que la conclusión del perfil carga-velocidad. Si no hay datos de ambas alturas o hay empate, no se destaca (mensaje normal). El cálculo no cambia. Prueba: comprobación nueva en prueba-navegador.cjs.
+
+## 109. Tabla de columnas en todos los tests (9k, 10/11/2026)
+- Respuesta del usuario a las variables del «mapa de calor»: todas las variables de cada test en una fila (una columna por variable), debajo el percentil La Liga con sus colores habituales y, en la tercera fila, la asimetría. Es la tabla de columnas de Perímetros, que pasa a ser el valor por defecto de TODOS los tests (`usaPanelColumnas` devuelve true salvo que el test tenga `panelColumnas: false`).
+- Por defecto solo se dibuja con 2 o más variables con datos (una sola columna repetiría el cuadro de percentiles); si el usuario la marca a mano en el Catálogo, se dibuja siempre. Se puede quitar test a test.
+- Sin opción Personal Best cuando no hay criterio (RSI…) ni dirección en ninguna variable. Mantiene: Jurdan (percentil por lado, asimetría en °), Perímetros y el resto de comportamientos.
+- Herramienta de ángulos: Thigh/RF cerrado (fue un error de referencias, ya resuelto); foto por jugador descartada; el detector sigue configurado para `pose_landmarker_heavy.task` (el modelo más preciso de MediaPipe); sin ese archivo en la carpeta, los puntos se colocan a mano.

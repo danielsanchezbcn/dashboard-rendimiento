@@ -29,7 +29,7 @@ const hop2 = cat.tests.find((t) => t.id === hop.id);
 check('renombrar el Hop Test conserva su criterio de PB y su tabla de columnas', C.pbCriterionOf(hop2, cat.variables)?.name.includes('RSI') && C.usaPanelColumnas(hop2) && cat.variables.find((v) => v.testId === hop.id && /RSI/.test(v.name)).pbCriterion);
 // Un test nuevo con el mismo nombre que uno por defecto (sin propiedades) usa los valores por defecto
 const nuevo = { id: 9999, name: 'cmj', blockKey: 'fuerza' };
-check('sin propiedades guardadas, vale el valor por defecto del nombre (compatibilidad)', C.usaPanelColumnas(nuevo) && !C.usaPanelColumnas({ id: 1, name: 'Otro test', blockKey: 'fuerza' }) && C.testExcluidoDeAsimetrias({ name: 'Nordic Hamstring Exercise' }) && C.variableExcluidaDeAsimetrias({ name: 'Torque' }) && !C.variableExcluidaDeAsimetrias({ name: 'Peak Force' }));
+check('sin propiedades guardadas, vale el valor por defecto (todos los tests con tabla; false guardado la quita)', C.usaPanelColumnas(nuevo) && C.usaPanelColumnas({ id: 1, name: 'Otro test', blockKey: 'fuerza' }) && !C.usaPanelColumnas({ id: 1, name: 'Otro test', panelColumnas: false }) && C.testExcluidoDeAsimetrias({ name: 'Nordic Hamstring Exercise' }) && C.variableExcluidaDeAsimetrias({ name: 'Torque' }) && !C.variableExcluidaDeAsimetrias({ name: 'Peak Force' }));
 // Edición por el usuario
 const cmj = T('CMJ');
 await C.updateTest(db, cmj.id, { pbCriterioVariableId: null, panelColumnas: false });

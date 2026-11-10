@@ -71,6 +71,23 @@ function includedAngleSupplement(vertex, ray1, ray2) {
   return finiteOrNull(180 - included);
 }
 
+/**
+ * Posicion de la caja de una etiqueta de angulo FUERA de la pierna. Parte del punto medio del segmento medido, se desplaza `offset` px en la
+ * perpendicular y elige el lado donde la caja queda mas lejos de todos los segmentos dibujados (`segments`: [{a,b}] en px de canvas) y dentro del canvas.
+ * Devuelve { anchor, pos }: `anchor` es el punto del segmento al que apunta la linea guia; `pos` el centro de la caja. Funcion pura (sin ctx).
+ */
+function placeLabel(p1, p2, segments, W, H, offset, half) {
+  offset = offset || 38; half = half || { w: 30, h: 12 };
+  const anchor = mid(p1, p2);
+  const dx = p2.x - p1.x, dy = p2.y - p1.y, len = Math.hypot(dx, dy);
+  const n = len > 1e-9 ? { x: -dy / len, y: dx / len } : { x: 0, y: -1 };
+  const clamp = (c) => ({ x: Math.max(half.w + 2, Math.min(W - half.w - 2, c.x)), y: Math.max(half.h + 2, Math.min(H - half.h - 2, c.y)) });
+  const score = (c) => segments.reduce((m, s) => Math.min(m, distToSegment(c, s.a, s.b)), Infinity);
+  const cands = [1, -1].map((s) => { const raw = { x: anchor.x + s * n.x * offset, y: anchor.y + s * n.y * offset }; const pos = clamp(raw); return { pos, sc: score(pos) - Math.hypot(pos.x - raw.x, pos.y - raw.y) }; });
+  const best = cands[0].sc >= cands[1].sc ? cands[0] : cands[1];
+  return { anchor, pos: best.pos };
+}
+
 /** Etiqueta con caja de fondo oscura -- garantiza legibilidad sobre cualquier foto. */
 function drawLabel(ctx, pos, text, color, textColor) {
   ctx.font = '800 13px -apple-system, sans-serif';

@@ -13,6 +13,7 @@ import { BANDS } from './percentiles.js';
 import { fitLoadVelocity, classText, compareWithSquad, parseFvGrid, referenceFrom, addFvProfile, updateFvProfile, deleteFvProfile, FV_REFERENCE_DEFAULT, FV_MAX_POINTS, FDM_VELOCITY_DEFAULT } from './fuerzavelocidad.js';
 import { playerLabel } from './jugadores.js';
 import { Copiable } from './copiar.js';
+import { PAL } from './colores.js';
 
 const nf = (n, d = 2) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d, minimumFractionDigits: d }));
 const VERDE = '#7FBF98'; const AMARILLO = '#FFC000'; const BLANCO = '#FFFFFF';
@@ -30,7 +31,7 @@ export function fvChartConfig({ fit, reference, name }) {
   return {
     type: 'line',
     data: { datasets: [
-      { label: 'Balanced (referencia)', data: reference.map((p) => ({ x: p.load, y: p.velocity })), borderColor: '#9A9A9A', backgroundColor: '#9A9A9A', borderDash: [8, 5], borderWidth: 3, pointRadius: 0, tension: 0 },
+      { label: 'Balanced (referencia)', data: reference.map((p) => ({ x: p.load, y: p.velocity })), borderColor: PAL.laLiga, backgroundColor: PAL.laLiga, borderDash: [8, 5], borderWidth: 3, pointRadius: 0, tension: 0 },
       { label: `${name}`, data: pts.map((p) => ({ x: p.load, y: p.velocity })), borderColor: BLANCO, backgroundColor: BLANCO, pointBackgroundColor: BLANCO, pointBorderColor: BLANCO, pointRadius: 5, borderWidth: 2.5, tension: 0.3 },
       { label: 'Recta de regresión', data: trend, borderColor: BLANCO, borderWidth: 2, pointRadius: 0, tension: 0, borderDash: [3, 4] },
     ] },
@@ -40,7 +41,7 @@ export function fvChartConfig({ fit, reference, name }) {
       scales: { x: { type: 'linear', ...axis('Load (kg)', (v) => `${v}kg`, Math.floor(x0 / 10) * 10 - 10), max: Math.ceil(x1 / 10) * 10 + 10 }, y: { type: 'linear', ...axis('Mean Propulsive Velocity (m/s)', (v) => Number(v).toFixed(2), Math.floor(yMin * 20) / 20) } },
     },
     plugins: [{ id: 'fvfondo', beforeDraw(c) { const { ctx } = c; ctx.save(); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, c.width, c.height); ctx.restore(); },
-      afterDraw(c) { if (!eq) return; const { ctx, chartArea } = c; ctx.save(); ctx.fillStyle = BLANCO; ctx.font = 'bold 15px sans-serif'; ctx.fillText(eq, chartArea.left + 14, chartArea.top + 22); ctx.restore(); } }],
+      afterDraw(c) { if (!eq) return; const { ctx, chartArea } = c; ctx.save(); ctx.fillStyle = BLANCO; ctx.font = '12px sans-serif'; ctx.textAlign = 'right'; ctx.fillText(eq, chartArea.right - 12, chartArea.top + 18); ctx.restore(); } }],
   };
 }
 
@@ -147,7 +148,7 @@ export function FvPanel({ player }) {
       ${profiles.length > 1 ? html`<label>Perfil <select value=${cur.id} onChange=${(e) => { setSel(Number(e.target.value)); setConfirmDel(null); }}>${profiles.map((p) => html`<option key=${p.id} value=${p.id}>${fmtDay(p.date)}${p.exercise ? ` · ${p.exercise}` : ''}</option>`)}</select></label>` : null}
       ${fit.points?.length ? html`<${FvChart} canvasRef=${canvasRef} config=${fvChartConfig({ fit, reference, name: `${playerLabel(player)}${cur.exercise ? ' · ' + cur.exercise : ''}` })} label=${`Relación carga-velocidad de ${playerLabel(player)} el ${fmtDay(cur.date)}: ${fit.points.map((p) => `${p.load} kg ${nf(p.velocity)} m/s`).join(', ')}`} />
         <div class="actions"><button type="button" class="secondary" onClick=${() => canvasRef.current?.toBlob((b) => (b ? downloadBlob(b, `perfil-carga-velocidad-${playerLabel(player)}-${cur.date}.png`.replace(/[^\w.-]+/g, '_')) : setMsg({ level: 'fail', text: 'No se pudo crear la imagen.' })))}>Descargar imagen (PNG)</button></div>` : null}
-      <p class=${'badge ' + (fit.ok ? '' : 'sint')} role="status" title="Umbrales de tu Excel; la pendiente depende también del nivel de fuerza, así que no es una clasificación validada"><strong>${classText(fit.class)}</strong> <span class="muted">(clasificación de tu Excel, no validada)</span></p>
+      <p class=${'fv-conclusion' + (fit.ok ? '' : ' sint')} role="status" title="Umbrales de tu Excel; la pendiente depende también del nivel de fuerza, así que no es una clasificación validada"><span class="fv-conclusion-rot">Conclusión del perfil</span><strong>${classText(fit.class)}</strong> <span class="muted">(clasificación de tu Excel, no validada)</span></p>
       ${fit.ok ? null : html`<p class="status fail" role="status">${fit.reason}</p>`}
       ${Number.isFinite(fit.fo) ? html`<dl class="stats">
         <div><dt>Fo (kg)</dt><dd>${nf(fit.fo, 1)}</dd></div><div><dt>Vo (m/s)</dt><dd>${nf(fit.vo, 3)}</dd></div>

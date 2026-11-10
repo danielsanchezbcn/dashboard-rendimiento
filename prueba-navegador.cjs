@@ -39,13 +39,13 @@ const server = http.createServer((req, res) => {
       return new Promise((ok) => { const tx = db.transaction('sessions', 'readwrite'); tx.objectStore('sessions').add({ playerId: pid, testId: test.id, protocolId: null, date, time: '', values, reps: { L: 3, R: 3, S: 3, total: 3 }, status: 'valid', excludedReason: '', source: 'sintetico', createdAt: now, updatedAt: now }); tx.oncomplete = ok; });
     };
     const T = (n) => tests.find((t) => t.name === n); const per = tests.find((t) => t.blockKey === 'perimetros');
-    for (const [k, n] of Object.entries({ cmj: 'CMJ', sl: 'SL CMJ', hop: 'Double-Leg Hop Test', dj: 'DL Drop Jump 30 cm', sj: 'Squat Jump', hip: 'Run-Specific Hip Iso-Push', nordic: 'Nordic Hamstring Exercise' })) out.byTest[k] = T(n).id;
+    for (const [k, n] of Object.entries({ cmj: 'CMJ', sl: 'SL CMJ', hop: 'Double-Leg Hop Test', dj: 'DL Drop Jump 30 cm', sj: 'Squat Jump', hip: 'Run-Specific Hip Iso-Push', nordic: 'Nordic Hamstring Exercise', jur: 'Jurdan Test' })) out.byTest[k] = T(n).id;
     out.byTest.per = per.id;
     for (let i = 0; i < 12; i++) {
       const id = await new Promise((ok) => { const rq = db.transaction('players', 'readwrite').objectStore('players').add({ jerseyName: 'J' + (i + 1), active: true, referenceWeight: { value: 75, unit: 'kg' }, createdAt: now, updatedAt: now }); rq.onsuccess = () => ok(rq.result); });
       out.players.push(id);
       for (const [k, d] of [[0, '2026-08-01'], [1, '2026-09-01'], [2, '2026-10-01']]) for (const key of ['cmj', 'hop', 'dj', 'sj']) await seed(T({ cmj: 'CMJ', hop: 'Double-Leg Hop Test', dj: 'DL Drop Jump 30 cm', sj: 'Squat Jump' }[key]), id, d, k, i);
-      await seed(T('SL CMJ'), id, '2026-10-01', 1, i); await seed(per, id, '2026-10-01', 1, i); await seed(T('Run-Specific Hip Iso-Push'), id, '2026-10-01', 1, i); await seed(T('Nordic Hamstring Exercise'), id, '2026-10-01', 1, i);
+      await seed(T('SL CMJ'), id, '2026-10-01', 1, i); await seed(per, id, '2026-10-01', 1, i); await seed(T('Run-Specific Hip Iso-Push'), id, '2026-10-01', 1, i); await seed(T('Nordic Hamstring Exercise'), id, '2026-10-01', 1, i); await seed(T('Jurdan Test'), id, '2026-10-01', 1, i); await seed(T('DL Drop Jump 45 cm'), id, '2026-10-02', 2, i);
     }
     out.vars = Object.fromEntries(vars.map((v) => [v.id, { name: v.name, testId: v.testId }]));
     return out;
@@ -66,6 +66,42 @@ const server = http.createServer((req, res) => {
   check('Perímetros: 5 columnas y texto de asimetría en color', (await page.locator('table.pano thead th').count()) === 5 && (await page.locator('table.pano tbody tr').nth(2).locator('.asim-l, .asim-r').count()) >= 1);
   check('Perímetros: percentil de asimetría con valores o «n<»', (await texts('table.pano tbody tr:nth-child(4) td')).every((x) => /^(\d+|n<\d+)$/.test(x.trim())), (await texts('table.pano tbody tr:nth-child(4) td')).join(','));
   await shot('perimetros');
+
+  // ---- Jurdan Test: L y R lado a lado, percentil de cada lado, asimetría en grados
+  await go(`#jugador-${P}?t=${t.jur}&b=nme`, 'table.pano');
+  check('Jurdan: filas Valor · Percentil La Liga (L · R) · Asimetría (°), sin percentil de asimetría', (await texts('table.pano tbody th')).join('|') === 'Valor|Percentil La Liga (L · R)|Asimetría (°)', (await texts('table.pano tbody th')).join('|'));
+  check('Jurdan: 4 columnas, con L y R lado a lado en el valor y en el percentil', (await page.locator('table.pano thead th').count()) === 4 && (await page.locator('table.pano tbody tr:nth-child(1) .lr-h').count()) === 4 && (await page.locator('table.pano tbody tr:nth-child(2) .lr-h > span').count()) === 8);
+  check('Jurdan: asimetría en grados con letra de lado y color', (await texts('table.pano tbody tr:nth-child(3) td')).every((x) => /^\d+(,\d+)? ° [LR]$|^0 °$/.test(x.trim())) && (await page.locator('table.pano tbody tr:nth-child(3) .asim-l, table.pano tbody tr:nth-child(3) .asim-r').count()) >= 1, (await texts('table.pano tbody tr:nth-child(3) td')).join(','));
+  check('Jurdan: sin opción Personal Best (ángulos sin dirección)', !(await texts('section.panorama fieldset.modes label')).some((x) => /Personal Best/.test(x)));
+  await shot('jurdan');
+
+  // ---- Conclusión ORZ: lo primero y destacado en Drop Jump
+  await go(`#jugador-${P}?t=${t.dj}&b=fuerza`, '.evo');
+  const orz = await page.evaluate(() => { const e = document.querySelector('.evo')?.firstElementChild; return { cls: e ? e.className : '', txt: e?.querySelector('.orz-conclusion')?.innerText ?? '' }; });
+  check('Drop Jump: la conclusión ORZ es lo primero y está destacada', /refs/.test(orz.cls) && /conclusi[oó]n orz/i.test(orz.txt) && /\b(30|45) cm\b/.test(orz.txt), JSON.stringify(orz));
+  // ---- Tabla de columnas en todos los tests
+  for (const key of ['sl', 'hip', 'nordic']) {
+    await go(`#jugador-${P}?t=${t[key]}&b=fuerza`, '.evo');
+    const n = await page.locator('section.panorama table.pano thead th').count();
+    const filas = (await texts('section.panorama table.pano tbody th')).join('|');
+    check(`${key}: tabla de columnas con una columna por variable y fila de percentil`, n >= 2 && /Percentil La Liga/.test(filas), `${n} · ${filas}`);
+  }
+  await shot('hip');
+  // ---- Cuadrantes arriba del todo (EUR en Squat Jump, DSI en SL CMJ) y RSI por defecto
+  for (const [key, nm] of [['sj', 'Squat Jump (EUR)'], ['sl', 'SL CMJ (DSI)']]) {
+    await go(`#jugador-${P}?t=${t[key]}&b=fuerza`, '.evo');
+    const primero = await page.evaluate(() => { const e = document.querySelector('.evo')?.firstElementChild; return e ? (e.className || e.tagName) : ''; });
+    check(`${nm}: el cuadrante va arriba del todo`, /refs/.test(primero), primero);
+  }
+  for (const key of ['cmj', 'sl', 'sj', 'hop', 'dj']) { // Squat Jump también tiene RSI MOD en el catálogo, así que también arranca en RSI
+    await go(`#jugador-${P}?t=${t[key]}&b=fuerza`, '.evo');
+    const sel = await page.evaluate(() => { const l = [...document.querySelectorAll('.evo .filters label')].find((x) => /^Variable/.test(x.textContent.trim())); const s = l?.querySelector('select'); return s ? s.options[s.selectedIndex].text : ''; });
+    check(`${key}: variable por defecto = RSI`, /\bRSI\b/i.test(sel), sel);
+  }
+  // un test que no es Fast Dynamic ni Reactive Strength conserva su variable por defecto (la primera con datos)
+  await go(`#jugador-${P}?t=${t.hip}&b=fuerza`, '.evo');
+  const selHip = await page.evaluate(() => { const l = [...document.querySelectorAll('.evo .filters label')].find((x) => /^Variable/.test(x.textContent.trim())); const s = l?.querySelector('select'); return s ? s.options[s.selectedIndex].text : ''; });
+  check('Iso-Push (otro bloque): la variable por defecto no cambia a RSI', selHip.length > 0 && !/\bRSI\b/i.test(selHip), selHip);
 
   // ---- Reactive Strength y CMJ: tabla de columnas y Personal Best de la mejor sesión
   const nombreVar = (id) => ids.vars[id].name;
@@ -108,7 +144,7 @@ const server = http.createServer((req, res) => {
   await go(`#test-${t.cmj}?v=`, 'table', 1500);
   check('vista de todos los jugadores de un test carga con 12 filas de datos', (await page.locator('main table tbody tr').count()) >= 12);
   await go(`#jugador-${P}?t=${t.sj}&b=fuerza&pn=pb`, '.evo');
-  check('Squat Jump: sin tabla de columnas (no pedida) pero con su gráfico longitudinal', (await page.locator('section.panorama').count()) === 0 && (await page.locator('h4.sec-titulo').count()) > 0);
+  check('Squat Jump: ahora también tiene tabla de columnas (todos los tests) y su gráfico longitudinal', (await page.locator('section.panorama').count()) === 1 && (await page.locator('h4.sec-titulo').count()) > 0);
 
   // ---- Reglas por propiedad: la tarjeta del catálogo y que renombrar un test no rompa nada
   await go(`#catalogo-test-${t.hop}`, 'form.fields');

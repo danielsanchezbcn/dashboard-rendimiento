@@ -270,4 +270,22 @@
         assert.equal(distToSegment(p, a, b), REF.distToSegment(p, a, b), `caso ${n}`); }
     });
   });
+  suite('Etiquetas de ángulo fuera de la pierna', () => {
+    test('la caja queda a más de 20 px de todos los segmentos y dentro del canvas (1000 piernas aleatorias)', () => {
+      const rand = rng(11); let n = 0;
+      while (n < 1000) {
+        const a = P(150 + rand() * 500, 100 + rand() * 400), b = P(150 + rand() * 500, 100 + rand() * 400), c = P(150 + rand() * 500, 100 + rand() * 400);
+        if (Math.hypot(a.x - b.x, a.y - b.y) < 60 || Math.hypot(b.x - c.x, b.y - c.y) < 60) continue; n++;
+        const segs = [{ a, b }, { a: b, b: c }];
+        const r = placeLabel(a, b, segs, 800, 600);
+        const d = Math.min(distToSegment(r.pos, a, b), distToSegment(r.pos, b, c));
+        assert.isTrue(r.pos.x >= 0 && r.pos.x <= 800 && r.pos.y >= 0 && r.pos.y <= 600, `fuera del canvas, caso ${n}`);
+        assert.isTrue(d > 20, `caja sobre la pierna (${d.toFixed(1)} px), caso ${n}`);
+      }
+    });
+    test('segmento de longitud cero: no falla y queda dentro del canvas', () => {
+      const r = placeLabel(P(5, 5), P(5, 5), [{ a: P(5, 5), b: P(5, 5) }], 800, 600);
+      assert.isTrue(Number.isFinite(r.pos.x) && Number.isFinite(r.pos.y) && r.pos.x >= 0 && r.pos.y >= 0);
+    });
+  });
 })();

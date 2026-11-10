@@ -4,7 +4,7 @@
 // Los valores salen de las mismas funciones que el gráfico longitudinal y el cuadro «Normative Benchmarking», así que coinciden con ellos.
 import { html } from './libs.js';
 import { orderVars, isViewable, hasData, isRelative } from './relativos.js';
-import { isAsymVariable, asymmetryPct, usaPanelColumnas } from './catalogo.js';
+import { isAsymVariable, asymmetryPct, asimetriaLR, asymSideLetter, usaPanelColumnas, usaPercentilPorLado } from './catalogo.js';
 import { valorBase } from './evolucion.js';
 import { refContext, Banda } from './pages-percentiles.js';
 import { evaluate, buildReference } from './percentiles.js';
@@ -13,7 +13,7 @@ import { fmtDay } from './fechas.js';
 import { AsimTexto } from './asim-ui.js';
 import { dn } from './nombres.js';
 
-export const esPanorama = usaPanelColumnas; // propiedad del test (catalogo.js): por defecto CMJ, Hop Test, Drop Jump 30/45 cm y Perímetros
+export const esPanorama = usaPanelColumnas; // propiedad del test (catalogo.js): por defecto todos los tests (con 2 o más variables con datos)
 const nf = (n, d = 2) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 const BASES = [['pa', 'Personal Average'], ['pb', 'Personal Best'], ['last', 'Actual']];
 const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
@@ -27,12 +27,15 @@ function celdaPercentil(ev, extra = '') {
 export function Panorama({ player, test, catalog, sessions, refData, q, setQ, selectedId }) {
   if (!refData) return null;
   const perim = test.blockKey === 'perimetros';
+  const porLado = usaPercentilPorLado(test); // Jurdan Test: L y R lado a lado, percentil de cada lado y asimetría en grados
   const from = q.from || null, to = q.to || null;
   const proto = q.p ?? 'all';
   const f = { from, to, protocolId: proto === 'all' ? undefined : proto === 'none' ? null : Number(proto) };
   const vars = orderVars(catalog.variables.filter((v) => v.testId === test.id && isViewable(v) && hasData(v, sessions) && !isAsymVariable(v)));
-  if (!vars.length) return null;
-  const bases = perim ? BASES.filter(([k]) => k !== 'pb') : BASES; // los perímetros no tienen dirección: no hay Personal Best
+  if (!vars.length || (vars.length < 2 && typeof test.panelColumnas !== 'boolean')) return null; // por defecto, solo con 2 o más variables con datos
+  // Sin Personal Best cuando no hay forma de decidir qué es «mejor»: ni variable criterio (RSI…) ni dirección en ninguna variable (perímetros, ángulos…).
+  const sinPB = perim || porLado || (!vars.some((v) => v.pbCriterion) && !vars.some((v) => v.direction));
+  const bases = sinPB ? BASES.filter(([k]) => k !== 'pb') : BASES;
   const base = bases.some(([k]) => k === q.pn) ? q.pn : 'pa';
   const playersById = Object.fromEntries(refData.players.map((p) => [p.id, p]));
   const histories = {}; for (const r of refData.records) (histories[r.playerId] ??= []).push(r);
@@ -50,7 +53,7 @@ export function Panorama({ player, test, catalog, sessions, refData, q, setQ, se
     const ctx = refContext({ refData, test, variable: v, sides, filters: f, playerId: player.id, positionId: null, srcVar });
     const ent = ctx.entries(base, null);
     const minN = refData.minN;
-    let ev = null, valor = null, asim = null, pl = null, evAsim = null;
+    let ev = null, valor = null, asim = null, pl = null, evAsim = null, evL = null, evR = null;
     if (sides.length === 1) {
       const x = o.S?.value ?? null;
       valor = x;
@@ -58,16 +61,19 @@ export function Panorama({ player, test, catalog, sessions, refData, q, setQ, se
       pl = x != null && ctx.plRef ? placeAgainstPremier(ctx.plRef, x) : null;
     } else if (o.L && o.R) {
       valor = null;
-      asim = asymmetryPct(o.L.value, o.R.value);
+      asim = porLado ? asimetriaLR(v, o.L.value, o.R.value) : asymmetryPct(o.L.value, o.R.value);
       // Percentil ORIENTATIVO de la asimetría (sin importar el lado): mayor asimetría = peor, así que el percentil de rendimiento es el inverso del estadístico (como «más bajo es mejor»).
-      if (Number.isFinite(asim)) evAsim = evaluate(asymEntries(v), { playerId: player.id, value: Math.abs(asim), direction: 'lower', minN });
+      if (porLado) {
+        // Un percentil por lado frente a la misma referencia de La Liga que usa el cuadro «Normative Benchmarking» (valores de ambos lados de todos los jugadores juntos).
+        evL = evaluate(ent, { playerId: player.id, value: o.L.value, direction: v.direction, minN }); evR = evaluate(ent, { playerId: player.id, value: o.R.value, direction: v.direction, minN });
+      } else if (Number.isFinite(asim)) evAsim = evaluate(asymEntries(v), { playerId: player.id, value: Math.abs(asim), direction: 'lower', minN });
       // Un solo percentil con el promedio de ambas piernas, frente al promedio de las dos piernas de los demás jugadores (solo los que tienen ambos lados).
       const by = new Map(); for (const e of ent) { if (!by.has(e.playerId)) by.set(e.playerId, []); by.get(e.playerId).push(e.value); }
       const meanEnt = [...by].filter(([, a]) => a.length >= 2).map(([playerId, a]) => ({ playerId, value: mean(a) }));
-      ev = evaluate(meanEnt, { playerId: player.id, value: mean([o.L.value, o.R.value]), direction: v.direction, minN });
+      if (!porLado) ev = evaluate(meanEnt, { playerId: player.id, value: mean([o.L.value, o.R.value]), direction: v.direction, minN });
     }
     const fechas = Object.values(o).filter(Boolean);
-    return { v, sides, o, valor, ev, evAsim, pl, asim, est: !!ctx.plRef?.estimated, hayPl: !!ctx.plRef, date: fechas.map((x) => x.date).sort().at(-1) ?? null, from: fechas.map((x) => x.from).filter(Boolean).sort()[0] ?? null };
+    return { v, sides, o, valor, ev, evL, evR, evAsim, pl, asim, est: !!ctx.plRef?.estimated, hayPl: !!ctx.plRef, date: fechas.map((x) => x.date).sort().at(-1) ?? null, from: fechas.map((x) => x.from).filter(Boolean).sort()[0] ?? null };
   });
   const tieneLR = cols.some((c) => c.sides.length === 2), tienePl = cols.some((c) => c.hayPl), tieneS = cols.some((c) => c.sides.length === 1);
   const lastDate = cols.map((c) => c.date).filter(Boolean).sort().at(-1);
@@ -90,12 +96,12 @@ export function Panorama({ player, test, catalog, sessions, refData, q, setQ, se
     <div class="table-wrap pano-wrap"><table class="pano"><caption class="sr">${dn(test.name)}: valor y percentiles de cada variable del jugador (${etq(base, '')})</caption>
       <thead><tr><td class="pano-lab"></td>${cols.map((c) => html`<th key=${c.v.id} scope="col" class=${c.v.id === selectedId ? 'sel' : ''}><button type="button" class="pano-th" aria-pressed=${c.v.id === selectedId} title="Ver el gráfico longitudinal de esta variable" onClick=${() => pick(c.v.id)}><span class="pano-nm">${nombre(c.v)}</span>${c.v.unit ? html`<small>${c.v.unit}</small>` : null}</button></th>`)}</tr></thead>
       <tbody>
-        <tr><th scope="row" class="pano-lab">Valor</th>${cols.map((c) => html`<td key=${c.v.id} class=${'num' + (c.v.id === selectedId ? ' sel' : '')}>${c.sides.length === 1 ? (c.valor != null ? html`<strong title=${tipVal(c, 'S')}>${nf(c.valor)}</strong>` : '—') : html`<span class="lr"><span class="l" title=${tipVal(c, 'L')}>L ${nf(c.o.L?.value)}</span><span class="r" title=${tipVal(c, 'R')}>R ${nf(c.o.R?.value)}</span></span>`}</td>`)}</tr>
-        <tr><th scope="row" class="pano-lab" title=${tieneLR && !tieneS ? 'Percentil del promedio de ambas piernas frente al promedio de las dos piernas de los demás jugadores' : 'Percentil frente a La Liga (todas las posiciones), con la base elegida'}>${tieneLR && !tieneS ? 'Percentil La Liga (media de ambas piernas)' : 'Percentil La Liga'}</th>${cols.map((c) => html`<td key=${c.v.id} class=${c.v.id === selectedId ? 'sel' : ''}>${celdaPercentil(c.ev)}</td>`)}</tr>
+        <tr><th scope="row" class="pano-lab">Valor</th>${cols.map((c) => html`<td key=${c.v.id} class=${'num' + (c.v.id === selectedId ? ' sel' : '')}>${c.sides.length === 1 ? (c.valor != null ? html`<strong title=${tipVal(c, 'S')}>${nf(c.valor)}</strong>` : '—') : html`<span class=${'lr' + (porLado ? ' lr-h' : '')}><span class="l" title=${tipVal(c, 'L')}>L ${nf(c.o.L?.value)}</span><span class="r" title=${tipVal(c, 'R')}>R ${nf(c.o.R?.value)}</span></span>`}</td>`)}</tr>
+        <tr><th scope="row" class="pano-lab" title=${porLado ? 'Percentil de cada lado (izquierdo y derecho) frente a los valores de ambos lados de todos los jugadores, con la base elegida' : tieneLR && !tieneS ? 'Percentil del promedio de ambas piernas frente al promedio de las dos piernas de los demás jugadores' : 'Percentil frente a La Liga (todas las posiciones), con la base elegida'}>${porLado ? 'Percentil La Liga (L · R)' : tieneLR && !tieneS ? 'Percentil La Liga (media de ambas piernas)' : 'Percentil La Liga'}</th>${cols.map((c) => html`<td key=${c.v.id} class=${c.v.id === selectedId ? 'sel' : ''}>${porLado && c.sides.length === 2 ? html`<span class="lr lr-h"><span>${celdaPercentil(c.evL)}</span><span>${celdaPercentil(c.evR)}</span></span>` : celdaPercentil(c.ev)}</td>`)}</tr>
         ${tienePl ? html`<tr><th scope="row" class="pano-lab" title="La Premier League publica cortes (P5, P25, P50, P75, P95): se indica la zona, sin interpolar. En medidas relativas es una estimación.">Premier League (zona)</th>${cols.map((c) => html`<td key=${c.v.id} class=${c.v.id === selectedId ? 'sel' : ''}>${!c.hayPl ? html`<span class="muted" title="Sin referencia de la Premier League">—</span>` : c.pl?.placed ? html`<span class=${`badge band-${c.pl.band}`} title=${c.est ? 'Zona estimada' : ''}>${c.pl.text}${c.est ? '*' : ''}</span>` : html`<span class="muted">—</span>`}</td>`)}</tr>` : null}
-        ${tieneLR ? html`<tr><th scope="row" class="pano-lab">Asimetría</th>${cols.map((c) => html`<td key=${c.v.id} class=${c.v.id === selectedId ? 'sel' : ''} title="|R − L| ÷ máx × 100, con la letra del lado más alto">${c.sides.length === 2 ? html`<${AsimTexto} pct=${c.asim} />` : '—'}</td>`)}</tr>` : null}
-        ${tieneLR ? html`<tr><th scope="row" class="pano-lab" title="Percentil orientativo de la asimetría de esta medida frente a la misma medida de los demás jugadores, sin importar el lado. Mayor asimetría = peor: un percentil bajo indica una asimetría grande para La Liga.">Percentil asimetría</th>${cols.map((c) => html`<td key=${c.v.id} class=${c.v.id === selectedId ? 'sel' : ''}>${c.sides.length === 2 ? celdaPercentil(c.evAsim) : '—'}</td>`)}</tr>` : null}
+        ${tieneLR ? html`<tr><th scope="row" class="pano-lab">${porLado ? 'Asimetría (°)' : 'Asimetría'}</th>${cols.map((c) => html`<td key=${c.v.id} class=${c.v.id === selectedId ? 'sel' : ''} title=${porLado ? '|R − L| en grados, con la letra del lado más alto' : '|R − L| ÷ máx × 100, con la letra del lado más alto'}>${c.sides.length === 2 ? html`<${AsimTexto} pct=${c.asim} texto=${porLado ? (Number.isFinite(c.asim) ? `${nf(Math.abs(c.asim), 1)} °${asymSideLetter(c.asim) ? ' ' + asymSideLetter(c.asim) : ''}` : '—') : null} />` : '—'}</td>`)}</tr>` : null}
+        ${tieneLR && !porLado ? html`<tr><th scope="row" class="pano-lab" title="Percentil orientativo de la asimetría de esta medida frente a la misma medida de los demás jugadores, sin importar el lado. Mayor asimetría = peor: un percentil bajo indica una asimetría grande para La Liga.">Percentil asimetría</th>${cols.map((c) => html`<td key=${c.v.id} class=${c.v.id === selectedId ? 'sel' : ''}>${c.sides.length === 2 ? celdaPercentil(c.evAsim) : '—'}</td>`)}</tr>` : null}
       </tbody></table></div>
-    <p class="muted">Pulsa el nombre de una variable para ver su gráfico longitudinal y el resto de sus análisis más abajo. Percentil: ${perim ? 'el de La Liga es posicional (los perímetros no tienen dirección de «mejor/peor»); el de asimetría sí es de rendimiento: mayor asimetría, peor, así que un percentil bajo señala una asimetría grande y orientativa' : 'de rendimiento frente a La Liga, N mínimo ' + refData.minN}; «${'n<' + refData.minN}» = muestra insuficiente.${crit && base === 'pb' ? ` Personal Best = todas las variables de la sesión con mejor ${critCorto} (una misma ejecución); si la sesión no tiene alguna variable, queda en «—».` : ''}${tienePl ? ' Premier League: zona entre los cortes publicados (* = estimada).' : ''}</p>
+    <p class="muted">Pulsa el nombre de una variable para ver su gráfico longitudinal y el resto de sus análisis más abajo. Percentil: ${porLado ? 'cada lado se compara con los valores de ambos lados de todos los jugadores (los ángulos no tienen dirección de «mejor/peor»)' : perim ? 'el de La Liga es posicional (los perímetros no tienen dirección de «mejor/peor»); el de asimetría sí es de rendimiento: mayor asimetría, peor, así que un percentil bajo señala una asimetría grande y orientativa' : 'de rendimiento frente a La Liga, N mínimo ' + refData.minN}; «${'n<' + refData.minN}» = muestra insuficiente.${crit && base === 'pb' ? ` Personal Best = todas las variables de la sesión con mejor ${critCorto} (una misma ejecución); si la sesión no tiene alguna variable, queda en «—».` : ''}${tienePl ? ' Premier League: zona entre los cortes publicados (* = estimada).' : ''}</p>
   </section>`;
 }

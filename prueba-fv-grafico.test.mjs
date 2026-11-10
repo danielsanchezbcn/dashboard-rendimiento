@@ -1,0 +1,20 @@
+// Aspecto del gráfico carga-velocidad (10/11/2026): Balanced en el amarillo del P50 La Liga; ecuación arriba a la derecha, pequeña y sin negrita. Datos sintéticos.
+import 'fake-indexeddb/auto';
+import { JSDOM } from 'jsdom';
+const dom = new JSDOM('<!doctype html><body></body>'); globalThis.window = dom.window; globalThis.document = dom.window.document;
+const { fvChartConfig } = await import('./pages-fv.js');
+const { PAL } = await import('./colores.js');
+let failed = 0;
+const check = (n, c, x = '') => { console.log(`${c ? 'OK  ' : 'FAIL'} ${n} ${x}`); if (!c) failed++; };
+const pts = [{ load: 50, velocity: 1.3 }, { load: 70, velocity: 1.1 }, { load: 90, velocity: 0.9 }];
+const cfg = fvChartConfig({ fit: { points: pts, a: -0.01, b: 1.8, r2: 0.99, ok: true }, reference: [{ load: 50, velocity: 1.1 }, { load: 100, velocity: 0.6 }], name: 'X' });
+const bal = cfg.data.datasets.find((d) => /Balanced/.test(d.label));
+check('Balanced en el amarillo de La Liga (P50)', bal.borderColor === PAL.laLiga && bal.backgroundColor === PAL.laLiga, bal.borderColor);
+const calls = []; const ctx = { save() {}, restore() {}, fillText: (t, x, y) => calls.push({ t, x, y, font: ctx.font, align: ctx.textAlign }), set font(v) { this._f = v; }, get font() { return this._f; } };
+const area = { left: 80, right: 900, top: 20 };
+cfg.plugins.find((p) => p.id === 'fvfondo').afterDraw({ ctx, chartArea: area });
+const c = calls[0];
+check('ecuación dibujada una vez, con y = … y R²', calls.length === 1 && /y = /.test(c.t) && /R²/.test(c.t), JSON.stringify(c));
+check('ecuación arriba a la derecha (alineada a la derecha, junto al borde del área)', c.align === 'right' && c.x > area.right - 30 && c.x <= area.right, `${c.align} ${c.x}`);
+check('ecuación sin negrita y de tamaño pequeño (≤ 12 px)', !/bold/.test(c.font) && Number(/(\d+)px/.exec(c.font)?.[1]) <= 12, c.font);
+process.exit(failed ? 1 : 0);

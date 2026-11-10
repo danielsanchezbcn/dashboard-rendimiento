@@ -27,7 +27,14 @@ export function orderVars(vars) {
 }
 // Variable por defecto: la primera (la relativa va antes que la absoluta) que tenga algún valor calculado; si la relativa no tiene ninguno
 // (p. ej. jugadores sin masa corporal ni peso de referencia), se muestra la absoluta en vez de una pantalla vacía.
-export const defaultVar = (vars, sessions) => vars.find((v) => sessions.some((s) => s.values?.[v.id])) ?? vars[0];
+export const defaultVar = (vars, sessions, preferRsi = false) => {
+  const con = (v) => sessions.some((s) => s.values?.[v.id]);
+  // Fast Dynamic Strength y Reactive Strength: si el test tiene RSI (y no es una asimetría), se muestra primero.
+  if (preferRsi) { const rsi = vars.find((v) => /\bRSI\b/i.test(v.name) && !/asym|asimetr/i.test(v.name) && con(v)); if (rsi) return rsi; }
+  return vars.find(con) ?? vars[0];
+};
+// ¿El test pertenece a Fast Dynamic Strength o Reactive Strength? (por el nombre de su manifestación)
+export const prefiereRsi = (test, catalog) => ['fast dynamic strength', 'reactive strength'].includes(String(catalog?.manifestations?.find((m) => m.id === test?.manifestationId)?.name ?? '').trim().toLowerCase());
 export const relFactor = (v) => (v.formula.op === 'REL_SW' ? Number(v.formula.params?.factor ?? SW_FACTOR_DEFAULT) : 1);
 
 // Devuelve { sessions, omitted: { [variableRelativaId]: nº de sesiones sin masa previa } }. Añade values[relId] = {L,R,S} a copias de las sesiones.

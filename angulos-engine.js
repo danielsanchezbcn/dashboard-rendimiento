@@ -196,7 +196,10 @@ function Photo({ key, dropId, fileId, stageInnerId, canvasId, zoomId, zoomCanvas
       }
 
       const drawable = angles.filter(a => isValidMeasurement(a.deg)); // una medicion invalida no dibuja etiqueta
-      const labelPositions = drawable.map(a => mid(toCanvas(a.p1), toCanvas(a.p2)));
+      // Las cajas de angulo van FUERA de la pierna (perpendicular al segmento, del lado mas despejado) con una linea guia fina: asi no tapan los segmentos.
+      const segs = []; for (let i = 0; i < joints.length - 1; i++) segs.push({ a: toCanvas(joints[i].pt), b: toCanvas(joints[i + 1].pt) });
+      const placed = drawable.map(a => placeLabel(toCanvas(a.p1), toCanvas(a.p2), segs, canvas.width, canvas.height));
+      const labelPositions = placed.map(p => p.pos);
       const MIN_GAP = 26;
       for (let i = 1; i < labelPositions.length; i++) {
         const prev = labelPositions[i - 1], cur = labelPositions[i];
@@ -206,7 +209,11 @@ function Photo({ key, dropId, fileId, stageInnerId, canvasId, zoomId, zoomCanvas
           prev.y -= push; cur.y += push;
         }
       }
-      drawable.forEach((a, i) => { drawLabel(ctx, labelPositions[i], formatMeasurement(a.deg), color); });
+      drawable.forEach((a, i) => {
+        ctx.save(); ctx.lineWidth = 1.5; ctx.strokeStyle = color; ctx.globalAlpha = 0.9;
+        ctx.beginPath(); ctx.moveTo(placed[i].anchor.x, placed[i].anchor.y); ctx.lineTo(labelPositions[i].x, labelPositions[i].y); ctx.stroke(); ctx.restore();
+        drawLabel(ctx, labelPositions[i], formatMeasurement(a.deg), color);
+      });
 
       joints.forEach(({ pt }) => {
         const c = toCanvas(pt);
