@@ -4,7 +4,7 @@
 // D33a (provisional, a confirmar): un Personal Average que abarca varias posiciones se reparte en UNA FILA POR POSICIÓN OCUPADA (no mezcla posiciones).
 // Las sesiones excluidas no aparecen. Tests por lado: izquierda y derecha en columnas separadas y asimetría D25 calculada con los dos valores mostrados.
 
-import { asymmetryPct } from './catalogo.js';
+import { asimetriaLR } from './catalogo.js';
 import { positionOnDate } from './posiciones.js';
 import { buildSeries, personalAverage, personalBestFor } from './evolucion.js';
 import { playerLabel } from './jugadores.js';
@@ -29,7 +29,7 @@ export function compareTest({ sessions, variable, players, histories, positions,
     if (!sides.some((sd) => series[sd].length)) continue;
     withData++;
     const mk = (cells, groupKey, date, extra = {}) => {
-      const asym = sides.length === 2 && cells.L?.value != null && cells.R?.value != null ? asymmetryPct(cells.L.value, cells.R.value) : null;
+      const asym = sides.length === 2 && cells.L?.value != null && cells.R?.value != null ? asimetriaLR(variable, cells.L.value, cells.R.value) : null; // grados (R − L) en variables angulares; % D25 en el resto
       return { playerId, playerName: playerLabel(player), groupKey, date, cells, asym, ...extra };
     };
     if (mode === 'pa') {

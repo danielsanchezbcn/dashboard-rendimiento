@@ -13,7 +13,7 @@ import { expandRelative, isViewable, hasData, orderVars, isRelative, defaultVar 
 import { PercentilesPanel, useRefData, refContext } from './pages-percentiles.js';
 import { positionOnDate } from './posiciones.js';
 import { withReferenceWeights } from './relaciones.js';
-import { isAsymVariable, asymText } from './catalogo.js';
+import { isAsymVariable, asymText, esGrados } from './catalogo.js';
 import { AsimTexto } from './asim-ui.js';
 import { PanelAsimetrias } from './pages-asimetrias.js';
 import { setTarget, deleteTarget, resolveTarget, distanceToTarget } from './targets.js';
@@ -341,7 +341,7 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const all = sides.flatMap((sd) => [...series[sd].valid, ...series[sd].excluded].map((p) => p.value).concat(tg[sd] ? [tg[sd].value] : [])).concat(refLines.map((r) => r.value));
   const pad = all.length ? (Math.max(...all) - Math.min(...all)) * 0.1 || Math.abs(Math.max(...all)) * 0.1 || 1 : 1;
   const yMin = all.length ? Math.min(...all) - pad : undefined, yMax = all.length ? Math.max(...all) + pad : undefined; // mismo eje para ambos lados
-  const asym = variable.sides === 'LR' ? asymmetrySeries(sessions, variable.id, { ...f, diff: variable.unit === '°' }) : null;
+  const asym = variable.sides === 'LR' ? asymmetrySeries(sessions, variable.id, { ...f, diff: esGrados(variable) }) : null;
   const sideName = { L: 'Left', R: 'Right', S: 'Valor' };
   const cmpV = cmp.varId === variable.id ? cmp : { varId: variable.id, side: null, a: null, b: null };
   const setCmpV = (c) => setCmp({ ...c, varId: variable.id });
@@ -351,7 +351,7 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const key = [player.id, test.id, variable.id, proto, from, to, sessions.map((s) => s.id + s.status).join(), sides.map((sd) => (tg[sd] ? tg[sd].origin + tg[sd].value : '-')).join()].join('|');
   const allUrl = buildHash(`test-${test.id}`, { ...KEEP(q), v: variable.id, m: q.m ?? 'pa', j: player.id });
   const pano = esPanorama(test), cmj = test.name === 'CMJ'; // CMJ y Perímetros: cuadro con todas las variables arriba del todo; en CMJ, justo debajo el radar y el cuadrante EUR
-  const radarEl = html`<${RadarPanel} key=${'radar' + test.id + player.id} player=${player} testName=${dn(test.name)} />`;
+  const radarEl = html`<${RadarPanel} key=${'radar' + test.id + player.id} player=${player} testName=${test.name} />`;
   const relEl = html`<${RelacionTest} key=${'rel' + test.id + player.id} player=${player} test=${test} />`;
   return html`<div class="evo">
     ${pano ? html`<${Panorama} key=${'pano' + test.id + player.id} player=${player} test=${test} catalog=${catalog} sessions=${sessions} refData=${refData} q=${q} setQ=${setQ} selectedId=${variable.id} />` : null}
@@ -368,7 +368,7 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
     <${PercentilesPanel} key=${variable.id} player=${player} test=${test} variable=${variable} mine=${sessions} q=${q} setQ=${setQ} filters=${f} targets=${tg} refData=${refData} abs=${abs} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} parte="escala" posJugador=${positionId} />
     <fieldset class="modes"><legend class="sec-titulo">Longitudinal Performance Relative to Benchmarks</legend>${opts.map(([k, label, , , , v]) => { const off = v == null; return html`<label class="check" key=${k} title=${off ? (k.startsWith('pa') ? 'Sin sesiones válidas en el periodo.' : k.endsWith('pos') && positionId == null ? 'El jugador no tiene posición principal.' : k.startsWith('premier') ? 'Esta variable no figura en las tablas de la Premier League.' : `Sin muestra suficiente (mínimo ${ctx?.minN ?? 10} jugadores).`) : ''}><input type="checkbox" disabled=${off} checked=${!off && chosen.includes(k)} onChange=${(e) => setQ({ rl: (e.target.checked ? [...chosen, k] : chosen.filter((x) => x !== k)).join(',') || 'none' })} /> ${label}</label>`; })}</fieldset>
     ${sides.some((sd) => series[sd].valid.length)
-      ? html`<${Grafico} onPoint=${onPoint} deps=${[key, 'lineas', refLines.map((r) => r.k + r.value).join(), !!ctx, selIds.join()]} nombre=${`evolucion-${dn(variable.name)}`} label=${`Evolución de ${dn(variable.name)}: ${sides.map((sd) => `${sideName[sd]} ${series[sd].valid.length} sesiones`).join(', ')}`} build=${(c) => lineConfig(c, { sides, series, unit: variable.unit, yMin, yMax, tg, refLines, info: ctx ? (v) => ctx.info(v, 'last') : null, sel: selIds })} />`
+      ? html`<${Grafico} onPoint=${onPoint} deps=${[key, 'lineas', refLines.map((r) => r.k + r.value).join(), !!ctx, selIds.join()]} nombre=${`evolucion-${variable.name}`} label=${`Evolución de ${dn(variable.name)}: ${sides.map((sd) => `${sideName[sd]} ${series[sd].valid.length} sesiones`).join(', ')}`} build=${(c) => lineConfig(c, { sides, series, unit: variable.unit, yMin, yMax, tg, refLines, info: ctx ? (v) => ctx.info(v, 'last') : null, sel: selIds })} />`
       : html`<p class="muted">Sin sesiones válidas en el periodo.</p>`}
     ${sides.some((sd) => series[sd].valid.length >= 2) ? html`<${CompararPanel} key=${'cmp' + variable.id} variable=${variable} sides=${sides} series=${series} cmp=${cmpV} setCmp=${setCmpV} refData=${refData} protocolId=${protocolId} />` : null}
     <${TargetRapido} key=${'tr' + variable.id + player.id} player=${player} variable=${variable} sides=${sides} own=${targets.find((t) => t.scope === 'player' && t.playerId === player.id && t.variableId === variable.id)} reload=${reload} />
@@ -376,9 +376,9 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
     ${asym && asym.length ? html`<section><h4 class="sec-titulo">Interlimb Asymmetry Over Time</h4>
       <p class="leyenda" aria-label="Leyenda"><span class="leyenda-chip" style=${`background:${PAL.izq}`}>LEFT</span> <span class="leyenda-chip" style=${`background:${PAL.der}`}>RIGHT</span></p>
       <details class="notas"><summary>Cómo se calcula la asimetría</summary>
-      <p class="muted">${variable.unit === '°' ? 'Variables en grados: right − left, en grados (como en tu Excel); positivo = valor mayor en el lado right. ' : null}|D − I| ÷ máx × 100 (en variables que no son grados) y la letra del lado con el valor más alto (L left, R right). Como en VALD: barra azul hacia la izquierda del eje si el lado left es mayor, naranja hacia la derecha si lo es el right.</p>
+      <p class="muted">${esGrados(variable) ? 'Variables en grados: right − left, en grados (como en tu Excel); positivo = valor mayor en el lado right. ' : null}|D − I| ÷ máx × 100 (en variables que no son grados) y la letra del lado con el valor más alto (L left, R right). Como en VALD: barra azul hacia la izquierda del eje si el lado left es mayor, naranja hacia la derecha si lo es el right.</p>
       </details>
-      <${Grafico} deps=${[key, 'asim']} nombre=${`asimetria-${dn(variable.name)}`} alto=${`${Math.max(9, 3.2 + asym.length * 2.2)}rem`} label=${`Asimetría de ${dn(variable.name)}: ${asym.length} sesiones`} build=${(c) => asymConfig(c, asym, variable, variable.unit === '°')} /></section>` : null}
+      <${Grafico} deps=${[key, 'asim']} nombre=${`asimetria-${variable.name}`} alto=${`${Math.max(9, 3.2 + asym.length * 2.2)}rem`} label=${`Asimetría de ${dn(variable.name)}: ${asym.length} sesiones`} build=${(c) => asymConfig(c, asym, variable, esGrados(variable))} /></section>` : null}
     ${cmj ? null : relEl}
     <${OrzTest} key=${'orz' + test.id + player.id} player=${player} test=${test} />
     <${RatioTest} key=${'rat' + test.id + player.id} player=${player} test=${test} />

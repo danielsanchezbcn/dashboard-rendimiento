@@ -9,7 +9,7 @@
 // variables, cada una bajo su manifestación.
 
 import { audit } from './db.js';
-import { SW_FACTOR_DEFAULT, testUsage } from './catalogo.js';
+import { SW_FACTOR_DEFAULT, testUsage, PERFILES_POR_DEFECTO, pbCriterionOf, sinAsimetriaPorDefecto } from './catalogo.js';
 import { ISO_PAIRS, RM12_TESTS, RM_EST_FACTOR_DEFAULT, pairFactor } from './isohold.js';
 
 export const CATALOG_SEED_VERSION = 11;
@@ -117,7 +117,31 @@ const ISO_HOLD_TESTS = ['Hip Iso-Hold 20 s', 'Knee Iso-Hold 20 s', 'Ankle Iso-Ho
 
 export const CATALOG_TABLES = ['blocks', 'manifestations', 'zones', 'tests', 'protocols', 'variables', 'formulaHistory'];
 
+// Guarda en los tests y variables actuales los ajustes de comportamiento (criterio del PB, tabla de columnas, exclusiones de Asimetrías) que antes se deducían del nombre.
+// Solo rellena lo que NO existe (undefined): lo que el usuario haya puesto, incluido «PB clásico» (null) o «no» (false), no se toca. Se puede ejecutar cuantas veces haga falta.
+export async function ensurePerfiles(db) {
+  const tests = await db.tests.toArray(), vars = await db.variables.toArray();
+  let nt = 0, nv = 0;
+  for (const t of tests) {
+    const d = PERFILES_POR_DEFECTO[String(t.name ?? '').trim().toLowerCase()];
+    const patch = {};
+    if (d?.pb && t.pbCriterioVariableId === undefined) { const c = pbCriterionOf(t, vars); if (c) patch.pbCriterioVariableId = c.id; }
+    if ((d?.panel || t.blockKey === 'perimetros') && t.panelColumnas === undefined) patch.panelColumnas = true;
+    if (d?.sinAsimetrias && t.excluirAsimetrias === undefined) patch.excluirAsimetrias = true;
+    if (Object.keys(patch).length) { await db.tests.update(t.id, patch); nt++; }
+  }
+  for (const v of vars) if (v.excluirAsimetrias === undefined && sinAsimetriaPorDefecto(v.name)) { await db.variables.update(v.id, { excluirAsimetrias: true }); nv++; }
+  if (nt || nv) await audit(db, 'catalogo-perfiles-guardados', { tests: nt, variables: nv });
+  return { tests: nt, variables: nv };
+}
+
 export async function seedInitialCatalog(db) {
+  const r = await sembrarCatalogo(db);
+  try { r.perfiles = await ensurePerfiles(db); } catch (e) { r.perfilesError = String(e?.message ?? e); } // no debe impedir que la aplicación arranque: sin esto se usan los valores por defecto
+  return r;
+}
+
+async function sembrarCatalogo(db) {
   const prev = await db.meta.get('catalogSeeded');
   if (prev) return { sembrado: false, ...(await migrateCatalog(db, prev)) };
   const counts = { tests: 0, variables: 0 };

@@ -347,9 +347,17 @@ export function sameValues(a, b) {
   });
 }
 
+// ¿La sesión guardada «a» es un subconjunto exacto de la del fichero «b»? (mismas variables y lados con los mismos números, y «b» trae variables nuevas).
+// Sirve para completar una sesión con columnas que antes no se importaban, sin tocar ningún valor ya guardado.
+export function esAmpliacion(a, b) {
+  const ka = Object.keys(a), kb = Object.keys(b);
+  if (kb.length <= ka.length) return false;
+  return ka.every((k) => k in b && Object.keys(a[k]).length === Object.keys(b[k]).length && Object.keys(a[k]).every((sd) => sd in b[k] && sameNum(a[k][sd], b[k][sd])));
+}
+
 // resolutions: { [playerText]: { action: 'link', playerId } | { action: 'new', jerseyName } | { action: 'skip' } }
 export async function planImport(db, { rows, testId, protocolId = null, resolutions }) {
-  const plan = { sessions: [], pending: [], rowErrors: [], body: [], counts: { nuevas: 0, duplicadas: 0, conflictos: 0, conflictosFichero: 0, pendientes: 0, filasConError: 0, pesosNuevos: 0, pesosCambiados: 0, pesosIguales: 0, alturasNuevas: 0, alturasIguales: 0, piernasNuevas: 0, piernasIguales: 0 } };
+  const plan = { sessions: [], pending: [], rowErrors: [], body: [], counts: { nuevas: 0, duplicadas: 0, ampliadas: 0, conflictos: 0, conflictosFichero: 0, pendientes: 0, filasConError: 0, pesosNuevos: 0, pesosCambiados: 0, pesosIguales: 0, alturasNuevas: 0, alturasIguales: 0, piernasNuevas: 0, piernasIguales: 0 } };
   const groups = new Map();
   const bodyByRef = new Map(); // ref → { weight (la de la fecha más reciente), heights: Map(fecha|valor) }
   for (const r of rows) {
@@ -385,6 +393,8 @@ export async function planImport(db, { rows, testId, protocolId = null, resoluti
       const existing = (await db.sessions.where('playerId').equals(g.res.playerId).toArray()).filter((s) => s.testId === testId && s.date === g.date && (s.time ?? '') === g.time && (s.protocolId ?? null) === (protocolId ?? null));
       const same = existing.find((s) => sameValues(s.values, first.values));
       if (same) { plan.counts.duplicadas++; plan.sessions.push({ ...base, status: 'duplicada', existingId: same.id, dupRows }); continue; }
+      const ampl = existing.length === 1 && esAmpliacion(existing[0].values, first.values) ? existing[0] : null;
+      if (ampl) { plan.counts.ampliadas++; plan.sessions.push({ ...base, status: 'ampliable', existingId: ampl.id, dupRows }); continue; }
       if (existing.length) { plan.counts.conflictos++; plan.sessions.push({ ...base, status: 'conflicto', existingId: existing[0].id, dupRows }); continue; }
     }
     plan.counts.nuevas++;
@@ -423,7 +433,7 @@ export async function commitImport(db, { file, sheetName, mappingName = '', test
     const report = { rowIssues: plan.rowErrors, pendingNames: [...new Set(plan.pending.map((p) => p.name))].map((name) => ({ name, rows: plan.pending.filter((p) => p.name === name).map((p) => p.row) })), sessionNotes: [...(parsed.notes ?? [])] };
     const batchId = await db.importBatches.add({ createdAt: now, source, fileName: file.name, fileHash: file.hash, fileSize: file.size, sheet: sheetName, testId, protocolId, mappingName, rowsRead: parsed.stats.read, rowsEmpty: parsed.stats.empty, status: 'en curso' });
     const playerIds = new Map(); // ref → id
-    const counts = { sesionesCreadas: 0, duplicadasOmitidas: 0, conflictosOmitidos: 0, conflictosGuardadosComoNuevas: 0, conflictosFichero: 0, jugadoresNuevos: 0, aliasGuardados: 0, aliasFijados: 0, filasNoImportadasFichero: parsed.stats?.skipped ?? 0, filasSinResolver: plan.counts.pendientes, filasConError: plan.counts.filasConError, pesosGuardados: 0, pesosCambiados: 0, alturasGuardadas: 0, alturasOmitidas: 0, piernasGuardadas: 0, piernasOmitidas: 0 };
+    const counts = { sesionesCreadas: 0, sesionesAmpliadas: 0, duplicadasOmitidas: 0, conflictosOmitidos: 0, conflictosGuardadosComoNuevas: 0, conflictosFichero: 0, jugadoresNuevos: 0, aliasGuardados: 0, aliasFijados: 0, filasNoImportadasFichero: parsed.stats?.skipped ?? 0, filasSinResolver: plan.counts.pendientes, filasConError: plan.counts.filasConError, pesosGuardados: 0, pesosCambiados: 0, alturasGuardadas: 0, alturasOmitidas: 0, piernasGuardadas: 0, piernasOmitidas: 0 };
     const ensurePlayer = async (s) => {
       if (playerIds.has(s.ref)) return playerIds.get(s.ref);
       let id;
@@ -455,6 +465,16 @@ export async function commitImport(db, { file, sheetName, mappingName = '', test
     for (const s of plan.sessions) {
       if (s.status === 'conflicto-fichero') { counts.conflictosFichero++; report.sessionNotes.push({ rows: s.rowNumbers, text: s.note }); continue; }
       if (s.status === 'duplicada') { counts.duplicadasOmitidas++; continue; }
+      if (s.status === 'ampliable') {
+        const ex = await db.sessions.get(s.existingId);
+        if (!ex) { counts.conflictosOmitidos++; continue; }
+        const values = { ...s.values, ...ex.values }; // lo ya guardado manda; solo se añaden las variables que faltaban
+        const reps = ex.reps && typeof ex.reps === 'object' ? { ...(s.reps && typeof s.reps === 'object' ? s.reps : {}), ...ex.reps } : ex.reps;
+        await db.sessions.update(ex.id, { values, ...(reps !== undefined ? { reps } : {}) });
+        counts.sesionesAmpliadas = (counts.sesionesAmpliadas ?? 0) + 1;
+        report.sessionNotes.push({ rows: s.rowNumbers, text: `Sesión ya guardada completada con ${Object.keys(s.values).length - Object.keys(ex.values).length} variable(s) que faltaban; no se ha cambiado ningún valor existente.` });
+        continue;
+      }
       if (s.status === 'conflicto') {
         const choice = conflictChoices[s.key] ?? 'omitir';
         if (choice !== 'nueva') { counts.conflictosOmitidos++; report.sessionNotes.push({ rows: s.rowNumbers, text: 'Ya existía una sesión de ese jugador, test, fecha y hora con valores distintos: no se ha sobrescrito ni guardado.' }); continue; }
@@ -557,7 +577,7 @@ export function reportCsv(batch) {
   const lines = [['Apartado', 'Fila(s)', 'Detalle'].map(q).join(',')];
   const add = (a, r, d) => lines.push([a, r, d].map(q).join(','));
   add('Fichero', '', `${batch.fileName} · hoja ${batch.sheet} · importación del ${batch.createdAt}`);
-  add('Resumen', '', `Filas leídas ${batch.rowsRead}; vacías ${batch.rowsEmpty}; sesiones creadas ${batch.sesionesCreadas}; duplicadas omitidas ${batch.duplicadasOmitidas}; conflictos omitidos ${batch.conflictosOmitidos}; conflictos guardados como nuevas ${batch.conflictosGuardadosComoNuevas}; conflictos dentro del fichero ${batch.conflictosFichero}; jugadores nuevos ${batch.jugadoresNuevos}; alias guardados ${batch.aliasGuardados}; filas sin resolver ${batch.filasSinResolver}; filas con error ${batch.filasConError}${batch.pesosGuardados || batch.alturasGuardadas ? `; pesos de referencia guardados ${batch.pesosGuardados ?? 0} (cambiados ${batch.pesosCambiados ?? 0}); alturas guardadas ${batch.alturasGuardadas ?? 0}` : ''}${batch.source === 'VALD' ? `; filas del fichero no importadas por test sin perfil ${batch.filasNoImportadasFichero ?? 0}` : ''}`);
+  add('Resumen', '', `Filas leídas ${batch.rowsRead}; vacías ${batch.rowsEmpty}; sesiones creadas ${batch.sesionesCreadas}; duplicadas omitidas ${batch.duplicadasOmitidas}; sesiones completadas ${batch.sesionesAmpliadas ?? 0}; conflictos omitidos ${batch.conflictosOmitidos}; conflictos guardados como nuevas ${batch.conflictosGuardadosComoNuevas}; conflictos dentro del fichero ${batch.conflictosFichero}; jugadores nuevos ${batch.jugadoresNuevos}; alias guardados ${batch.aliasGuardados}; filas sin resolver ${batch.filasSinResolver}; filas con error ${batch.filasConError}${batch.pesosGuardados || batch.alturasGuardadas ? `; pesos de referencia guardados ${batch.pesosGuardados ?? 0} (cambiados ${batch.pesosCambiados ?? 0}); alturas guardadas ${batch.alturasGuardadas ?? 0}` : ''}${batch.source === 'VALD' ? `; filas del fichero no importadas por test sin perfil ${batch.filasNoImportadasFichero ?? 0}` : ''}`);
   for (const i of batch.report?.rowIssues ?? []) add('Error de fila', i.row, i.text);
   for (const p of batch.report?.pendingNames ?? []) add('Jugador sin resolver', p.rows.join(' '), p.name);
   for (const n of batch.report?.sessionNotes ?? []) add('Aviso', (n.rows ?? []).join(' '), n.text);

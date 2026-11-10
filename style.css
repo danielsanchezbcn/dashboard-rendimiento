@@ -498,3 +498,5 @@ table.asim th[scope=row] { text-align: left; font-weight: 600; white-space: norm
 .tabs .tab, .tabs-nav a.tab { text-transform: uppercase; letter-spacing: .06em; font-size: .78rem; }
 .asimetrias .asim-h-sub { text-transform: uppercase; letter-spacing: .08em; }
 .asim-falta { margin: .2rem 0 0; font-size: .8rem; }
+
+ul.plain { list-style: none; padding-left: 0; margin: .4rem 0; }

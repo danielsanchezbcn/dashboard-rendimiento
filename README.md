@@ -341,3 +341,7 @@ Además, con un Chromium sin interfaz: la actualización real de una base creada
 - No se puede corregir ni reemplazar una sesión ya guardada: si un valor estaba mal, hoy solo se puede guardar la versión nueva como otra sesión o eliminar los datos sintéticos; la corrección está aplazada.
 - El importador de Excel no admite `.xls` antiguo (guárdalo como `.xlsx`) ni ficheros de más de 25 MB.
 - El orden de manifestaciones y zonas es el de tu lista; todavía no hay flechas para reordenarlas ni para reordenar los tests.
+
+## Pruebas (10/11/2026)
+- `npm test`: pruebas automáticas con datos sintéticos (lógica, base de datos en memoria e interfaz simulada). Incluye `prueba-cobertura.test.mjs`, que vigila que ninguna prueba quede fuera, que las políticas de seguridad (CSP) no se relajen y que el código propio no use `eval`, `new Function`, `XMLHttpRequest`, etc.
+- `npm run e2e` (`prueba-navegador.cjs`): prueba en un navegador real (Chromium + Playwright, que no forman parte del dashboard) con jugadores y sesiones inventados en un perfil vacío: menú, tablas de columnas, Personal Best de la mejor sesión, pestaña Asimetrías, colores y nombres. No toca datos reales. Con `--capturas carpeta` guarda imágenes.

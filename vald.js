@@ -30,7 +30,11 @@ const CMJ_COLS = [
   s('Force at Zero Velocity / BM [N/kg]', 'FORCE AT 0 VELOCITY', 'N/kg'), s('Eccentric Peak Power / BM [W/kg]', 'ECC PEAK POWER/BM', 'W/kg'),
   s('Eccentric Peak Velocity [m/s]', 'ECC PEAK VELOCITY', 'm/s'), s('Jump Height (Imp-Mom) [cm]', 'JH (imp-mom)', 'cm'),
 ];
-const CMJ_ONLY = [s('Concentric Impulse [N s]', 'CON IMPULSE', 'N s'), s('Eccentric Deceleration Impulse [N s]', 'ECC DECELERATION IMPULSE', 'N s')];
+const CMJ_ONLY = [s('Concentric Impulse [N s]', 'CON IMPULSE', 'N s'), s('Eccentric Deceleration Impulse [N s]', 'ECC DECELERATION IMPULSE', 'N s'),
+  // Asimetrías del CMJ (VALD: «12 R» / «5.9 L»; parseAsym las guarda con signo, derecha positiva). Estaban en el catálogo pero no en el importador.
+  s('Eccentric Deceleration RFD % (Asym) (%)', 'ECC DECEL RFD ASYM', '%'), s('Concentric Impulse-100ms % (Asym) (%)', 'CON IMPULSE 100ms ASYM', '%'),
+  s('Concentric Impulse % (Asym) (%)', 'CON IMPULSE ASYM', '%'), s('Eccentric Deceleration Impulse % (Asym) (%)', 'ECC DECEL IMPULSE ASYM', '%'),
+  s('Peak Landing Force % (Asym) (%)', 'PEAK LANDING FORCE ASYM', '%')];
 const SL_ONLY = [s('Concentric Peak Force / BM [N/kg]', 'CONCENTRIC PEAK FORCE / BM', 'N/kg'), s('Takeoff Peak Force / BM [N/kg]', 'TAKEOFF PEAK FORCE / BM', 'N/kg'), s('Peak Landing Force / BM [N/kg]', 'PEAK LANDING FORCE / BM', 'N/kg')];
 const HOP = [
   s('Mean RSI (Flight/Contact Time)', 'MEAN RSI (FLIGHT TIME / CONTACT TIME)', ''), s('Mean Jump Height (Flight Time) [cm]', 'MEAN JUMP HEIGHT (Flight Time) (cm)', 'cm'),
@@ -274,7 +278,7 @@ export function parseValdGrid(grid, catalog) {
 // ---- Plan y guardado por grupos (un lote por test; las claves de conflicto llevan el test delante para no chocar)
 export async function planValdImport(db, vald, resolutions) {
   const plans = [];
-  const plan = { sessions: [], pending: [], rowErrors: [], counts: { nuevas: 0, duplicadas: 0, conflictos: 0, conflictosFichero: 0, pendientes: 0, filasConError: 0 } };
+  const plan = { sessions: [], pending: [], rowErrors: [], counts: { nuevas: 0, duplicadas: 0, ampliadas: 0, conflictos: 0, conflictosFichero: 0, pendientes: 0, filasConError: 0 } };
   for (const g of vald.groups) {
     const gp = await planImport(db, { rows: g.rows, testId: g.testId, resolutions });
     plans.push({ group: g, plan: gp });

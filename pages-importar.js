@@ -351,7 +351,7 @@ function PasoAtletas({ atl, back, done }) {
   <//>`;
 }
 
-const STATUS_TEXT = { nueva: 'Nueva', duplicada: 'Ya existe idéntica (se omite)', conflicto: 'Ya existe con valores distintos', 'conflicto-fichero': 'Filas contradictorias en el fichero' };
+const STATUS_TEXT = { nueva: 'Nueva', duplicada: 'Ya existe idéntica (se omite)', ampliable: 'Ya existe: se completa con variables nuevas', conflicto: 'Ya existe con valores distintos', 'conflicto-fichero': 'Filas contradictorias en el fichero' };
 
 function PasoResumen({ plan, choices, setChoices, missing = [], delIds = {}, setDelIds, cat, back, save, busy, msg }) {
   const c = plan.counts;
@@ -363,6 +363,7 @@ function PasoResumen({ plan, choices, setChoices, missing = [], delIds = {}, set
     <ul>
       <li><strong>${c.nuevas}</strong> sesiones nuevas.</li>
       <li><strong>${c.duplicadas}</strong> ya existían idénticas: se omiten sin cambios.</li>
+      ${c.ampliadas ? html`<li><strong>${c.ampliadas}</strong> ya existían con menos variables: se completan solo con las que faltan (no se cambia ningún valor guardado).</li>` : null}
       <li><strong>${c.conflictos}</strong> coinciden en jugador, test, fecha y hora con valores distintos: no se sobrescribe nada (elige abajo).</li>
       <li><strong>${c.conflictosFichero}</strong> grupos de filas contradictorias dentro del fichero: no se importan.</li>
       <li><strong>${c.pendientes}</strong> filas de jugadores sin resolver: no se importan.</li>

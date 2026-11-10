@@ -245,6 +245,29 @@ function VariableRow({ v, test, rawVars, data, history }) {
     ${edit ? html`<tr><td colspan="7"><${VariableForm} test=${test} variable=${v} rawVars=${rawVars} data=${data} onDone=${() => setEdit(false)} /></td></tr>` : null}`;
 }
 
+// Comportamiento del test en el perfil del jugador (propiedades editables; antes dependían del nombre exacto del test). Ver catalogo.js.
+function TestPerfil({ test, vars, data }) {
+  const { db, bump } = useApp();
+  const crit = C.pbCriterionOf(test, data.variables);
+  const [pb, setPb] = useState(crit ? String(crit.id) : '');
+  const [panel, setPanel] = useState(C.usaPanelColumnas(test));
+  const [sinAsim, setSinAsim] = useState(C.testExcluidoDeAsimetrias(test));
+  const { msg, run, busy } = useRunner();
+  const cand = C.candidatasCriterioPB(test, data.variables);
+  const lr = vars.filter((v) => !v.archived && (v.sides === 'LR' || C.isAsymVariable(v)));
+  return html`<${Card} titulo="Comportamiento en el perfil del jugador">
+    <form class="fields" onSubmit=${run(async () => { await C.updateTest(db, test.id, { pbCriterioVariableId: pb === '' ? null : Number(pb), panelColumnas: panel, excluirAsimetrias: sinAsim }); bump(); }, 'guardado.')}>
+      <label>Personal Best <select value=${pb} onChange=${(e) => setPb(e.target.value)}><option value="">Clásico: el mejor valor de cada variable por separado</option>${cand.map((v) => html`<option key=${v.id} value=${v.id}>Mejor sesión según ${dn(v.name)}: todas las variables salen de esa misma sesión</option>`)}</select></label>
+      <label class="check"><input type="checkbox" checked=${panel} onChange=${(e) => setPanel(e.target.checked)} /> Mostrar la tabla «todas las variables» (una columna por variable) arriba del test</label>
+      <label class="check"><input type="checkbox" checked=${sinAsim} onChange=${(e) => setSinAsim(e.target.checked)} /> Excluir este test de la pestaña Asimetrías del jugador</label>
+      <div class="actions"><button type="submit" disabled=${busy}>Guardar</button></div>
+    </form>
+    ${lr.length ? html`<details class="notas"><summary>Variables que no se muestran en la pestaña Asimetrías (${lr.filter((v) => C.variableExcluidaDeAsimetrias(v)).length})</summary>
+      <ul class="plain">${lr.map((v) => html`<li key=${v.id}><label class="check"><input type="checkbox" checked=${C.variableExcluidaDeAsimetrias(v)} disabled=${busy} onChange=${(e) => { const marcada = e.target.checked; return run(async () => { await C.updateVariable(db, v.id, { excluirAsimetrias: marcada }); bump(); }, 'guardado.')(); }} /> ${dn(v.name)}</label></li>`)}</ul></details>` : null}
+    <${Msg} msg=${msg} />
+  <//>`;
+}
+
 export function TestDetalle({ id }) {
   const { db, version } = useApp();
   const { data, error } = useLoad(async () => {
@@ -265,6 +288,7 @@ export function TestDetalle({ id }) {
     <h2 class="page-title">${dn(test.name)}${test.archived ? html` <span class="badge">ARCHIVADO</span>` : null}</h2>
     ${test.name === 'Jurdan Test' ? html`<${EnlaceAngulos} />` : null}
     <${TestDatos} key=${'d' + test.id + test.updatedAt} test=${test} data=${cat} />
+    <${TestPerfil} key=${'p' + test.id + JSON.stringify([test.pbCriterioVariableId, test.panelColumnas, test.excluirAsimetrias])} test=${test} vars=${vars} data=${cat} />
     <${Protocolos} test=${test} protocols=${protocols} />
     <${Card} titulo="Variables">
       <details class="notas"><summary>Cómo funcionan las variables</summary><p class="muted">Cada variable tiene su unidad, su dirección de interpretación y, si es calculada, su fórmula. El dato absoluto y el relativo son variables separadas. La unidad, la dirección y las fórmulas que no hayas definido aparecen como «No definido».</p></details>

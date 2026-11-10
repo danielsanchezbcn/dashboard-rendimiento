@@ -4,8 +4,8 @@
 // Valores de la base elegida (Personal Average, Personal Best o Actual), calculados con las mismas funciones que el resto del perfil. Las variables relativas (BW/SW) no se repiten.
 import { html } from './libs.js';
 import { orderVars, isViewable, hasData, isRelative } from './relativos.js';
-import { isAsymVariable, asymmetryPct, asymText } from './catalogo.js';
-import { buildSeries, personalAverage, personalBestFor, currentResult } from './evolucion.js';
+import { isAsymVariable, asymText, esGrados, asimetriaLR, testExcluidoDeAsimetrias, variableExcluidaDeAsimetrias } from './catalogo.js';
+import { valorBase } from './evolucion.js';
 import { AsimTexto } from './asim-ui.js';
 import { fmtDay } from './fechas.js';
 import { dn } from './nombres.js';
@@ -16,20 +16,12 @@ export const BLOQUES_ASIM = [['fuerza', 'Manifestaciones de la fuerza'], ['perim
 const BASES = [['pa', 'Personal Average'], ['pb', 'Personal Best'], ['last', 'Actual']];
 const nf = (n, d = 1) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 
-// Valor y fecha de un jugador en una variable y lado, según la base.
-function own(sessions, v, side, base) {
-  const val = buildSeries(sessions, v.id, side, {}).valid;
-  if (!val.length) return null;
-  if (base === 'last') { const c = currentResult(val); return c ? { value: c.value, date: c.date } : null; }
-  if (base === 'pb') { const b = personalBestFor(sessions, v, side, {}); return b.defined ? { value: b.value, date: b.date } : null; }
-  const a = personalAverage(val); return a.defined ? { value: a.value, date: a.to } : null;
-}
+// Valor y fecha de un jugador en una variable y lado, según la base (definición única: valorBase en evolucion.js).
+const own = (sessions, v, side, base) => { const x = valorBase(sessions, v, side, base, {}); return x ? { value: x.value, date: x.date } : null; };
 
-// Excluido por ahora de este bloque (pedido el 10/11/2026): el test Nordic Hamstring Exercise completo (Max Force, Max Force Asymmetry y Torque) y las variables Torque,
-// Force at 100 ms y RFD at 100 ms (Run-Specific Iso-Push). Solo afecta a esta pestaña.
-export const TESTS_EXCLUIDOS = ['Nordic Hamstring Exercise'];
-export const VARIABLE_EXCLUIDA = (name) => /\btorque\b/i.test(name) || /^(force|rfd) at 100\s*ms$/i.test(String(name).trim());
-const candidatas = (test, catalog) => (TESTS_EXCLUIDOS.includes(test.name) ? [] : catalog.variables.filter((v) => v.testId === test.id && !v.archived && !VARIABLE_EXCLUIDA(v.name) && (v.sides === 'LR' || isAsymVariable(v))));
+// Exclusiones (pedidas el 10/11/2026) como propiedades editables en el catálogo (test: «excluir de Asimetrías»; variable: ídem). Por defecto: el test Nordic Hamstring Exercise completo
+// y las variables Torque, Force at 100 ms y RFD at 100 ms. Solo afecta a esta pestaña.
+const candidatas = (test, catalog) => (testExcluidoDeAsimetrias(test) ? [] : catalog.variables.filter((v) => v.testId === test.id && !v.archived && !variableExcluidaDeAsimetrias(v) && (v.sides === 'LR' || isAsymVariable(v))));
 export function filasAsimetria(test, catalog, tsess, base) {
   const vars = orderVars(candidatas(test, catalog).filter((v) => isViewable(v) && !isRelative(v) && hasData(v, tsess)));
   const rows = [];
@@ -37,8 +29,8 @@ export function filasAsimetria(test, catalog, tsess, base) {
     if (v.sides === 'LR') {
       const L = own(tsess, v, 'L', base), R = own(tsess, v, 'R', base);
       if (!L || !R) continue;
-      const deg = v.unit === '°';
-      const pct = deg ? R.value - L.value : asymmetryPct(L.value, R.value);
+      const deg = esGrados(v);
+      const pct = asimetriaLR(v, L.value, R.value);
       if (pct === null || !Number.isFinite(pct)) continue;
       rows.push({ v, deg, pct, L: L.value, R: R.value, date: [L.date, R.date].sort().at(-1) });
     } else {

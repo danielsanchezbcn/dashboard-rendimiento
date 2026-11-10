@@ -7,7 +7,7 @@
 // (más bajo es mejor → 100 − percentil estadístico). Con rango objetivo o sin dirección no hay percentil de rendimiento ni color.
 // No se cubren variables derivadas (relativas): las sesiones solo guardan valores originales.
 
-import { buildSeries, personalAverage, personalBestFor } from './evolucion.js';
+import { valorBase } from './evolucion.js';
 import { positionOnDate } from './posiciones.js';
 
 export const MIN_N_DEFAULT = 10;
@@ -46,19 +46,16 @@ export function quantile(values, q) {
 // Valor de la referencia que deja al percentil de RENDIMIENTO p (0–1): con «más bajo es mejor» es el cuantil estadístico 1 − p.
 export const perfQuantile = (values, p, direction) => quantile(values, direction === 'lower' ? 1 - p : p);
 
-const timeKey = (p) => p.date + (p.time || '');
 const posOf = (histories, playerId) => positionOnDate(histories[playerId] ?? []).principal?.positionId ?? null; // posición única, sin fechas
 
 // Valor de un jugador para la base elegida: 'pa' = Personal Average; 'first' = Average de su primera sesión válida; 'last' = Average de su última sesión válida; 'pb' = Personal Best (solo con dirección más alto/más bajo).
 export function playerValue(sessions, variable, side, { basis, positionId = null, histories = {}, playerId, from = null, to = null, protocolId } = {}) {
-  let pts = buildSeries(sessions, variable.id, side, { from, to, protocolId }).valid;
-  if (positionId !== null && posOf(histories, playerId) !== positionId) pts = [];
-  if (!pts.length) return null;
-  if (basis === 'first') { const f = [...pts].sort((a, b) => timeKey(a).localeCompare(timeKey(b)) || a.sessionId - b.sessionId)[0]; return { value: f.value, date: f.date, reps: f.reps, sessions: 1 }; }
-  if (basis === 'pb') { const pb = personalBestFor(sessions, variable, side, { from, to, protocolId }); return pb.defined ? { value: pb.value, date: pb.date, reps: pb.reps, sessions: pts.length } : null; }
-  if (basis === 'last') { const l = [...pts].sort((a, b) => timeKey(a).localeCompare(timeKey(b)) || a.sessionId - b.sessionId).at(-1); return { value: l.value, date: l.date, reps: l.reps, sessions: 1 }; }
-  const pa = personalAverage(pts);
-  return { value: pa.value, date: pa.to, from: pa.from, reps: pa.reps, sessions: pa.sessions };
+  if (positionId !== null && posOf(histories, playerId) !== positionId) return null;
+  const v = valorBase(sessions, variable, side, basis, { from, to, protocolId });
+  if (!v) return null;
+  const out = { value: v.value, date: v.date, reps: v.reps, sessions: v.sessions };
+  if (v.from !== undefined) out.from = v.from;
+  return out;
 }
 
 // Referencia: una entrada por jugador { playerId, value }. Excluye jugadores sintéticos (salvo includeSynthetic, solo para pruebas internas) y sesiones excluidas.

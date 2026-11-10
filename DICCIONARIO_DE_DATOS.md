@@ -106,7 +106,7 @@ Es configuración, no datos de jugadores. El **estado `archived`** (`true`/`fals
 
 **`zones`**: `name`, `order`, `archived`, `createdAt`, `source`. Los tests globales (Fast Dynamic Strength y Reactive Strength) no tienen zona (`zoneId` nulo).
 
-**`tests`**: `name`, `blockKey`, `manifestationId` (la manifestación del listado; ver nota), `zoneId`, `notes`, `archived`, `order`, `createdAt`, `updatedAt`, `source`.
+**`tests`**: `name`, `blockKey`, `manifestationId` (la manifestación del listado; ver nota), `zoneId`, `notes`, `archived`, `order`, `createdAt`, `updatedAt`, `source`. **Opcionales (10/11/2026, paquete A):** `pbCriterioVariableId` (número = el Personal Best sale de la sesión con el mejor valor de esa variable; `null` = PB clásico por variable), `panelColumnas` (booleano: tabla «todas las variables» en el perfil), `excluirAsimetrias` (booleano: fuera de la pestaña Asimetrías). Si no existen, valen los valores por defecto de `catalogo.js` (`PERFILES_POR_DEFECTO`); `ensurePerfiles` los guarda al arrancar sin pisar lo existente.
 
 **`protocols`**: `testId`, `name`, `description`, `archived`, `createdAt`. No se cargan protocolos que el usuario no haya definido.
 

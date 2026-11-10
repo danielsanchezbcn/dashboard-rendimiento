@@ -4,8 +4,8 @@
 // Los valores salen de las mismas funciones que el gráfico longitudinal y el cuadro «Normative Benchmarking», así que coinciden con ellos.
 import { html } from './libs.js';
 import { orderVars, isViewable, hasData, isRelative } from './relativos.js';
-import { isAsymVariable, asymmetryPct, asymText } from './catalogo.js';
-import { buildSeries, personalAverage, personalBestFor, currentResult } from './evolucion.js';
+import { isAsymVariable, asymmetryPct, usaPanelColumnas } from './catalogo.js';
+import { valorBase } from './evolucion.js';
 import { refContext, Banda } from './pages-percentiles.js';
 import { evaluate, buildReference } from './percentiles.js';
 import { placeAgainstPremier } from './premier.js';
@@ -13,8 +13,7 @@ import { fmtDay } from './fechas.js';
 import { AsimTexto } from './asim-ui.js';
 import { dn } from './nombres.js';
 
-export const PANORAMA_TESTS = ['CMJ', 'Double-Leg Hop Test', 'DL Drop Jump 30 cm', 'DL Drop Jump 45 cm']; // CMJ y Reactive Strength
-export const esPanorama = (test) => PANORAMA_TESTS.includes(test?.name) || test?.blockKey === 'perimetros';
+export const esPanorama = usaPanelColumnas; // propiedad del test (catalogo.js): por defecto CMJ, Hop Test, Drop Jump 30/45 cm y Perímetros
 const nf = (n, d = 2) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 const BASES = [['pa', 'Personal Average'], ['pb', 'Personal Best'], ['last', 'Actual']];
 const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
@@ -45,13 +44,7 @@ export function Panorama({ player, test, catalog, sessions, refData, q, setQ, se
   };
   const cols = vars.map((v) => {
     const sides = v.sides === 'LR' ? ['L', 'R'] : ['S'];
-    const own = (sd) => {
-      const val = buildSeries(sessions, v.id, sd, f).valid;
-      if (!val.length) return null;
-      if (base === 'last') { const c = currentResult(val); return c ? { value: c.value, date: c.date } : null; }
-      if (base === 'pb') { const b = personalBestFor(sessions, v, sd, f); return b.defined ? { value: b.value, date: b.date, rsi: b.criterionValue ?? null } : null; }
-      const a = personalAverage(val); return a.defined ? { value: a.value, date: a.to, from: a.from } : null;
-    };
+    const own = (sd) => { const x = valorBase(sessions, v, sd, base, f); return x ? { value: x.value, date: x.date, from: x.from, rsi: x.criterionValue ?? null } : null; };
     const o = Object.fromEntries(sides.map((sd) => [sd, own(sd)]));
     const srcVar = isRelative(v) ? catalog.variables.find((x) => x.id === v.formula.operands[0]) ?? null : null;
     const ctx = refContext({ refData, test, variable: v, sides, filters: f, playerId: player.id, positionId: null, srcVar });

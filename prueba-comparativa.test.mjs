@@ -47,4 +47,13 @@ check('test por lado: Personal Best por lado y asimetría D25 con los valores mo
 r = C.compareTest({ ...base, sessions: SL, variable: VL, mode: 'last' });
 check('última sesión por lado: asimetría de esa sesión (izquierda domina → negativo)', r.groups.flatMap((g) => g.rows)[0].asym < 0 && r.groups.flatMap((g) => g.rows)[0].cells.L.value === 120);
 check('filtro de fechas y protocolo', C.compareTest({ ...base, mode: 'last', from: '2026-03-01' }).rows === 4 && C.compareTest({ ...base, mode: 'last', from: '2026-03-11' }).players === 2 && C.compareTest({ ...base, mode: 'last', protocolId: 99 }).rows === 0);
+// variables angulares: la asimetría de la comparativa es R − L en grados (no el % D25)
+{
+  const VG = { id: 5, sides: 'LR', direction: 'higher', unit: '°' };
+  const SG = [{ id: 1, playerId: 1, testId: 1, date: '2026-03-10', time: '', values: { 5: { L: 40, R: 46 } }, reps: { L: 1, R: 1 }, status: 'valid' }];
+  const rg = C.compareTest({ ...base, sessions: SG, variable: VG, mode: 'last' }).groups.flatMap((g) => g.rows)[0];
+  check('variable en grados: asimetría = R − L en ° (+6), no porcentaje', rg.asym === 6, String(rg.asym));
+  const rp = C.compareTest({ ...base, sessions: SG, variable: { ...VG, unit: 'N' }, mode: 'last' }).groups.flatMap((g) => g.rows)[0];
+  check('variable no angular: sigue el % D25', Math.abs(rp.asym - (46 - 40) / 46 * 100) < 1e-9, String(rp.asym));
+}
 process.exit(failed ? 1 : 0);

@@ -50,6 +50,10 @@ export function asymText(pct, d = 1) {
 }
 export const asymSideLetter = (pct) => (typeof pct !== 'number' || !Number.isFinite(pct) || Math.abs(pct) < 0.05 ? '' : pct > 0 ? 'R' : 'L');
 
+// Variables en grados (ángulos): su asimetría es R − L en °, como en el Excel del usuario; el resto usa el porcentaje D25. Un solo criterio para todas las pantallas.
+export const esGrados = (v) => v?.unit === '°';
+export const asimetriaLR = (v, left, right) => (esGrados(v) ? (Number.isFinite(left) && Number.isFinite(right) ? right - left : null) : asymmetryPct(left, right));
+
 export function asymmetryPct(left, right) {
   const l = num(left);
   const r = num(right);
@@ -104,15 +108,40 @@ const logChange = (db, action, entity, id, antes, despues, reason = '') => {
 };
 
 // ---------- Lectura ----------
-// Personal Best de la mejor sesión (10/11/2026): tests cuyo PB sale de la sesión con mejor RSI (ver personalBestFor en evolucion.js).
-export const PB_SESSION_TESTS = ['CMJ', 'SL CMJ', 'Double-Leg Hop Test', 'DL Drop Jump 30 cm', 'DL Drop Jump 45 cm', 'Squat Jump'];
-const PB_CRITERIO_NOMBRE = { 'Squat Jump': /^JH \(imp-mom\)$/i }; // Squat Jump: mejor Jump Height (el resto: RSI)
-// Variable criterio (RSI; en Squat Jump, Jump Height; no relativa ni asimetría) de un test de esa lista; null si el test no está en ella o no tiene RSI.
+// ---------- Comportamiento de un test en el perfil (propiedades, no nombres) ----------
+// Tres ajustes por test que antes dependían de que el test se llamase de una forma exacta. Ahora se guardan en el propio test (campos opcionales; se editan en el catálogo):
+//   pbCriterioVariableId: número = el Personal Best sale de la sesión con el mejor valor de esa variable; null = PB clásico (mejor valor de cada variable por separado).
+//   panelColumnas: true = el perfil muestra la tabla «todas las variables» (una columna por variable).
+//   excluirAsimetrias: true = el test no aparece en la pestaña Asimetrías del jugador.
+// Si el campo no existe (tests antiguos o creados a mano), se usa el valor por defecto de abajo, que reproduce lo que ya hacía el dashboard; `ensurePerfiles` (catalogo-inicial.js) los
+// guarda en los tests actuales para que un cambio de nombre no los pierda. Nunca se pisa un valor que el usuario haya puesto.
+const lcn = (s) => String(s ?? '').trim().toLowerCase();
+const RSI = /\bRSI\b/i;
+export const PERFILES_POR_DEFECTO = {
+  cmj: { pb: RSI, panel: true },
+  'sl cmj': { pb: RSI },
+  'double-leg hop test': { pb: RSI, panel: true },
+  'dl drop jump 30 cm': { pb: RSI, panel: true },
+  'dl drop jump 45 cm': { pb: RSI, panel: true },
+  'squat jump': { pb: /^JH \(imp-mom\)$/i }, // Squat Jump: mejor Jump Height
+  'nordic hamstring exercise': { sinAsimetrias: true },
+};
+const perfilDefecto = (test) => PERFILES_POR_DEFECTO[lcn(test?.name)] ?? null;
+// Variables candidatas a criterio: de origen (no calculadas), activas y que no sean asimetrías.
+export const candidatasCriterioPB = (test, variables) => variables.filter((v) => v.testId === test?.id && !v.archived && v.kind !== 'derived' && !/ASYM/i.test(v.name)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+// Variable criterio del Personal Best de un test ({id, name}) o null si usa el PB clásico.
 export function pbCriterionOf(test, variables) {
-  if (!test || !PB_SESSION_TESTS.includes(test.name)) return null;
-  const c = variables.filter((v) => v.testId === test.id && !v.archived && v.kind !== 'derived' && (PB_CRITERIO_NOMBRE[test.name] ?? /\bRSI\b/i).test(v.name) && !/ASYM/i.test(v.name)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0];
+  if (!test || test.pbCriterioVariableId === null) return null;
+  const cand = candidatasCriterioPB(test, variables);
+  if (typeof test.pbCriterioVariableId === 'number') { const v = cand.find((x) => x.id === test.pbCriterioVariableId); if (v) return { id: v.id, name: v.name }; } // si ya no existe, vale el valor por defecto
+  const d = perfilDefecto(test);
+  const c = d?.pb ? cand.find((v) => d.pb.test(v.name)) : null;
   return c ? { id: c.id, name: c.name } : null;
 }
+export const usaPanelColumnas = (test) => (typeof test?.panelColumnas === 'boolean' ? test.panelColumnas : test?.blockKey === 'perimetros' || !!perfilDefecto(test)?.panel);
+export const testExcluidoDeAsimetrias = (test) => (typeof test?.excluirAsimetrias === 'boolean' ? test.excluirAsimetrias : !!perfilDefecto(test)?.sinAsimetrias);
+export const sinAsimetriaPorDefecto = (name) => /\btorque\b/i.test(name) || /^(force|rfd) at 100\s*ms$/i.test(String(name).trim());
+export const variableExcluidaDeAsimetrias = (v) => (typeof v?.excluirAsimetrias === 'boolean' ? v.excluirAsimetrias : sinAsimetriaPorDefecto(v?.name ?? ''));
 
 export async function listCatalog(db) {
   const [blocks, manifestations, zones, tests, protocols, variables] = await Promise.all([
@@ -125,7 +154,7 @@ export async function listCatalog(db) {
   ]);
   const byOrder = (a, b) => (a.order ?? 0) - (b.order ?? 0) || a.id - b.id;
   const testsSorted = tests.sort(byOrder), variablesSorted = variables.sort(byOrder);
-  // Personal Best de la mejor sesión (solo en memoria, no se guarda): ver pbCriterionOf en evolucion.js.
+  // Personal Best de la mejor sesión (solo en memoria, no se guarda): ver pbCriterionOf arriba y personalBestFor en evolucion.js.
   for (const t of testsSorted) { const c = pbCriterionOf(t, variablesSorted); if (c) for (const v of variablesSorted) if (v.testId === t.id) v.pbCriterion = c; }
   return { blocks, manifestations, zones, tests: testsSorted, protocols: protocols.sort((a, b) => a.id - b.id), variables: variablesSorted };
 }
@@ -237,6 +266,14 @@ export async function updateTest(db, id, patch, reason = '') {
     if (patch.zoneId !== null && !(await db.zones.get(patch.zoneId))) throw new Error('La zona no existe.');
     next.zoneId = patch.zoneId;
   }
+  if (patch.pbCriterioVariableId !== undefined) {
+    if (patch.pbCriterioVariableId !== null) {
+      const v = await db.variables.get(patch.pbCriterioVariableId);
+      if (!v || v.testId !== id || v.archived || v.kind === 'derived') throw new Error('La variable criterio debe ser una variable de origen y activa de este test.');
+    }
+    next.pbCriterioVariableId = patch.pbCriterioVariableId;
+  }
+  for (const k of ['panelColumnas', 'excluirAsimetrias']) if (patch[k] !== undefined) { if (typeof patch[k] !== 'boolean') throw new Error('Opción no válida.'); next[k] = patch[k]; }
   await db.tests.update(id, { ...next, updatedAt: now() });
   await logChange(db, 'catalogo-test-modificado', 'test', id, cur, next, reason);
 }
@@ -354,6 +391,7 @@ export async function updateVariable(db, id, patch, reason = '') {
   // La unidad de una variable con operación la fija la operación (evita etiqueta, fórmula y unidad incoherentes).
   const effective = next.formula !== undefined ? next.formula : cur.formula;
   if (effective?.op) next.unit = OPERATIONS[effective.op].unit;
+  if (patch.excluirAsimetrias !== undefined) { if (typeof patch.excluirAsimetrias !== 'boolean') throw new Error('Opción no válida.'); next.excluirAsimetrias = patch.excluirAsimetrias; }
   await db.variables.update(id, { ...next, updatedAt: now() });
   await logChange(db, 'catalogo-variable-modificada', 'variable', id, cur, next, reason);
 }

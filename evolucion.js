@@ -84,6 +84,19 @@ export function personalBestFor(sessions, variable, side, filters = {}) {
   return { defined: true, value: pt.value, date: pt.date, sessionId: pt.sessionId, reps: pt.reps, tied: cb.tied, sameDayTie: cb.sameDayTie, viaCriterion: true, criterionName: crit.name, criterionValue: cb.value };
 }
 
+// ÚNICA definición del valor de un jugador en una variable y lado según la base elegida (la usan los percentiles, la tabla de columnas y la pestaña Asimetrías):
+//   'pa' Personal Average · 'pb' Personal Best (de la mejor sesión si el test lo define; si no, el mejor valor) · 'last' última sesión válida · 'first' primera sesión válida.
+// Devuelve { value, date, from?, reps, sessions, tied?, sameDayTie?, sessionId?, viaCriterion? } o null si no hay valor. `sessions` = nº de sesiones que respaldan el valor (1 en first/last).
+export function valorBase(sessions, variable, side, base, filters = {}) {
+  const pts = buildSeries(sessions, variable.id, side, filters).valid; // ya ordenados por fecha, hora y id
+  if (!pts.length) return null;
+  if (base === 'first') { const p = pts[0]; return { value: p.value, date: p.date, reps: p.reps, sessions: 1, sessionId: p.sessionId }; }
+  if (base === 'last') { const p = pts[pts.length - 1]; return { value: p.value, date: p.date, reps: p.reps, sessions: 1, sessionId: p.sessionId }; }
+  if (base === 'pb') { const b = personalBestFor(sessions, variable, side, filters); return b.defined ? { ...b, sessions: pts.length } : null; }
+  const a = personalAverage(pts);
+  return a.defined ? { value: a.value, date: a.to, from: a.from, reps: a.reps, sessions: a.sessions } : null;
+}
+
 export const currentResult = (points) => (points.length ? points[points.length - 1] : null);
 
 // G5: asimetría por sesión (D25: (R − L) / máx × 100, positivo = domina la derecha). Solo sesiones con ambos lados.

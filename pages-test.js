@@ -3,7 +3,7 @@ import { html } from './libs.js';
 import { useApp } from './context.js';
 import { Card, useLoad } from './componentes.js';
 import { fmtDay } from './fechas.js';
-import { listCatalog, isAsymVariable, asymText, asymSideLetter } from './catalogo.js';
+import { listCatalog, isAsymVariable, asymText, asymSideLetter, esGrados } from './catalogo.js';
 import { listPositions } from './posiciones.js';
 import { compareTest, MODES } from './comparativa.js';
 import { positionOnDate } from './posiciones.js';
@@ -137,7 +137,7 @@ export function VistaTest({ id, query = {} }) {
   const repsOf = (r) => res.sides.map((s) => r.cells[s]).filter(Boolean).map((c) => (c.sessions ? `${c.sessions} ses.${c.reps != null ? `, ${c.reps} rep.` : ''}` : c.reps ?? '—')).join(' / ');
   const hrefFor = (pid) => buildHash(`jugador-${pid}`, { ...KEEP({ ...query, m: mode }), t: id, v: variable.id, b: 'fuerza', from: query.from, to: query.to });
   const exportCsv = () => {
-    const header = ['Posición', 'Jugador', ...res.sides.map((s) => `${sideName[s]}${variable.unit ? ` (${variable.unit})` : ''}`), ...(lr ? ['Asimetría (%)', 'Lado con el valor más alto'] : []), ...(pctOn ? res.sides.map((s) => `Percentil ${sideName[s].toLowerCase()} (La Liga)`) : []), ...(pctOn && plRef ? res.sides.map((s) => `Zona ${sideName[s].toLowerCase()} (Premier League)`) : []), 'Desde', 'Hasta', 'Sesiones', 'Repeticiones'];
+    const header = ['Posición', 'Jugador', ...res.sides.map((s) => `${sideName[s]}${variable.unit ? ` (${variable.unit})` : ''}`), ...(lr ? [esGrados(variable) ? 'Asimetría (°)' : 'Asimetría (%)', 'Lado con el valor más alto'] : []), ...(pctOn ? res.sides.map((s) => `Percentil ${sideName[s].toLowerCase()} (La Liga)`) : []), ...(pctOn && plRef ? res.sides.map((s) => `Zona ${sideName[s].toLowerCase()} (Premier League)`) : []), 'Desde', 'Hasta', 'Sesiones', 'Repeticiones'];
     const rows = res.groups.flatMap((g) => g.rows.map((r) => {
       const cs = res.sides.map((s) => r.cells[s]).filter(Boolean);
       return [g.name, r.playerName, ...res.sides.map((s) => r.cells[s]?.value ?? ''), ...(lr ? [r.asym == null ? '' : Math.abs(r.asym), asymSideLetter(r.asym)] : []),
@@ -172,7 +172,7 @@ export function VistaTest({ id, query = {} }) {
       <tbody>${g.rows.map((r, i) => html`<tr key=${i} class=${r.playerId === originId ? 'origin' : ''}>
         <th scope="row"><a href=${hrefFor(r.playerId)}>${r.playerName}</a>${r.playerId === originId ? html` <span class="muted">(origen)</span>` : ''}${r.multi ? html`<small class="cell-date">ocupó varias posiciones</small>` : ''}<small class="cell-date">${repsOf(r)}</small></th>
         ${res.sides.map((s) => html`<td key=${s} class="num"><a href=${hrefFor(r.playerId)}>${cell(r.cells[s])}</a></td>`)}
-        ${lr ? html`<td class="num">${r.asym == null ? '—' : html`<${AsimTexto} pct=${r.asym} />`}</td>` : null}
+        ${lr ? html`<td class="num">${r.asym == null ? '—' : html`<${AsimTexto} pct=${r.asym} texto=${esGrados(variable) ? `${nf(Math.abs(r.asym))} °${asymSideLetter(r.asym) ? ' ' + asymSideLetter(r.asym) : ''}` : null} />`}</td>` : null}
         ${pctOn ? res.sides.map((s) => html`<td key=${'p' + s}><${CeldaPercentil} ev=${pctOf(r, s)} /></td>`) : null}
         ${pctOn ? res.sides.map((s) => html`<td key=${'q' + s}><${CeldaPremier} pl=${plOf(r, s)} /></td>`) : null}</tr>`)}</tbody></table></div>`)}
     ${query.ex === '1' ? (excluded.length ? html`<div class="table-wrap"><table><caption>Sesiones excluidas (no cuentan en la tabla anterior ni en percentiles)</caption>
