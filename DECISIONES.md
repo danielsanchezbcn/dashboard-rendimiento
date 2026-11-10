@@ -346,3 +346,19 @@ Estilo y biblioteca (D20) cerrados el 6 de noviembre de 2026. Ese mismo día se 
 ## 93. Importación de cargas desde Excel y etiquetas de la escala (10/11/2026)
 - Importar → «Cargas Iso-Hold / RM (Excel)»: lee las hojas con una columna de nombres (A) y una cabecera de carga («ADDED EXTERNAL LOAD», «EXTERNAL LOAD ADDED», «Carga externa»); asigna cada hoja a un test (propuesta por el nombre HIP/KNEE/ANKLE), pide UNA fecha para toda la importación (el Excel no la trae) y guarda una sesión manual por jugador con addManualLoad. Solo se leen valores, no fórmulas. Vinculación automática solo con coincidencia completa única; el resto, a elegir o se omite (y el nombre elegido a mano queda como alias «Excel»). Cargas vacías o no válidas se omiten; 0 kg es válido; repetir la importación no duplica.
 - Escala (Benchmark-Contextualized Positioning): las etiquetas PA / PB / fecha van a la izquierda, a la altura de los marcadores.
+
+## 94. Tabla de un solo valor, lupa nítida y nombres de los puntos en el digitalizador (10/11/2026)
+- El cuadro «Normative Benchmarking» ya no se estira al ancho de la pantalla cuando hay un solo valor (tamaño natural, se reduce solo si no cabe).
+- Digitalizador: la lupa toma el recorte de la foto ORIGINAL (no del lienzo reducido) y usa un lienzo interno a doble resolución. Cada punto lleva su nombre (Hip / Knee / Ankle) en pantalla; se quitan al exportar PNG/SVG/copiar, que conservan la apariencia de siempre.
+- Thigh/RF: el cálculo no intercambia ángulos (comprobado: muslo = cadera→rodilla; RF = rodilla→tobillo invertido). Si salen cambiados, es que algún punto está en la articulación equivocada; los nombres permiten verlo y corregirlo.
+
+## 95. Panorama del test: CMJ y Perímetros (10/11/2026)
+- En el perfil del jugador, CMJ y Perímetros llevan arriba del todo un cuadro con UNA COLUMNA POR VARIABLE (mismo orden que el selector; CMJ sin variables de asimetría; solo variables con datos). Base elegible: Personal Average, Personal Best o Actual (con la fecha); en Perímetros no hay Personal Best (sin dirección).
+- CMJ: filas Valor · Percentil La Liga · Zona Premier League (la Premier publica cortes, no percentiles: se indica la zona, estimada en medidas relativas). Perímetros: Valor (L/R) · Asimetría · UN percentil La Liga del promedio de ambas piernas frente al promedio de las dos piernas de los demás jugadores (solo los que tienen ambos lados; N mínimo = el de La Liga).
+- Pulsar el nombre de una variable la selecciona y lleva al detalle (gráfico longitudinal y demás análisis de esa variable, siempre desplegados debajo).
+- Orden en CMJ: cuadro → radar → EUR (con su cuadrante) → resto. La página se ensancha (92 rem) cuando hay cuadro, para que quepan 15 columnas sin desplazar.
+
+## 96. Tema monocromo y panel lateral estrecho (10/11/2026)
+- Solo apariencia de la interfaz: negros y grises, sin azul (acento blanco, botón principal blanco sobre negro, secundarios con borde fino). Solo tema oscuro. Se mantienen los colores de significado (verde/rojo/ámbar de avisos y las bandas de percentil) y los colores de lado de los datos.
+- Panel lateral de 16,5 a 12,25 rem; el panel principal pasa de 62 a 92 rem de máximo. Los gráficos NO se tocan: conservan tamaño (tope 55 rem = el ancho que tenían), fondos, paletas y tipografías; los que leían variables de color de la página las tienen fijadas a su valor anterior.
+- El digitalizador de ángulos (marco aparte) conserva su propio diseño.

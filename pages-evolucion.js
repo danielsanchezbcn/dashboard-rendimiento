@@ -23,6 +23,7 @@ import { consecutiveDiffs, changeTest } from './cambio.js';
 import { Copiable } from './copiar.js';
 import { RadarPanel } from './pages-radar.js';
 import { Angulos } from './pages-angulos.js';
+import { Panorama, esPanorama } from './pages-panorama.js';
 import { ICONO_TARGET } from './iconos.js';
 
 // Bandera de Target (icono del usuario): se dibuja al final de la línea de target.
@@ -346,8 +347,13 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const selIds = [cmpV.a, cmpV.b].filter((x) => x != null).map((id) => selSide + ':' + id);
   const key = [player.id, test.id, variable.id, proto, from, to, sessions.map((s) => s.id + s.status).join(), sides.map((sd) => (tg[sd] ? tg[sd].origin + tg[sd].value : '-')).join()].join('|');
   const allUrl = buildHash(`test-${test.id}`, { ...KEEP(q), v: variable.id, m: q.m ?? 'pa', j: player.id });
+  const pano = esPanorama(test), cmj = test.name === 'CMJ'; // CMJ y Perímetros: cuadro con todas las variables arriba del todo; en CMJ, justo debajo el radar y el cuadrante EUR
+  const radarEl = html`<${RadarPanel} key=${'radar' + test.id + player.id} player=${player} testName=${test.name} />`;
+  const relEl = html`<${RelacionTest} key=${'rel' + test.id + player.id} player=${player} test=${test} />`;
   return html`<div class="evo">
-    <p><a class="button" href=${allUrl}>Ver todos los jugadores en este test</a></p>
+    ${pano ? html`<${Panorama} key=${'pano' + test.id + player.id} player=${player} test=${test} catalog=${catalog} sessions=${sessions} refData=${refData} q=${q} setQ=${setQ} selectedId=${variable.id} />` : null}
+    ${cmj ? html`${radarEl}${relEl}` : null}
+    <p id="detalle-variable"><a class="button" href=${allUrl}>Ver todos los jugadores en este test</a></p>
     <div class="filters">
       <label>Variable <select value=${variable.id} onChange=${(e) => setQ({ v: e.target.value })}>${vars.map((v) => html`<option key=${v.id} value=${v.id}>${v.name}${v.unit && !v.name.includes(`(${v.unit})`) ? ` (${v.unit})` : ''}${v.sides === 'LR' ? ' · I/D' : ''}</option>`)}</select></label>
       ${protocols.length ? html`<label>Protocolo <select value=${proto} onChange=${(e) => setQ({ p: e.target.value })}><option value="all">Todos</option><option value="none">Sin protocolo</option>${protocols.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label>` : null}
@@ -370,10 +376,10 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
       <p class="muted">${variable.unit === '°' ? 'Variables en grados: right − left, en grados (como en tu Excel); positivo = valor mayor en el lado right. ' : null}|D − I| ÷ máx × 100 (en variables que no son grados) y la letra del lado con el valor más alto (L left, R right). Como en VALD: barra azul hacia la izquierda del eje si el lado left es mayor, naranja hacia la derecha si lo es el right.</p>
       </details>
       <${Grafico} deps=${[key, 'asim']} nombre=${`asimetria-${variable.name}`} alto=${`${Math.max(9, 3.2 + asym.length * 2.2)}rem`} label=${`Asimetría de ${variable.name}: ${asym.length} sesiones`} build=${(c) => asymConfig(c, asym, variable, variable.unit === '°')} /></section>` : null}
-    <${RelacionTest} key=${'rel' + test.id + player.id} player=${player} test=${test} />
+    ${cmj ? null : relEl}
     <${OrzTest} key=${'orz' + test.id + player.id} player=${player} test=${test} />
     <${RatioTest} key=${'rat' + test.id + player.id} player=${player} test=${test} />
-    <${RadarPanel} key=${'radar' + test.id + player.id} player=${player} testName=${test.name} />
+    ${cmj ? null : radarEl}
     <${TablaSesiones} sessions=${sessions.filter((s) => s.values?.[variable.id] && (protocolId === undefined || (s.protocolId ?? null) === protocolId) && (!f.from || s.date >= f.from) && (!f.to || s.date <= f.to))} variable=${variable} player=${player} test=${test} reload=${reload} />
     <details class="notas"><summary>Notas sobre los datos del gráfico y la tabla</summary>
     <p class="muted">Cada punto es el Average de una sesión (media de sus repeticiones). Las sesiones excluidas no cuentan en el Personal Best, el Personal Average ni en ningún análisis. La Máxima repetición no está disponible: los datos importados traen una media por sesión.</p>

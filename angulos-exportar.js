@@ -32,10 +32,14 @@ const ExportController = (function () {
   }
 
   /** PNG del canvas tal cual esta ahora (sin reescalar ni redibujar). */
-  function canvasToPngBlob(canvas) {
-    return new Promise((resolve, reject) => {
-      canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob devolvio null')), 'image/png');
+  function canvasToPngBlob(canvas, photo) {
+    // Los nombres de los puntos (Hip / Knee / Ankle) son una ayuda de pantalla: se quitan un instante para que el PNG salga como siempre.
+    if (photo) { photo.exporting = true; photo.render(); }
+    const p = new Promise((resolve, reject) => {
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob devolvio null')), 'image/png'); // toBlob toma la imagen en el momento de la llamada
     });
+    if (photo) { photo.exporting = false; photo.render(); }
+    return p;
   }
 
   function triggerDownload(blob, filename) {
@@ -57,7 +61,7 @@ const ExportController = (function () {
   }
 
   async function exportPng(cfg) {
-    const blob = await canvasToPngBlob(document.getElementById(cfg.canvasId));
+    const blob = await canvasToPngBlob(document.getElementById(cfg.canvasId), cfg.photo);
     triggerDownload(blob, exportFileName(cfg.name.value, cfg.defaultName, 'png'));
   }
 
@@ -65,7 +69,7 @@ const ExportController = (function () {
   async function exportSvg(cfg) {
     const canvas = document.getElementById(cfg.canvasId);
     const w = canvas.width, h = canvas.height;
-    const blob = await canvasToPngBlob(canvas);
+    const blob = await canvasToPngBlob(canvas, cfg.photo);
     const dataUrl = await new Promise((resolve, reject) => {
       const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = () => reject(r.error); r.readAsDataURL(blob);
     });
@@ -80,7 +84,7 @@ const ExportController = (function () {
     try {
       if (!navigator.clipboard || !navigator.clipboard.write || typeof ClipboardItem === 'undefined') throw new Error('clipboard-unsupported');
       // write() se invoca de forma sincrona dentro del clic (la activacion de usuario se conserva) y recibe la promesa del PNG
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': canvasToPngBlob(canvas) })]);
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': canvasToPngBlob(canvas, cfg.photo) })]);
     } catch (err) {
       console.warn('Copia al portapapeles no disponible:', err);
       showExportMessage(cfg, EXPORT_COPY_ERROR); // sin descarga sustitutiva

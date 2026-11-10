@@ -102,7 +102,7 @@ function TablaSvg({ titulo, sides, filas, nat, SD }) {
   const sx = (i) => X0 + LAB + i * sw;
   const badge = (cx, cy, txt, key, w) => { const [bg, fg] = bandHex(key); return html`<g><rect x=${cx - w / 2} y=${cy - 11} width=${w} height="22" rx="11" fill=${bg} /><text x=${cx} y=${cy + 4.5} text-anchor="middle" font-size="12.5" font-weight="700" fill=${fg}>${txt}</text></g>`; };
   const ancho = (t) => Math.max(34, t.length * 6.4 + 18);
-  return html`<${Copiable} nombre="resultados-y-percentiles"><div class="doc-panel"><svg viewBox=${`0 0 ${W} ${H}`} width="100%" role="img" style="display:block" aria-label=${`Resultados y percentiles de ${titulo}`}>
+  return html`<${Copiable} nombre="resultados-y-percentiles"><div class="doc-panel"><svg viewBox=${`0 0 ${W} ${H}`} width=${W} role="img" style="display:block;max-width:100%;height:auto" aria-label=${`Resultados y percentiles de ${titulo}`}>
     <rect width=${W} height=${H} fill=${PAL.fondo} />
     <text x=${X0} y="28" font-size="15" font-weight="700" fill=${T}>${titulo}</text>
     ${sides.map((sd, i) => html`<g key=${'h' + sd}><rect x=${sx(i) + 4} y=${y1 - 18} width=${sw - 12} height="24" rx="6" fill=${colorLado(sd)} fill-opacity="0.9" /><text x=${sx(i) + sw / 2 - 2} y=${y1 - 1} text-anchor="middle" font-size="14" font-weight="700" fill=${PAL.fondo}>${SD[sd].toUpperCase()}</text>

@@ -53,6 +53,10 @@ function Photo({ key, dropId, fileId, stageInnerId, canvasId, zoomId, zoomCanvas
   const ctx = canvas.getContext('2d');
   const zoomLens = document.getElementById(zoomId), zoomCanvas = document.getElementById(zoomCanvasId);
   const zctx = zoomCanvas.getContext('2d');
+  // Lupa nítida (10/11/2026): lienzo interno a doble resolución (el tamaño visible sigue siendo 210 px) y el recorte se toma de la foto ORIGINAL, no del lienzo reducido de la pantalla.
+  const ZS = Math.max(2, Math.ceil(window.devicePixelRatio || 1));
+  zoomCanvas.width = 210 * ZS; zoomCanvas.height = 210 * ZS; zoomCanvas.style.width = '210px'; zoomCanvas.style.height = '210px';
+  zctx.setTransform(ZS, 0, 0, ZS, 0, 0);
   const img = new Image();
   let scale = 1;
   const photo = { key, canvas, points: null, legRole: null, activeSlot: 'A', ready: false, dragging: null, generation: 0, detection: null, adjusted: false, onChange: null };
@@ -216,6 +220,12 @@ function Photo({ key, dropId, fileId, stageInnerId, canvasId, zoomId, zoomCanvas
         ctx.beginPath(); ctx.arc(c.x, c.y, dot, 0, Math.PI * 2);
         ctx.fillStyle = color; ctx.fill();
       });
+      // Nombre de cada punto (cadera / rodilla / tobillo) para no confundirlos al corregirlos a mano; no se dibuja al exportar (el PNG conserva la apariencia original).
+      if (!photo.exporting) {
+        const NOMBRE = { hip: 'Hip', knee: 'Knee', ankle: 'Ankle' };
+        ctx.font = '700 10px -apple-system, sans-serif'; ctx.lineJoin = 'round';
+        joints.forEach(({ joint, pt }) => { const c = toCanvas(pt), t = NOMBRE[joint] || joint; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(10,10,11,0.9)'; ctx.strokeText(t, c.x + 12, c.y - 8); ctx.fillStyle = color; ctx.fillText(t, c.x + 12, c.y - 8); });
+      }
     });
   };
 
@@ -268,8 +278,8 @@ function Photo({ key, dropId, fileId, stageInnerId, canvasId, zoomId, zoomCanvas
     zoomLens.style.top = Math.max(0, Math.min(pos.top, boxH - lh)) + 'px';
     const SRC = 70; // 210/70 = 3x, mismo factor de zoom que antes (120/40=3x), con mas contexto visible
     zctx.clearRect(0, 0, 210, 210);
-    zctx.imageSmoothingEnabled = false;
-    zctx.drawImage(canvas, cx - SRC / 2, cy - SRC / 2, SRC, SRC, 0, 0, 210, 210);
+    zctx.imageSmoothingEnabled = true; zctx.imageSmoothingQuality = 'high';
+    zctx.drawImage(img, (cx - SRC / 2) / scale, (cy - SRC / 2) / scale, SRC / scale, SRC / scale, 0, 0, 210, 210);
     zctx.strokeStyle = CYAN; zctx.lineWidth = 1.25;
     zctx.beginPath(); zctx.moveTo(105, 0); zctx.lineTo(105, 210); zctx.stroke();
     zctx.beginPath(); zctx.moveTo(0, 105); zctx.lineTo(210, 105); zctx.stroke();
