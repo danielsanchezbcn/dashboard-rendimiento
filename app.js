@@ -24,6 +24,16 @@ export const NAV = [
   { id: 'configuracion', label: 'Configuración' },
 ];
 
+// Menú lateral (10/11/2026): cinco entradas. Las secciones agrupadas se alcanzan con pestañas dentro de la propia página; las rutas por hash no cambian.
+export const NAV_GRUPOS = [
+  { id: 'inicio', label: 'Inicio', miembros: ['inicio', 'copias', 'configuracion'], pestanas: [['inicio', 'Resumen'], ['copias', 'Copias de seguridad'], ['configuracion', 'Configuración']] },
+  { id: 'jugadores', label: 'Jugadores', miembros: ['jugadores'] },
+  { id: 'relaciones', label: 'Relaciones entre variables', miembros: ['relaciones'] },
+  { id: 'fuerza', label: 'Catálogo de tests', miembros: ['fuerza', 'nme', 'perimetros', 'catalogo'], pestanas: [['fuerza', 'Manifestaciones de la fuerza'], ['nme', 'NME'], ['perimetros', 'Datos antropométricos'], ['catalogo', 'Catálogo y edición']] },
+  { id: 'importar', label: 'Importar', miembros: ['importar'] },
+];
+const Pestanas = ({ items, actual }) => html`<div class="tabs tabs-nav" role="navigation" aria-label="Secciones">${items.map(([id, label]) => html`<a key=${id} href=${'#' + id} class=${'tab' + (id === actual ? ' on' : '')} aria-current=${id === actual ? 'page' : null}>${label}</a>`)}</div>`;
+
 // Rutas por hash: «#copias», «#jugadores», «#jugador-12» (perfil del jugador con id 12) y «#catalogo-test-5» (detalle del test 5).
 const routeFromHash = () => {
   const { path: h, query } = parseHash();
@@ -38,6 +48,12 @@ const routeFromHash = () => {
 };
 
 function Page({ route }) {
+  const grupo = NAV_GRUPOS.find((g) => g.pestanas && g.miembros.includes(route.id));
+  const lista = grupo && !route.param && !route.view; // las pantallas de detalle (un jugador, un test, el digitalizador) no llevan pestañas
+  return html`${lista ? html`<${Pestanas} items=${grupo.pestanas} actual=${route.id} />` : null}<${Contenido} route=${route} />`;
+}
+
+function Contenido({ route }) {
   switch (route.id) {
     case 'inicio':
       return html`<${Inicio} />`;
@@ -112,9 +128,9 @@ export function App({ db }) {
         </header>
         <nav aria-label="Principal" class="nav">
           <ul>
-            ${NAV.map(
+            ${NAV_GRUPOS.map(
               (n) => html`<li key=${n.id}>
-                <a href=${'#' + n.id} aria-current=${n.id === route.id ? 'page' : null} class=${n.id === route.id ? 'active' : ''}>${n.label}</a>
+                <a href=${'#' + n.id} aria-current=${n.miembros.includes(route.id) ? 'page' : null} class=${n.miembros.includes(route.id) ? 'active' : ''}>${n.label}</a>
               </li>`,
             )}
           </ul>

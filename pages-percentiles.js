@@ -175,7 +175,7 @@ export function PercentilesPanel({ player, test, variable, mine, q, setQ, filter
   // valor propio por fila y lado (mismos valores que el gráfico) y detalle para el cursor
   const own = (basis, sd) => {
     if (basis === 'last') { const c = current?.[sd]; return c ? { value: c.value, tip: fmtDay(c.date) } : null; }
-    if (basis === 'pb') { const b = stats?.[sd]?.pb; return b?.defined ? { value: b.value, tip: `${fmtDay(b.date)}${b.tied ? (b.sameDayTie ? ', empate el mismo día' : ', empate: se muestra la más reciente') : ''}` } : { value: null, tip: b?.reason ?? '' }; }
+    if (basis === 'pb') { const b = stats?.[sd]?.pb; return b?.defined ? { value: b.value, tip: `${b.viaCriterion ? `Sesión con mejor ${b.criterionName} · ` : ''}${fmtDay(b.date)}${b.tied ? (b.sameDayTie ? ', empate el mismo día' : ', empate: se muestra la más reciente') : ''}` } : { value: null, tip: b?.reason ?? '' }; }
     const a = stats?.[sd]?.pa; return a?.defined ? { value: a.value, tip: `${fmtDay(a.from)} a ${fmtDay(a.to)}, ${a.sessions} sesión(es)${a.reps !== null ? `, ${a.reps} rep.` : ', sin repeticiones en alguna sesión: pesa 1'}` } : null;
   };
   // referencia agrupada por base (ambos lados juntos) y evaluación

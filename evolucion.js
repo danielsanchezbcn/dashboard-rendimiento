@@ -66,6 +66,24 @@ export function personalBest(points, direction) {
   return { defined: true, value: best.value, date: best.date, sessionId: best.sessionId, reps: best.reps, tied: ties.length > 1, sameDayTie };
 }
 
+// Personal Best «de la mejor sesión» (10/11/2026) para CMJ, SL CMJ, Double-Leg Hop Test y DL Drop Jump 30/45 cm: las variables relacionadas entre sí
+// (RSI = altura ÷ contacto, rigidez, fuerzas…) solo tienen sentido si salen de la MISMA ejecución. El Personal Best de cualquier variable de estos tests es
+// su valor en la sesión (válida, dentro de los filtros) donde el RSI del test es máximo (empate: la más reciente, D22). Si esa sesión no tiene la variable, no hay PB (no se sustituye por otra).
+// `variable.pbCriterion` lo añade listCatalog (solo en memoria). Sin criterio: Personal Best clásico por variable.
+export function personalBestFor(sessions, variable, side, filters = {}) {
+  const own = buildSeries(sessions, variable.id, side, filters).valid;
+  const crit = variable.pbCriterion;
+  if (!crit) return personalBest(own, variable.direction);
+  if (variable.id === crit.id) { const b = personalBest(own, 'higher'); return b.defined ? { ...b, viaCriterion: true, criterionName: crit.name, criterionValue: b.value } : b; }
+  let cp = [];
+  for (const sd of [side, 'S', 'L', 'R']) { cp = buildSeries(sessions, crit.id, sd, filters).valid; if (cp.length) break; }
+  if (!cp.length) return { defined: false, reason: `Sin sesiones válidas con ${crit.name}: no se puede elegir la mejor sesión.` };
+  const cb = personalBest(cp, 'higher');
+  const pt = own.find((p) => p.sessionId === cb.sessionId);
+  if (!pt) return { defined: false, reason: `La sesión con mejor ${crit.name} (${cb.date}) no tiene esta variable.` };
+  return { defined: true, value: pt.value, date: pt.date, sessionId: pt.sessionId, reps: pt.reps, tied: cb.tied, sameDayTie: cb.sameDayTie, viaCriterion: true, criterionName: crit.name, criterionValue: cb.value };
+}
+
 export const currentResult = (points) => (points.length ? points[points.length - 1] : null);
 
 // G5: asimetría por sesión (D25: (R − L) / máx × 100, positivo = domina la derecha). Solo sesiones con ambos lados.

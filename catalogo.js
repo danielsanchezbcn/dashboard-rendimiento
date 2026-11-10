@@ -104,6 +104,16 @@ const logChange = (db, action, entity, id, antes, despues, reason = '') => {
 };
 
 // ---------- Lectura ----------
+// Personal Best de la mejor sesión (10/11/2026): tests cuyo PB sale de la sesión con mejor RSI (ver personalBestFor en evolucion.js).
+export const PB_SESSION_TESTS = ['CMJ', 'SL CMJ', 'Double-Leg Hop Test', 'DL Drop Jump 30 cm', 'DL Drop Jump 45 cm', 'Squat Jump'];
+const PB_CRITERIO_NOMBRE = { 'Squat Jump': /^JH \(imp-mom\)$/i }; // Squat Jump: mejor Jump Height (el resto: RSI)
+// Variable criterio (RSI; en Squat Jump, Jump Height; no relativa ni asimetría) de un test de esa lista; null si el test no está en ella o no tiene RSI.
+export function pbCriterionOf(test, variables) {
+  if (!test || !PB_SESSION_TESTS.includes(test.name)) return null;
+  const c = variables.filter((v) => v.testId === test.id && !v.archived && v.kind !== 'derived' && (PB_CRITERIO_NOMBRE[test.name] ?? /\bRSI\b/i).test(v.name) && !/ASYM/i.test(v.name)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0];
+  return c ? { id: c.id, name: c.name } : null;
+}
+
 export async function listCatalog(db) {
   const [blocks, manifestations, zones, tests, protocols, variables] = await Promise.all([
     db.blocks.orderBy('order').toArray(),
@@ -114,7 +124,10 @@ export async function listCatalog(db) {
     db.variables.toArray(),
   ]);
   const byOrder = (a, b) => (a.order ?? 0) - (b.order ?? 0) || a.id - b.id;
-  return { blocks, manifestations, zones, tests: tests.sort(byOrder), protocols: protocols.sort((a, b) => a.id - b.id), variables: variables.sort(byOrder) };
+  const testsSorted = tests.sort(byOrder), variablesSorted = variables.sort(byOrder);
+  // Personal Best de la mejor sesión (solo en memoria, no se guarda): ver pbCriterionOf en evolucion.js.
+  for (const t of testsSorted) { const c = pbCriterionOf(t, variablesSorted); if (c) for (const v of variablesSorted) if (v.testId === t.id) v.pbCriterion = c; }
+  return { blocks, manifestations, zones, tests: testsSorted, protocols: protocols.sort((a, b) => a.id - b.id), variables: variablesSorted };
 }
 
 export const variableManifestationId = (variable, test) => variable.manifestationId ?? test?.manifestationId ?? null;

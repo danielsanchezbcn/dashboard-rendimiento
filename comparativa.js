@@ -6,7 +6,7 @@
 
 import { asymmetryPct } from './catalogo.js';
 import { positionOnDate } from './posiciones.js';
-import { buildSeries, personalAverage, personalBest } from './evolucion.js';
+import { buildSeries, personalAverage, personalBestFor } from './evolucion.js';
 import { playerLabel } from './jugadores.js';
 
 export const MODES = [['pa', 'Personal Average'], ['pb', 'Personal Best'], ['last', 'Última sesión válida'], ['hist', 'Histórico completo']];
@@ -48,7 +48,7 @@ export function compareTest({ sessions, variable, players, histories, positions,
     } else if (mode === 'pb') {
       const cells = {}; let last = ''; let reason = null;
       for (const sd of sides) {
-        const pb = personalBest(series[sd], variable.direction);
+        const pb = personalBestFor(list, variable, sd, filters);
         if (!pb.defined) { cells[sd] = series[sd].length ? { value: null, reason: pb.reason } : null; reason = reason ?? pb.reason; continue; }
         cells[sd] = { value: pb.value, date: pb.date, reps: pb.reps, tied: pb.tied };
         if (pb.date > last) last = pb.date;

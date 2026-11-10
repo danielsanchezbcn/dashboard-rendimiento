@@ -7,7 +7,7 @@
 // (más bajo es mejor → 100 − percentil estadístico). Con rango objetivo o sin dirección no hay percentil de rendimiento ni color.
 // No se cubren variables derivadas (relativas): las sesiones solo guardan valores originales.
 
-import { buildSeries, personalAverage, personalBest } from './evolucion.js';
+import { buildSeries, personalAverage, personalBestFor } from './evolucion.js';
 import { positionOnDate } from './posiciones.js';
 
 export const MIN_N_DEFAULT = 10;
@@ -55,7 +55,7 @@ export function playerValue(sessions, variable, side, { basis, positionId = null
   if (positionId !== null && posOf(histories, playerId) !== positionId) pts = [];
   if (!pts.length) return null;
   if (basis === 'first') { const f = [...pts].sort((a, b) => timeKey(a).localeCompare(timeKey(b)) || a.sessionId - b.sessionId)[0]; return { value: f.value, date: f.date, reps: f.reps, sessions: 1 }; }
-  if (basis === 'pb') { const pb = personalBest(pts, variable.direction); return pb.defined ? { value: pb.value, date: pb.date, reps: pb.reps, sessions: pts.length } : null; }
+  if (basis === 'pb') { const pb = personalBestFor(sessions, variable, side, { from, to, protocolId }); return pb.defined ? { value: pb.value, date: pb.date, reps: pb.reps, sessions: pts.length } : null; }
   if (basis === 'last') { const l = [...pts].sort((a, b) => timeKey(a).localeCompare(timeKey(b)) || a.sessionId - b.sessionId).at(-1); return { value: l.value, date: l.date, reps: l.reps, sessions: 1 }; }
   const pa = personalAverage(pts);
   return { value: pa.value, date: pa.to, from: pa.from, reps: pa.reps, sessions: pa.sessions };

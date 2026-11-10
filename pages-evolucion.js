@@ -15,7 +15,7 @@ import { positionOnDate } from './posiciones.js';
 import { withReferenceWeights } from './relaciones.js';
 import { isAsymVariable, asymText } from './catalogo.js';
 import { setTarget, deleteTarget, resolveTarget, distanceToTarget } from './targets.js';
-import { buildSeries, personalAverage, personalBest, currentResult, asymmetrySeries, setSessionExcluded, deleteSessionPermanently, correctSession } from './evolucion.js';
+import { buildSeries, personalAverage, personalBestFor, currentResult, asymmetrySeries, setSessionExcluded, deleteSessionPermanently, correctSession } from './evolucion.js';
 import { playerLabel, nameMatchesPlayer } from './jugadores.js';
 import { PAL, colorLado } from './colores.js';
 import { buildReference } from './percentiles.js';
@@ -322,11 +322,11 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const f = { from: from || null, to: to || null, protocolId };
   const sides = variable.sides === 'LR' ? ['L', 'R'] : ['S'];
   const series = Object.fromEntries(sides.map((sd) => [sd, buildSeries(sessions, variable.id, sd, f)]));
-  const stats = Object.fromEntries(sides.map((sd) => [sd, { pa: personalAverage(series[sd].valid), pb: personalBest(series[sd].valid, variable.direction) }]));
+  const stats = Object.fromEntries(sides.map((sd) => [sd, { pa: personalAverage(series[sd].valid), pb: personalBestFor(sessions, variable, sd, f) }]));
   const tg = Object.fromEntries(sides.map((sd) => [sd, resolveTarget(targets, { playerId: player.id, positionId, variableId: variable.id, side: sd })]));
   // Variable relativa (BW/SW): la Premier League solo publica valores absolutos (N), así que su zona se calcula con el valor absoluto equivalente del jugador.
   const srcVar = isRelative(variable) ? catalog.variables.find((x) => x.id === variable.formula.operands[0]) : null;
-  const abs = srcVar ? (() => { const ser = Object.fromEntries(sides.map((sd) => [sd, buildSeries(sessions, srcVar.id, sd, f)])); return { variable: srcVar, stats: Object.fromEntries(sides.map((sd) => [sd, { pa: personalAverage(ser[sd].valid), pb: personalBest(ser[sd].valid, srcVar.direction) }])), current: Object.fromEntries(sides.map((sd) => [sd, currentResult(ser[sd].valid)])) }; })() : null;
+  const abs = srcVar ? (() => { const ser = Object.fromEntries(sides.map((sd) => [sd, buildSeries(sessions, srcVar.id, sd, f)])); return { variable: srcVar, stats: Object.fromEntries(sides.map((sd) => [sd, { pa: personalAverage(ser[sd].valid), pb: personalBestFor(sessions, srcVar, sd, f) }])), current: Object.fromEntries(sides.map((sd) => [sd, currentResult(ser[sd].valid)])) }; })() : null;
   const ctx = refData ? refContext({ refData, test, variable, sides, filters: f, playerId: player.id, positionId, srcVar }) : null;
   const posNombre = positions.find((p) => p.id === positionId)?.name;
   const REF_OPTS = [['p50', 'P50 La Liga', 'p50', [], 2], ['p50pos', `P50 La Liga (${posNombre ?? 'posición'})`, 'p50pos', [8, 4], 2], ['p75', 'P75 La Liga', 'p75', [2, 3], 2], ['p75pos', `P75 La Liga (${posNombre ?? 'posición'})`, 'p75pos', [10, 3, 2, 3], 2], ['premier50', 'P50 Premier League', 'premier50', [], 1.5], ['premier75', 'P75 Premier League', 'premier75', [8, 3], 1.5]];

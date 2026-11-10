@@ -362,3 +362,13 @@ Estilo y biblioteca (D20) cerrados el 6 de noviembre de 2026. Ese mismo día se 
 - Solo apariencia de la interfaz: negros y grises, sin azul (acento blanco, botón principal blanco sobre negro, secundarios con borde fino). Solo tema oscuro. Se mantienen los colores de significado (verde/rojo/ámbar de avisos y las bandas de percentil) y los colores de lado de los datos.
 - Panel lateral de 16,5 a 12,25 rem; el panel principal pasa de 62 a 92 rem de máximo. Los gráficos NO se tocan: conservan tamaño (tope 55 rem = el ancho que tenían), fondos, paletas y tipografías; los que leían variables de color de la página las tienen fijadas a su valor anterior.
 - El digitalizador de ángulos (marco aparte) conserva su propio diseño.
+
+## 97. Menú consolidado y percentil de asimetría de perímetros (10/11/2026)
+- Menú lateral de 10 a 5 entradas. «Inicio» agrupa Resumen, Copias de seguridad y Configuración; «Catálogo de tests» agrupa Manifestaciones de la fuerza, NME, Datos antropométricos y Catálogo y edición. Las rutas (#copias, #nme, etc.) no cambian; solo se añade una franja de pestañas en las pantallas de lista.
+- Panorama de perímetros: nueva fila «Percentil asimetría». Se usa |asimetría| (el signo no importa), cada perímetro se compara solo consigo mismo entre jugadores, dirección «menor es mejor» (mayor asimetría = percentil de rendimiento más bajo). Es orientativo: con muestra < mínimo se muestra «n<…».
+
+## 98. Personal Best de la mejor sesión (RSI) y tabla de columnas en Reactive Strength (10/11/2026)
+- En CMJ, SL CMJ, Double-Leg Hop Test y DL Drop Jump 30 y 45 cm, el Personal Best de CUALQUIER variable es su valor en la sesión válida (dentro de los filtros de fechas/protocolo) con el RSI máximo del test (CMJ y SL CMJ: RSI MOD; Hop: MEAN RSI; Drop Jump: RSI). Así las variables relacionadas (RSI, altura, contacto, rigidez, fuerzas) salen de la misma ejecución. Empate de RSI: la sesión más reciente (D22). SL CMJ: cada lado con su mejor sesión.
+- Si la mejor sesión no tiene una variable, esa variable no tiene PB (no se sustituye por otra sesión). Las variables sin dirección (más alto/bajo) ahora sí tienen PB en estos tests, porque ya no depende de la dirección.
+- Un único punto de cálculo (`personalBestFor`): lo usan el gráfico longitudinal, Normative Benchmarking, percentiles, radar, comparativa y la tabla de columnas. El criterio se calcula al leer el catálogo (no se guarda). **Squat Jump** (pedido después): mismo mecanismo, con criterio = mejor Jump Height (JH imp-mom). El resto de tests mantienen el PB clásico por variable.
+- La tabla de columnas («todas las variables», percentil La Liga y zona Premier) se aplica también a Hop Test y Drop Jump 30/45 cm. SL CMJ no la tiene (lo pediste para Reactive Strength).
