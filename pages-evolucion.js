@@ -227,16 +227,17 @@ function TargetPanel({ player, variable, sides, targets, positions, positionId, 
 }
 
 // Asimetría horizontal como en VALD: eje central en 0, azul (izquierda) hacia la izquierda y naranja (derecha) hacia la derecha, con la fecha en el eje vertical.
-function asymConfig(c, asym, variable) {
+function asymConfig(c, asym, variable, deg = false) {
+  const fmtA = (v, d = 1) => (deg ? `${nf(Math.abs(v), d)} °${Math.abs(v) < 0.05 ? '' : v > 0 ? ' R' : ' L'}` : asymText(v, d));
   const m = Math.max(1, ...asym.map((a) => Math.abs(a.pct))); const lim = Math.ceil(m * 1.35);
   const etiquetas = { id: 'etiquetasAsim', afterDatasetsDraw(ch) {
     const meta = ch.getDatasetMeta(0); const g = ch.ctx; g.save(); g.font = 'bold 12px sans-serif'; g.fillStyle = PAL.texto; g.textBaseline = 'middle';
-    meta.data.forEach((bar, i) => { const v = asym[i].pct; g.textAlign = v >= 0 ? 'left' : 'right'; g.fillText(`${nf(Math.abs(v), 1)} %`, bar.x + (v >= 0 ? 6 : -6), bar.y); });
+    meta.data.forEach((bar, i) => { const v = asym[i].pct; g.textAlign = v >= 0 ? 'left' : 'right'; g.fillText(deg ? `${nf(Math.abs(v), 1)} °` : `${nf(Math.abs(v), 1)} %`, bar.x + (v >= 0 ? 6 : -6), bar.y); });
     g.restore(); } };
-  return { type: 'bar', plugins: [etiquetas], data: { labels: asym.map((a) => fmtDay(a.date)), datasets: [{ label: 'Asimetría (%)', data: asym.map((a) => a.pct), backgroundColor: asym.map((a) => (a.pct >= 0 ? PAL.der : PAL.izq)), barPercentage: 0.7 }] },
+  return { type: 'bar', plugins: [etiquetas], data: { labels: asym.map((a) => fmtDay(a.date)), datasets: [{ label: deg ? 'Asimetría (°)' : 'Asimetría (%)', data: asym.map((a) => a.pct), backgroundColor: asym.map((a) => (a.pct >= 0 ? PAL.der : PAL.izq)), barPercentage: 0.7 }] },
     options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { right: 36, left: 4 } },
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (it) => `${asymText(it.parsed.x)} · I ${nf(asym[it.dataIndex].left)} / D ${nf(asym[it.dataIndex].right)} ${variable.unit ?? ''}` } } },
-      scales: { x: { min: -lim, max: lim, title: { display: true, text: 'Asimetría interlateral (%) · izquierda ◄  ► derecha', color: PAL.texto }, ticks: { color: PAL.texto, callback: (v) => `${Math.abs(v)}` }, grid: { color: (ctx) => (ctx.tick.value === 0 ? PAL.texto : PAL.rejilla) } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (it) => `${fmtA(it.parsed.x)} · I ${nf(asym[it.dataIndex].left)} / D ${nf(asym[it.dataIndex].right)} ${variable.unit ?? ''}` } } },
+      scales: { x: { min: -lim, max: lim, title: { display: true, text: deg ? 'Asimetría interlateral (°, derecha − izquierda) · izquierda ◄  ► derecha' : 'Asimetría interlateral (%) · izquierda ◄  ► derecha', color: PAL.texto }, ticks: { color: PAL.texto, callback: (v) => `${Math.abs(v)}` }, grid: { color: (ctx) => (ctx.tick.value === 0 ? PAL.texto : PAL.rejilla) } },
         y: { ticks: { color: PAL.texto }, grid: { display: false } } } } };
 }
 
@@ -268,7 +269,7 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const all = sides.flatMap((sd) => [...series[sd].valid, ...series[sd].excluded].map((p) => p.value).concat(tg[sd] ? [tg[sd].value] : [])).concat(refLines.map((r) => r.value));
   const pad = all.length ? (Math.max(...all) - Math.min(...all)) * 0.1 || Math.abs(Math.max(...all)) * 0.1 || 1 : 1;
   const yMin = all.length ? Math.min(...all) - pad : undefined, yMax = all.length ? Math.max(...all) + pad : undefined; // mismo eje para ambos lados
-  const asym = variable.sides === 'LR' ? asymmetrySeries(sessions, variable.id, f) : null;
+  const asym = variable.sides === 'LR' ? asymmetrySeries(sessions, variable.id, { ...f, diff: variable.unit === '°' }) : null;
   const sideName = { L: 'Izquierda', R: 'Derecha', S: 'Valor' };
   const key = [player.id, test.id, variable.id, proto, from, to, sessions.map((s) => s.id + s.status).join(), sides.map((sd) => (tg[sd] ? tg[sd].origin + tg[sd].value : '-')).join()].join('|');
   const allUrl = buildHash(`test-${test.id}`, { ...KEEP(q), v: variable.id, m: q.m ?? 'pa', j: player.id });
@@ -281,19 +282,20 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
       <label>Hasta <input type="date" value=${to} onInput=${(e) => setQ({ to: e.target.value })} /></label>
     </div>
     <${NotaRelativa} variable=${variable} omitted=${omitted} catalog=${catalog} />
+    <${PercentilesPanel} key=${variable.id} player=${player} test=${test} variable=${variable} mine=${sessions} q=${q} setQ=${setQ} filters=${f} targets=${tg} refData=${refData} abs=${abs} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} parte="escala" posJugador=${positionId} />
+    <${PercentilesPanel} key=${'t' + variable.id} player=${player} test=${test} variable=${variable} mine=${sessions} q=${q} setQ=${setQ} filters=${f} targets=${tg} refData=${refData} abs=${abs} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} parte="tabla" />
     <fieldset class="modes"><legend>Líneas de referencia en el gráfico</legend>${opts.map(([k, label, , , , v]) => { const off = v == null; return html`<label class="check" key=${k} title=${off ? (k.startsWith('pa') ? 'Sin sesiones válidas en el periodo.' : k.endsWith('pos') && positionId == null ? 'El jugador no tiene posición principal.' : k.startsWith('premier') ? 'Esta variable no figura en las tablas de la Premier League.' : `Sin muestra suficiente (mínimo ${ctx?.minN ?? 10} jugadores).`) : ''}><input type="checkbox" disabled=${off} checked=${!off && chosen.includes(k)} onChange=${(e) => setQ({ rl: (e.target.checked ? [...chosen, k] : chosen.filter((x) => x !== k)).join(',') || 'none' })} /> ${label}</label>`; })}</fieldset>
     ${sides.some((sd) => series[sd].valid.length)
       ? html`<${Grafico} deps=${[key, 'lineas', refLines.map((r) => r.k + r.value).join(), !!ctx]} nombre=${`evolucion-${variable.name}`} label=${`Evolución de ${variable.name}: ${sides.map((sd) => `${sideName[sd]} ${series[sd].valid.length} sesiones`).join(', ')}`} build=${(c) => lineConfig(c, { sides, series, unit: variable.unit, yMin, yMax, tg, refLines, info: ctx ? (v) => ctx.info(v, 'last') : null })} />`
       : html`<p class="muted">Sin sesiones válidas en el periodo.</p>`}
     <${TargetRapido} key=${'tr' + variable.id + player.id} player=${player} variable=${variable} sides=${sides} own=${targets.find((t) => t.scope === 'player' && t.playerId === player.id && t.variableId === variable.id)} reload=${reload} />
     <${TargetPanel} key=${'t' + variable.id} player=${player} variable=${variable} sides=${sides} targets=${targets} positions=${positions} positionId=${positionId} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} reload=${reload} />
-    ${asym && asym.length ? html`<section><h4>Asimetría por sesión (como en VALD)</h4>
+    ${asym && asym.length ? html`<section><h4>Asimetría por sesión</h4>
       <p class="leyenda" aria-label="Leyenda"><span class="leyenda-chip" style=${`background:${PAL.izq}`}>LEFT</span> <span class="leyenda-chip" style=${`background:${PAL.der}`}>RIGHT</span></p>
       <details class="notas"><summary>Cómo se calcula la asimetría</summary>
-      <p class="muted">|D − I| ÷ máx × 100 y la letra del lado con el valor más alto (L izquierda, R derecha). Como en VALD: barra azul hacia la izquierda si el lado izquierdo es mayor, naranja hacia la derecha si lo es el derecho.</p>
+      <p class="muted">${variable.unit === '°' ? 'Variables en grados: derecha − izquierda, en grados (como en tu Excel); positivo = valor mayor a la derecha. ' : null}|D − I| ÷ máx × 100 (en variables que no son grados) y la letra del lado con el valor más alto (L izquierda, R derecha). Como en VALD: barra azul hacia la izquierda si el lado izquierdo es mayor, naranja hacia la derecha si lo es el derecho.</p>
       </details>
-      <${Grafico} deps=${[key, 'asim']} nombre=${`asimetria-${variable.name}`} alto=${`${Math.max(9, 3.2 + asym.length * 2.2)}rem`} label=${`Asimetría de ${variable.name}: ${asym.length} sesiones`} build=${(c) => asymConfig(c, asym, variable)} /></section>` : null}
-    <${PercentilesPanel} key=${variable.id} player=${player} test=${test} variable=${variable} mine=${sessions} q=${q} setQ=${setQ} filters=${f} targets=${tg} refData=${refData} abs=${abs} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} />
+      <${Grafico} deps=${[key, 'asim']} nombre=${`asimetria-${variable.name}`} alto=${`${Math.max(9, 3.2 + asym.length * 2.2)}rem`} label=${`Asimetría de ${variable.name}: ${asym.length} sesiones`} build=${(c) => asymConfig(c, asym, variable, variable.unit === '°')} /></section>` : null}
     <${RelacionTest} key=${'rel' + test.id + player.id} player=${player} test=${test} />
     <${OrzTest} key=${'orz' + test.id + player.id} player=${player} test=${test} />
     <${RatioTest} key=${'rat' + test.id + player.id} player=${player} test=${test} />
@@ -306,11 +308,11 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
 }
 
 // Alta manual (opción A, 8/11/2026): la carga de Iso-Hold y RM no viene de VALD; se escribe aquí y crea una sesión con la variable de carga del test.
-function AltaManualCarga({ player, catalog, reload }) {
+function AltaManualCarga({ player, catalog, reload, fixedTest = null }) {
   const { db } = useApp();
   const { msg, busy, run } = useRunner();
-  const tests = catalog.tests.filter((t) => !t.archived && catalog.variables.some((v) => v.testId === t.id && !v.archived && v.kind !== 'derived' && LOAD_VARIABLE_NAMES.includes(v.name)));
-  const [f, setF] = useState({ testId: '', date: todayIso(), time: '', load: '' });
+  const tests = catalog.tests.filter((t) => (!fixedTest || t.id === fixedTest.id) && !t.archived && catalog.variables.some((v) => v.testId === t.id && !v.archived && v.kind !== 'derived' && LOAD_VARIABLE_NAMES.includes(v.name)));
+  const [f, setF] = useState({ testId: fixedTest ? String(fixedTest.id) : '', date: todayIso(), time: '', load: '' });
   if (!tests.length) return null;
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const save = run(async () => {
@@ -320,7 +322,7 @@ function AltaManualCarga({ player, catalog, reload }) {
   return html`<${Card} titulo="Alta manual de carga (Iso-Hold y RM)" id="alta-manual">
     <p class="muted">La carga de estos tests no viene de VALD: escríbela aquí. Se guarda una sesión con la carga (kg); las variables calculadas (MVIC, %PIMA, %BW/%SW, 1RM estimado) se obtienen solas. Si te equivocas, corrígela desde la tabla de sesiones del test.</p>
     <form class="filters" onSubmit=${save} aria-label="Alta manual de carga">
-      <label>Test <select value=${f.testId} onChange=${set('testId')} required><option value="">Elige…</option>${tests.map((t) => html`<option key=${t.id} value=${t.id}>${t.name}</option>`)}</select></label>
+      ${fixedTest ? html`<p><strong>${fixedTest.name}</strong></p>` : html`<label>Test <select value=${f.testId} onChange=${set('testId')} required><option value="">Elige…</option>${tests.map((t) => html`<option key=${t.id} value=${t.id}>${t.name}</option>`)}</select></label>`}
       <label>Fecha <input type="date" value=${f.date} onInput=${set('date')} required /></label>
       <label>Hora (opcional) <input type="time" value=${f.time} onInput=${set('time')} /></label>
       <label>Carga (kg) <input inputmode="decimal" value=${f.load} onInput=${set('load')} required /></label>
@@ -328,7 +330,10 @@ function AltaManualCarga({ player, catalog, reload }) {
     </form><${Msg} msg=${msg} /><//>`;
 }
 
-export function ResultadosJugador({ player, query = {} }) {
+const BLOQUES = [['edicion', 'Edición'], ['fuerza', 'Manifestaciones de la fuerza'], ['perimetros', 'Datos antropométricos'], ['nme', 'NME']];
+
+// Edición y Datos antropométricos llegan ya hechos desde la ficha (`edicion`, `antrop`); el perfil carga-velocidad (`fv`) solo se muestra en los tests de perfil F–V.
+export function ResultadosJugador({ player, query = {}, edicion = null, antrop = null, fv = null }) {
   const { db, version } = useApp();
   const [tick, setTick] = useState(0);
   const reload = () => setTick((t) => t + 1);
@@ -341,27 +346,35 @@ export function ResultadosJugador({ player, query = {} }) {
     const [targets, positions, hist] = await Promise.all([db.targets.toArray(), db.positions.toArray(), db.playerPositions.where('playerId').equals(player.id).toArray()]);
     return { catalog, sessions, omitted, targets, positions, positionId: positionOnDate(hist).principal?.positionId ?? null };
   }, [db, player.id, version, tick]);
-  const block = query.b ?? 'fuerza';
+  const block = BLOQUES.some(([k]) => k === query.b) ? query.b : 'fuerza';
   const testId = query.t ? Number(query.t) : null;
   const setQ = (patch) => replaceQuery(`jugador-${player.id}`, { ...query, ...patch });
   if (error) return html`<p class="status fail">${error}</p>`;
   if (!data) return html`<p>Cargando…</p>`;
   const { catalog, sessions, omitted, targets, positions, positionId } = data;
-  const blocks = [['fuerza', 'Manifestaciones de la fuerza'], ['perimetros', 'Perímetros'], ['nme', 'NME']];
-  const testsOf = (b) => catalog.tests.filter((t) => (t.blockKey ?? 'fuerza') === b && !t.archived && sessions.some((s) => s.testId === t.id));
-  const tests = testsOf(block);
-  const test = tests.find((t) => t.id === testId) ?? tests[0];
+  const hasSessions = (t) => sessions.some((s) => s.testId === t.id);
+  const loadTest = (t) => catalog.variables.some((v) => v.testId === t.id && !v.archived && v.kind !== 'derived' && LOAD_VARIABLE_NAMES.includes(v.name)); // Iso-Hold y RM: la carga se escribe a mano
+  const vbtTest = (t) => /velocity profile/i.test(t.name); // perfiles fuerza–velocidad: el perfil carga-velocidad se introduce aquí
+  const selectable = (t) => hasSessions(t) || loadTest(t) || vbtTest(t);
+  const allOf = (b) => catalog.tests.filter((t) => (t.blockKey ?? 'fuerza') === b && !t.archived);
+  const tests = allOf(block);
+  const test = tests.find((t) => t.id === testId && selectable(t)) ?? tests.find(hasSessions) ?? null;
   const mName = (t) => catalog.manifestations.find((m) => m.id === t.manifestationId)?.name ?? 'Sin manifestación';
   const zName = (t) => catalog.zones.find((z) => z.id === t.zoneId)?.name ?? null;
   const groups = [...new Set(tests.map(mName))];
   const rank = (t) => { const z = (zName(t) ?? '').toLowerCase(); return z.startsWith('hip') ? 0 : z.startsWith('groin') ? 0.5 : z.startsWith('knee') ? 1 : z.startsWith('ankle') ? 2 : 3; }; // Hip, (Groin), Knee, Ankle; sin zona al final
   const ordered = (g) => tests.filter((t) => mName(t) === g).map((t, i) => [t, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([t]) => t);
+  const cuerpoTest = () => !test ? html`<p class="muted">Elige un test de la lista.</p>` : html`
+      <div class="test-sticky"><span class="muted">${playerLabel(player)} ·</span> <h3>${test.name}</h3></div>
+      ${hasSessions(test) ? html`<${PanelTest} key=${test.id} player=${player} test=${test} catalog=${catalog} sessions=${sessions.filter((s) => s.testId === test.id)} omitted=${omitted} reload=${reload} q=${query} setQ=${setQ} targets=${targets} positions=${positions} positionId=${positionId} />` : html`<p class="muted">Este jugador aún no tiene sesiones de este test.</p>`}
+      ${loadTest(test) ? html`<${AltaManualCarga} key=${'am' + test.id} player=${player} catalog=${catalog} reload=${reload} fixedTest=${test} />` : null}
+      ${vbtTest(test) ? fv : null}`;
+  const listaTests = () => !tests.length ? html`<p class="muted">Bloque sin tests definidos.</p>` : html`
+      <div class=${`test-list cols-${Math.min(5, groups.length)}`}>${groups.map((g) => html`<div key=${g}>${g === 'Sin manifestación' ? null : html`<h3>${g}</h3>`}<div class="test-items">${ordered(g).map((t) => { const ok = selectable(t); return html`<button type="button" key=${t.id} disabled=${!ok} title=${ok ? t.name : 'Sin sesiones de este test'} class=${test && t.id === test.id ? 'test-item on' : 'test-item'} aria-pressed=${!!test && t.id === test.id} onClick=${() => setQ({ t: t.id, v: undefined })}>${zName(t) ? zName(t) + ' · ' : ''}${t.name}</button>`; })}</div></div>`)}</div>
+      ${cuerpoTest()}`;
   return html`<${Card} titulo="Resultados por bloque">
     ${test ? html`<${Migas} items=${[{ label: 'Jugadores', href: '#jugadores' }, { label: playerLabel(player) }, { label: test.name }]} />` : null}
-    <div role="tablist" aria-label="Bloques" class="tabs">${blocks.map(([k, n]) => html`<button type="button" role="tab" key=${k} aria-selected=${block === k} class=${block === k ? 'tab on' : 'tab'} onClick=${() => setQ({ b: k, t: undefined, v: undefined })}>${n} <span class="muted">(${testsOf(k).length})</span></button>`)}</div>
-    ${!tests.length ? html`<p class="muted">${block === 'fuerza' ? 'Este jugador aún no tiene sesiones de fuerza. Impórtalas desde «Importar».' : 'Sin datos en este bloque todavía (aún no hay importación para él).'}</p>` : html`
-      <div class=${`test-list cols-${Math.min(5, groups.length)}`}>${groups.map((g) => html`<div key=${g}><h3>${g}</h3><div class="chips">${ordered(g).map((t) => html`<button type="button" key=${t.id} class=${t.id === test.id ? 'chip on' : 'chip'} aria-pressed=${t.id === test.id} onClick=${() => setQ({ t: t.id, v: undefined })}>${zName(t) ? zName(t) + ' · ' : ''}${t.name}</button>`)}</div></div>`)}</div>
-      <div class="test-sticky"><span class="muted">${playerLabel(player)} ·</span> <h3>${test.name}</h3></div>
-      <${PanelTest} key=${test.id} player=${player} test=${test} catalog=${catalog} sessions=${sessions.filter((s) => s.testId === test.id)} omitted=${omitted} reload=${reload} q=${query} setQ=${setQ} targets=${targets} positions=${positions} positionId=${positionId} />`}
-  <//><${AltaManualCarga} player=${player} catalog=${catalog} reload=${reload} />`;
+    <div role="tablist" aria-label="Bloques" class="tabs">${BLOQUES.map(([k, n]) => html`<button type="button" role="tab" key=${k} aria-selected=${block === k} class=${block === k ? 'tab on' : 'tab'} onClick=${() => setQ({ b: k, t: undefined, v: undefined })}>${n}${k === 'edicion' ? '' : html` <span class="muted">(${allOf(k).filter(hasSessions).length})</span>`}</button>`)}</div>
+    ${block === 'edicion' ? edicion : block === 'perimetros' ? html`${listaTests()}${antrop}` : listaTests()}
+  <//>`;
 }

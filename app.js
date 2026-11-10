@@ -9,13 +9,14 @@ import { Inicio, Proximamente, Copias, Configuracion } from './pages.js';
 import { Jugadores, PerfilJugador } from './pages-jugadores.js';
 import { Catalogo, TestDetalle, BloqueCatalogo } from './pages-catalogo.js';
 import { Importar } from './pages-importar.js';
+import { Angulos, EnlaceAngulos } from './pages-angulos.js';
 
 export const NAV = [
   { id: 'inicio', label: 'Inicio' },
   { id: 'jugadores', label: 'Jugadores' },
   { id: 'fuerza', label: 'Manifestaciones de la fuerza' },
   { id: 'relaciones', label: 'Relaciones entre variables' },
-  { id: 'perimetros', label: 'Perímetros' },
+  { id: 'perimetros', label: 'Datos antropométricos' },
   { id: 'nme', label: 'NME' },
   { id: 'catalogo', label: 'Catálogo de tests' },
   { id: 'importar', label: 'Importar' },
@@ -26,6 +27,7 @@ export const NAV = [
 // Rutas por hash: «#copias», «#jugadores», «#jugador-12» (perfil del jugador con id 12) y «#catalogo-test-5» (detalle del test 5).
 const routeFromHash = () => {
   const { path: h, query } = parseHash();
+  if (h === 'nme-angulos') return { id: 'nme', view: 'angulos', param: null, query };
   const m = /^jugador-(\d+)$/.exec(h);
   if (m) return { id: 'jugadores', param: Number(m[1]), query };
   const t = /^catalogo-test-(\d+)$/.exec(h);
@@ -47,9 +49,10 @@ function Page({ route }) {
     case 'relaciones':
       return html`<${Relaciones} query=${route.query} />`;
     case 'perimetros':
-      return html`<${BloqueCatalogo} blockKey="perimetros" titulo="Perímetros" vacio="No hay medidas de perímetro definidas." />`;
+      return html`<${BloqueCatalogo} blockKey="perimetros" titulo="Datos antropométricos" vacio="No hay medidas de perímetro definidas." />`;
     case 'nme':
-      return html`<${BloqueCatalogo} blockKey="nme" titulo="NME" vacio="Bloque sin definir." />`;
+      if (route.view === 'angulos') return html`<${Angulos} />`;
+      return html`<${BloqueCatalogo} blockKey="nme" titulo="NME" vacio="Bloque sin definir." /><${EnlaceAngulos} />`;
     case 'catalogo':
       return route.param ? html`<${TestDetalle} id=${route.param} />` : html`<${Catalogo} />`;
     case 'importar':

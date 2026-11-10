@@ -109,14 +109,19 @@ export function detectHeaderRow(rows) {
 // Segunda fila de encabezado: la fila siguiente indica el lado (LEFT / RIGHT / ASYMMETRY) y el nombre de la variable solo aparece
 // en la primera columna del grupo. Se propone si la fila siguiente tiene ≥ 2 celdas de texto y casi todas son palabras de lado/asimetría.
 const SUB_WORDS = ['izq', 'izquierda', 'izquierdo', 'left', 'der', 'derecha', 'derecho', 'right', 'asimetria', 'asymmetry', 'asim', 'diff', 'diferencia'];
+// Segunda fila de encabezado: celdas que son solo un lado («LEFT») o que empiezan por una palabra de lado/asimetría («LEFT HAMS», «RIGHT SHIN vs LEFT THIGH», «ASYMMETRY»).
+const SIDE_FIRST = ['left', 'right', 'izquierda', 'izquierdo', 'derecha', 'derecho', 'asymmetry', 'asimetria'];
+const sideFirst = (c) => { const w = normalizeName(String(c)).key.split(' ')[0]; return SIDE_FIRST.includes(w) ? w : null; };
 export function detectSubHeader(grid, headerRow) {
   const row = grid[headerRow + 1] ?? [];
   const cells = row.filter((c) => !blank(c));
   if (cells.length < 2 || cells.some((c) => typeof c === 'number' || c instanceof Date)) return false;
-  const hits = cells.filter((c) => SUB_WORDS.includes(normalizeName(String(c)).key)).length;
+  const hits = cells.filter((c) => SUB_WORDS.includes(normalizeName(String(c)).key) || sideFirst(c)).length;
   return hits >= 2 && hits / cells.length >= 0.6;
 }
 // Encabezados efectivos: con segunda fila, «nombre» (repetido hacia la derecha en las celdas vacías) + «lado».
+// Si la celda de la segunda fila empieza por el lado («LEFT HAMS»), solo se toma esa palabra: el nombre de la variable es el de la fila superior.
+// Si no es un lado (p. ej. «(fingers-floor distance)») y la superior tiene texto, manda la superior.
 export function effectiveHeaders(grid, headerRow, subHeader) {
   const top = grid[headerRow] ?? [];
   if (!subHeader) return top.map(txt);
@@ -128,6 +133,9 @@ export function effectiveHeaders(grid, headerRow, subHeader) {
     const t = txt(top[i]), u = txt(sub[i]);
     if (t) last = t;
     if (!u) { out.push(t); continue; }
+    const w = sideFirst(u);
+    if (w) { out.push(`${t || last} ${u.split(/\s+/)[0]}`.trim()); continue; }
+    if (t && !SUB_WORDS.includes(normalizeName(u).key)) { out.push(t); continue; }
     out.push(`${t || last} ${u}`.trim());
   }
   return out;

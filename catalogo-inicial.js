@@ -12,7 +12,7 @@ import { audit } from './db.js';
 import { SW_FACTOR_DEFAULT, testUsage } from './catalogo.js';
 import { ISO_PAIRS, RM12_TESTS, RM_EST_FACTOR_DEFAULT, pairFactor } from './isohold.js';
 
-export const CATALOG_SEED_VERSION = 9;
+export const CATALOG_SEED_VERSION = 10;
 
 const BLOCKS = [
   { key: 'fuerza', name: 'Manifestaciones de la fuerza' },
@@ -166,6 +166,8 @@ export async function seedInitialCatalog(db) {
       await ensureGroinAnkle(db, ts, counts);
     }
     await ensurePerimeters(db, ts, counts);
+    await ensureJurdan(db, ts, counts);
+    await ensureToeTouch(db, ts, counts);
     counts.direccionesAsignadas = await defaultDirections(db, ts);
     await db.meta.put({ key: 'catalogSeeded', value: { version: CATALOG_SEED_VERSION, at: ts, vacioAlSembrar: empty } });
     await audit(db, 'catalogo-inicial-cargado', { version: CATALOG_SEED_VERSION, ...counts });
@@ -182,7 +184,7 @@ export async function seedInitialCatalog(db) {
 export const LOWER_IS_BETTER = /^((mean )?contact time|ecc decel phase duration|concentric duration|contraction time|depth|ecc peak velocity)$/i;
 async function defaultDirections(db, ts) {
   const all = await db.variables.toArray();
-  const perim = new Set((await db.tests.where('blockKey').equals('perimetros').toArray()).map((t) => t.id)); // perímetros: sin dirección definida por el usuario
+  const perim = new Set((await db.tests.toArray()).filter((t) => ['perimetros', 'nme'].includes(t.blockKey)).map((t) => t.id)); // perímetros y NME: sin dirección definida por el usuario
   const todo = all.filter((v) => (v.direction ?? null) === null && v.unit !== '%' && !perim.has(v.testId));
   for (const v of todo) await db.variables.update(v.id, { direction: LOWER_IS_BETTER.test(v.name) ? 'lower' : 'higher', updatedAt: ts }); // tiempo de contacto: más bajo es mejor (D50)
   if (todo.length) await audit(db, 'catalogo-direccion-por-defecto', { cantidad: todo.length, direccion: 'higher', excepciones: 'contact time = lower', excluye: 'asimetrias (%)' });
@@ -211,6 +213,65 @@ async function ensurePerimeters(db, ts, counts) {
     await db.variables.add({ testId: t.id, name, unit: 'cm', sides: 'LR', direction: null, manifestationId: null, kind: 'raw', formula: null, formulaVersion: 0, notes: '', archived: false, order: ++order, createdAt: ts, updatedAt: ts, source: 'inicial' });
     counts.variables = (counts.variables ?? 0) + 1; counts.perimetrosAnadidos = (counts.perimetrosAnadidos ?? 0) + 1;
   }
+}
+
+// 9/11/2026: primer sub-apartado de NME = «Jurdan Test» (Excel del usuario, hoja NME). Un test con las variables de su cabecera, tal como las escribió.
+// Sin dirección (no la indicó). Los ángulos, en grados. El Toe-Touch es otro sub-apartado de NME (ensureToeTouch). Idempotente.
+// Para añadir más tests de medida de ángulos basta con crearlos en el bloque NME (pantalla del catálogo); el importador y la ficha del jugador ya los admiten.
+export const JURDAN_TEST = 'Jurdan Test';
+export const JURDAN_VARIABLES = [
+  { name: 'JURDAN HAMS (SHIN ANGLE = TIBIA vs HORIZONTAL)', unit: '°', sides: 'LR', notes: '' },
+  { name: 'JURDAN PSOAS (THIGH ANGLE = FÉMUR vs HORIZONTAL)', unit: '°', sides: 'LR', notes: '' },
+  { name: 'JURDAN RECTUS FEMORIS (FÉMUR vs TIBIA)', unit: '°', sides: 'LR', notes: '' },
+  { name: 'JURDAN RESULTS', unit: '°', sides: 'LR', notes: 'Izquierda = Hams izquierdo − Psoas derecho («LEFT SHIN vs RIGHT THIGH»); Derecha = Hams derecho − Psoas izquierdo («RIGHT SHIN vs LEFT THIGH»). Se importa el valor calculado en el Excel.' },
+];
+async function ensureJurdan(db, ts, counts) {
+  const lc = (x) => String(x ?? '').trim().toLowerCase();
+  let man = (await db.manifestations.toArray()).find((m) => lc(m.name) === lc(JURDAN_TEST) && m.blockKey === 'nme');
+  if (!man) {
+    const morder = (await db.manifestations.orderBy('order').last())?.order ?? 0;
+    const id = await db.manifestations.add({ name: JURDAN_TEST, blockKey: 'nme', order: morder + 1, archived: false, createdAt: ts, source: 'inicial' });
+    man = await db.manifestations.get(id);
+  }
+  let t = (await db.tests.toArray()).find((x) => lc(x.name) === lc(JURDAN_TEST) && x.blockKey === 'nme');
+  if (!t) {
+    const torder = (await db.tests.orderBy('order').last())?.order ?? 0;
+    const id = await db.tests.add({ name: JURDAN_TEST, blockKey: 'nme', manifestationId: man.id, zoneId: null, notes: 'Primer test del bloque NME (rango de movimiento).', archived: false, order: torder + 1, createdAt: ts, updatedAt: ts, source: 'inicial' });
+    t = await db.tests.get(id);
+    counts.tests = (counts.tests ?? 0) + 1;
+  }
+  const existing = await db.variables.where('testId').equals(t.id).toArray();
+  let order = (await db.variables.orderBy('order').last())?.order ?? 0;
+  for (const v of JURDAN_VARIABLES) {
+    if (existing.some((x) => lc(x.name) === lc(v.name))) continue;
+    await db.variables.add({ testId: t.id, name: v.name, unit: v.unit, sides: v.sides, direction: null, manifestationId: man.id, kind: 'raw', formula: null, formulaVersion: 0, notes: v.notes, archived: false, order: ++order, createdAt: ts, updatedAt: ts, source: 'inicial' });
+    counts.variables = (counts.variables ?? 0) + 1; counts.jurdanAnadidas = (counts.jurdanAnadidas ?? 0) + 1;
+  }
+}
+
+// 10/11/2026: Toe-Touch Test, otro sub-apartado de NME (distancia dedos-suelo, en cm: lo confirmó el usuario). Escala que anota en su Excel: mano plana −10, metacarpo −5, dedos 0.
+// Sin dirección «mejor/peor» (no la indicó). Idempotente.
+export const TOE_TOUCH_TEST = 'Toe-Touch Test';
+async function ensureToeTouch(db, ts, counts) {
+  const lc = (x) => String(x ?? '').trim().toLowerCase();
+  let man = (await db.manifestations.toArray()).find((m) => lc(m.name) === lc(TOE_TOUCH_TEST) && m.blockKey === 'nme');
+  if (!man) {
+    const morder = (await db.manifestations.orderBy('order').last())?.order ?? 0;
+    const id = await db.manifestations.add({ name: TOE_TOUCH_TEST, blockKey: 'nme', order: morder + 1, archived: false, createdAt: ts, source: 'inicial' });
+    man = await db.manifestations.get(id);
+  }
+  let t = (await db.tests.toArray()).find((x) => lc(x.name) === lc(TOE_TOUCH_TEST) && x.blockKey === 'nme');
+  if (!t) {
+    const torder = (await db.tests.orderBy('order').last())?.order ?? 0;
+    const id = await db.tests.add({ name: TOE_TOUCH_TEST, blockKey: 'nme', manifestationId: man.id, zoneId: null, notes: 'Distancia dedos-suelo (cm).', archived: false, order: torder + 1, createdAt: ts, updatedAt: ts, source: 'inicial' });
+    t = await db.tests.get(id);
+    counts.tests = (counts.tests ?? 0) + 1;
+  }
+  const existing = await db.variables.where('testId').equals(t.id).toArray();
+  if (existing.some((x) => lc(x.name) === 'toe-touch test')) return;
+  const order = (await db.variables.orderBy('order').last())?.order ?? 0;
+  await db.variables.add({ testId: t.id, name: 'TOE-TOUCH TEST', unit: 'cm', sides: 'single', direction: null, manifestationId: man.id, kind: 'raw', formula: null, formulaVersion: 0, notes: 'Distancia dedos-suelo. Escala del usuario: mano plana −10, metacarpo −5, dedos 0.', archived: false, order: order + 1, createdAt: ts, updatedAt: ts, source: 'inicial' });
+  counts.variables = (counts.variables ?? 0) + 1;
 }
 
 // Variables calculadas del Iso-Hold y del 1RM estimado (D5). Idempotente: crea solo las que falten, por nombre, a partir de la variable de carga del test.
@@ -376,6 +437,8 @@ async function migrateCatalog(db, prev) {
     await ensureDerived(db, ts, res);
     await ensureGroinAnkle(db, ts, res);
     await ensurePerimeters(db, ts, res);
+    await ensureJurdan(db, ts, res);
+    await ensureToeTouch(db, ts, res);
     res.direccionesAsignadas = await defaultDirections(db, ts);
     await db.meta.put({ key: 'catalogSeeded', value: { ...(cur?.value ?? {}), version: CATALOG_SEED_VERSION, actualizadoEn: ts } });
     await audit(db, 'catalogo-inicial-actualizado', { version: CATALOG_SEED_VERSION, ...res });

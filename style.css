@@ -335,3 +335,20 @@ details.notas[open] > summary { margin-bottom: .5rem; }
 .test-list .chip { text-align: left; max-width: 100%; }
 @media (max-width: 900px) { .test-list[class*="cols-"] { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .test-list[class*="cols-"] { grid-template-columns: 1fr; } }
+
+/* Medir ángulos (NME): la herramienta va en un marco del mismo origen */
+.angulos-marco { width: 100%; height: 88vh; min-height: 560px; border: 1px solid var(--line); border-radius: 10px; background: #0a0a0b; margin-top: 1rem; }
+
+/* Perfil del jugador: manifestaciones resaltadas, tests pequeños de una línea y secciones plegadas */
+.test-list h3 { display: inline-block; margin: .9rem 0 .5rem; padding: .3rem .75rem; border-radius: 8px; background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); border: 1px solid var(--accent); font-size: .78rem; }
+.test-items { display: flex; flex-direction: column; gap: .2rem; }
+.test-item { display: block; width: 100%; text-align: left; background: transparent; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: .2rem .55rem; font-size: .76rem; line-height: 1.25; font-weight: 500; cursor: pointer; box-shadow: none; overflow-wrap: anywhere; }
+.test-item:hover:not(:disabled):not(.on) { border-color: var(--accent); color: var(--accent); filter: none; }
+.test-item.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 650; }
+.test-item:disabled { opacity: .4; cursor: not-allowed; }
+.despl > details > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: .5rem; }
+.despl > details > summary::-webkit-details-marker { display: none; }
+.despl > details > summary::before { content: '▸'; font-size: .8rem; transition: transform .15s; }
+.despl > details[open] > summary::before { transform: rotate(90deg); }
+.despl > details > summary h2 { margin: 0; }
+.despl > details[open] > summary { margin-bottom: .6rem; }

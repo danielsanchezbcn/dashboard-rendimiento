@@ -37,55 +37,51 @@ export function CeldaPercentil({ ev }) {
   return html`<span>${ev.band !== null ? html`<${Banda} ev=${ev} />` : html`<span class="muted" title=${ev.reason}>P${nf(ev.percentileStat, 0)} estadístico (sin color)</span>`}</span>`;
 }
 
-function GraficoG2({ labels, datasets, unit, label, nombre }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!ref.current || !Chart) return undefined;
-    let chart;
-    try {
-      chart = new Chart(ref.current, { type: 'bar', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { labels: { color: PAL.texto } }, tooltip: { callbacks: { afterLabel: (it) => it.dataset.info?.[it.dataIndex]?.split(' · ') ?? [] } } }, scales: { x: { ticks: { color: PAL.texto }, grid: { color: PAL.rejilla } }, y: { title: { display: !!unit, text: unit ?? '', color: PAL.texto }, ticks: { color: PAL.texto }, grid: { color: PAL.rejilla } } } } });
-    } catch (e) { /* sin gráfico: la tabla de arriba tiene los mismos datos */ }
-    return () => chart?.destroy();
-  }, [JSON.stringify([labels, datasets])]);
-  return html`<${Copiable} nombre=${nombre ?? 'percentiles-barras'}><div class="chart-box doc"><canvas ref=${ref} role="img" aria-label=${label}></canvas></div><//>`;
-}
-
-// G4 completo (aspecto de los informes del usuario: fondo oscuro, azul = izquierda, naranja = derecha): escala MIN–MAX de la referencia de La Liga con su
-// mediana (icono de La Liga + «P50»), la mediana de la Premier League (icono + «P50») si existe, el target (bandera) y los marcadores del jugador con su valor;
-// en tests por lado, un corchete con la asimetría D25. Si algo cae fuera del rango se amplía la escala y se avisa (provisional, D24).
-function EscalaG4({ rows, unit, asym, premierP50, target, plRef }) {
-  const vals = rows.flatMap((r) => [r.ev.min, r.ev.max, r.value, r.ev.p50].filter((v) => v != null)).concat([premierP50, ...(target ?? []).map((t) => t?.value)].filter((v) => v != null));
+// G4 completo (aspecto de los informes del usuario: fondo oscuro, azul = izquierda, naranja = derecha): escala MIN–MAX de la referencia de La Liga con las marcas
+// de referencia elegidas (icono de La Liga o de la Premier y «P50»/«P75», también por posición), el target (bandera) y, por cada base elegida del jugador
+// (Resultado actual, Personal Best, Personal Average), una fila de marcadores con su valor; en tests por lado, un corchete con la asimetría D25.
+// Si algo cae fuera del rango se amplía la escala y se avisa (provisional, D24).
+function EscalaG4({ filas, refs, unit, target }) {
+  const rows0 = filas[0].rows;
+  const vals = filas.flatMap((f) => f.rows.flatMap((r) => [r.ev.min, r.ev.max, r.value, r.ev.p50])).concat(refs.map((m) => m.v), (target ?? []).map((t) => t?.value)).filter((v) => v != null);
   const min = Math.min(...vals), max = Math.max(...vals), span = max - min || 1;
   const W = 640, L = 40, R = 40;
   const x = (v) => L + ((v - min) / span) * (W - L - R);
-  const cx = rows.map((r) => x(r.value));
-  if (rows.length === 2 && Math.abs(cx[0] - cx[1]) < 28) { const m = (cx[0] + cx[1]) / 2, d = cx[0] <= cx[1] ? 14 : -14; cx[0] = m - d; cx[1] = m + d; }
-  const close = rows.length === 2 && Math.abs(cx[0] - cx[1]) < 40;
-  const lo = L - 6, hi = W - R + 6; for (let k = 0; k < cx.length; k++) cx[k] = Math.min(hi, Math.max(lo, cx[k]));
-  const out = rows.some((r) => r.ev.min != null && (r.value < r.ev.min || r.value > r.ev.max)) || (premierP50 != null && (premierP50 < Math.min(...rows.map((r) => r.ev.min ?? Infinity)) || premierP50 > Math.max(...rows.map((r) => r.ev.max ?? -Infinity))));
   const T = PAL.texto;
-  // marcadores de mediana/target por encima de la línea; si dos quedan a menos de 64 px, el segundo sube un nivel
-  const marks = [
-    ...rows.filter((r) => r.ev.p50 != null && r.ev.sufficient).slice(0, 1).map((r) => ({ key: 'll', v: r.ev.p50, icon: ICONO_LALIGA, color: PAL.laLiga, p50: true, label: `La Liga, mediana (P50)${rows.length === 2 ? ' de ambas piernas' : ''}: ${nfv(r.ev.p50)} ${unit ?? ''}, N = ${r.ev.n}` })),
-    ...(premierP50 != null ? [{ key: 'pl', v: premierP50, icon: ICONO_PREMIER, color: PAL.premier, p50: true, label: `Premier League, mediana (P50): ${nfv(premierP50)} ${unit ?? ''}` }] : []),
-    ...(target ?? []).filter(Boolean).map((t, i) => ({ key: 'tg' + i, v: t.value, icon: ICONO_TARGET, color: PAL.target, p50: false, label: `Target: ${nfv(t.value)} ${unit ?? ''}` })),
-  ].sort((a, b) => a.v - b.v);
+  const lo = L - 6, hi = W - R + 6;
+  const dibujar = filas.map((f) => {
+    const cx = f.rows.map((r) => x(r.value));
+    if (f.rows.length === 2 && Math.abs(cx[0] - cx[1]) < 28) { const m = (cx[0] + cx[1]) / 2, d = cx[0] <= cx[1] ? 14 : -14; cx[0] = m - d; cx[1] = m + d; }
+    const close = f.rows.length === 2 && Math.abs(cx[0] - cx[1]) < 40;
+    for (let k = 0; k < cx.length; k++) cx[k] = Math.min(hi, Math.max(lo, cx[k]));
+    return { ...f, cx, close };
+  });
+  const rangoLaLiga = rows0.map((r) => [r.ev.min, r.ev.max]).filter(([a]) => a != null);
+  const out = filas.some((f) => f.rows.some((r) => r.ev.min != null && (r.value < r.ev.min || r.value > r.ev.max))) || (rangoLaLiga.length > 0 && refs.some((m) => m.premier && (m.v < Math.min(...rangoLaLiga.map((r) => r[0])) || m.v > Math.max(...rangoLaLiga.map((r) => r[1])))));
+  // marcas por encima de la línea; si dos quedan a menos de 64 px, la segunda sube un nivel
+  const marks = [...refs, ...(target ?? []).filter(Boolean).map((t, i) => ({ key: 'tg' + i, v: t.value, icon: ICONO_TARGET, color: PAL.target, txt: null, dash: true, label: `Target: ${nfv(t.value)} ${unit ?? ''}` }))].sort((a, b) => a.v - b.v);
   marks.forEach((m, i) => { const near = marks.slice(0, i).filter((o) => Math.abs(x(o.v) - x(m.v)) < 64).map((o) => o.level); let lv = 0; while (near.includes(lv)) lv++; m.level = lv; });
   const levels = Math.max(0, ...marks.map((m) => m.level));
-  const y0 = 84 + levels * 36, Hs = y0 + 128;
+  const y0 = 84 + levels * 36;
+  const unaFila = dibujar.length === 1;
+  const alto = (f) => (f.asym != null && f.rows.length === 2 ? 100 : 62);
+  let yy = y0; const pos = dibujar.map((f) => { const y = yy; yy += alto(f) + (unaFila ? 0 : 6); return y; });
+  const Hs = yy + 34;
   const marker = (m) => html`<g key=${m.key}><title>${m.label}</title>
-    <line x1=${x(m.v)} x2=${x(m.v)} y1=${y0 - 24 - m.level * 36} y2=${y0} stroke=${m.color} stroke-width="2" ${m.p50 ? '' : 'stroke-dasharray="4 3"'} />
+    <line x1=${x(m.v)} x2=${x(m.v)} y1=${y0 - 24 - m.level * 36} y2=${y0} stroke=${m.color} stroke-width="2" ${m.dash ? 'stroke-dasharray="4 3"' : ''} />
     <image href=${m.icon} x=${x(m.v) - 13} y=${y0 - 56 - m.level * 36} width="26" height="30" preserveAspectRatio="xMidYMid meet" />
-    ${m.p50 ? html`<text x=${x(m.v) + 16} y=${y0 - 36 - m.level * 36} font-size="12" font-weight="700" fill=${m.color}>P50</text>` : null}</g>`;
-  return html`<${Copiable} nombre="percentiles-escala"><div class="doc-panel"><svg viewBox=${`0 0 ${W} ${Hs}`} width="100%" role="img" style="display:block" aria-label=${`Escala de ${nfv(min)} a ${nfv(max)} ${unit ?? ''}: mediana de La Liga, mediana de la Premier League, target y valores del jugador`}>
+    ${m.txt ? html`<text x=${x(m.v) + 16} y=${y0 - 36 - m.level * 36} font-size="12" font-weight="700" fill=${m.color}>${m.txt}</text>` : null}</g>`;
+  return html`<${Copiable} nombre="percentiles-escala"><div class="doc-panel"><svg viewBox=${`0 0 ${W} ${Hs}`} width="100%" role="img" style="display:block" aria-label=${`Escala de ${nfv(min)} a ${nfv(max)} ${unit ?? ''}: referencias elegidas, target y valores del jugador`}>
     <rect width=${W} height=${Hs} fill=${PAL.fondo} />
     <line x1=${L} x2=${W - R} y1=${y0} y2=${y0} stroke=${T} stroke-opacity="0.5" stroke-width="3" />
     ${marks.map(marker)}
-    ${rows.map((r, i) => html`<g key=${'p' + r.side}><title>${SIDE[r.side]}: ${nfv(r.value)} ${unit ?? ''}${r.info ? ` — ${r.info}` : ''}</title>
-      <circle cx=${cx[i]} cy=${y0 + 28} r="11" fill=${colorLado(r.side)} />
-      ${r.side === 'S' ? null : html`<text x=${cx[i]} y=${y0 + 32} text-anchor="middle" font-size="12" font-weight="700" fill=${PAL.fondo}>${r.side}</text>`}
-      <text x=${cx[i] + (close ? (cx[i] === Math.min(...cx) ? 4 : -4) : 0)} y=${y0 + 56} text-anchor=${close ? (cx[i] === Math.min(...cx) ? 'end' : 'start') : 'middle'} font-size="12" fill=${T}>${nfv(r.value)}</text></g>`)}
-    ${asym != null && rows.length === 2 ? html`<g><path d=${`M ${cx[0]} ${y0 + 72} v 6 H ${cx[1]} v -6`} fill="none" stroke=${T} stroke-opacity="0.6" /><text x=${Math.min(W - 90, Math.max(90, (cx[0] + cx[1]) / 2))} y=${y0 + 94} text-anchor="middle" font-size="12" fill=${T}>Asimetría ${asymText(asym)}</text></g>` : null}
+    ${dibujar.map((f, fi) => { const yb = pos[fi]; return html`<g key=${'f' + f.base}>
+      ${unaFila ? null : html`<text x=${L - 34} y=${yb + 32} font-size="11" font-weight="700" fill=${T}>${f.etiqueta}</text>`}
+      ${f.rows.map((r, i) => html`<g key=${'p' + r.side}><title>${f.etiqueta}, ${SIDE[r.side]}: ${nfv(r.value)} ${unit ?? ''}${r.info ? ` — ${r.info}` : ''}</title>
+        <circle cx=${f.cx[i]} cy=${yb + 28} r="11" fill=${colorLado(r.side)} />
+        ${r.side === 'S' ? null : html`<text x=${f.cx[i]} y=${yb + 32} text-anchor="middle" font-size="12" font-weight="700" fill=${PAL.fondo}>${r.side}</text>`}
+        <text x=${f.cx[i] + (f.close ? (f.cx[i] === Math.min(...f.cx) ? 4 : -4) : 0)} y=${yb + 56} text-anchor=${f.close ? (f.cx[i] === Math.min(...f.cx) ? 'end' : 'start') : 'middle'} font-size="12" fill=${T}>${nfv(r.value)}</text></g>`)}
+      ${f.asym != null && f.rows.length === 2 ? html`<g><path d=${`M ${f.cx[0]} ${yb + 72} v 6 H ${f.cx[1]} v -6`} fill="none" stroke=${T} stroke-opacity="0.6" /><text x=${Math.min(W - 90, Math.max(90, (f.cx[0] + f.cx[1]) / 2))} y=${yb + 94} text-anchor="middle" font-size="12" fill=${T}>Asimetría ${asymText(f.asym)}</text></g>` : null}</g>`; })}
     <text x=${L} y=${Hs - 6} text-anchor="start" font-size="11" fill=${T}>${nfv(min)} ${unit ?? ''}</text><text x=${W - R} y=${Hs - 6} text-anchor="end" font-size="11" fill=${T}>${nfv(max)} ${unit ?? ''}</text>
   </svg></div><//>${out ? html`<p class="muted">Algún valor queda fuera del rango de la referencia de La Liga: la escala se ha ampliado para mostrarlo.</p>` : null}`;
 }
@@ -129,14 +125,13 @@ const BASES = [['last', 'Resultado actual'], ['pb', 'Personal Best'], ['pa', 'Pe
 
 // Un único cuadro por variable: filas Resultado actual / Personal Best / Personal Average; por lado (izquierda, derecha) el valor, el percentil de La Liga y la zona de la Premier League.
 // Con dos lados, la referencia de La Liga es UNA sola (los valores de ambos lados de todos los jugadores juntos), así que hay un único P50.
-export function PercentilesPanel({ player, test, variable, mine, q, setQ, filters, targets = {}, stats, current, refData, abs = null }) {
+export function PercentilesPanel({ player, test, variable, mine, q, setQ, filters, targets = {}, stats, current, refData, abs = null, parte = 'todo', posJugador = null }) {
   if (!refData) return null;
   const { sessions: _s, positions, minN } = refData;
   const rp = q.rp ?? 'all';
   const positionId = rp === 'all' ? null : Number(rp);
   const sides = variable.sides === 'LR' ? ['L', 'R'] : ['S'];
   const ctx = refContext({ refData, test, variable, sides, filters, playerId: player.id, positionId: null, srcVar: abs?.variable ?? null });
-  const basisShown = ['pa', 'last', 'pb'].includes(q.rb) ? q.rb : 'pa';
   const plRef = ctx.plRef; // en medida relativa es una estimación (estimateRelative)
   const unit = variable.unit;
   const u = unit ? ` ${unit}` : '';
@@ -159,15 +154,31 @@ export function PercentilesPanel({ player, test, variable, mine, q, setQ, filter
   if (!BASES.some(([b]) => sides.some((sd) => cell[b + sd].value != null))) return html`<p class="muted">Sin sesiones válidas para calcular percentiles en este periodo.</p>`;
   const posName = positionId === null ? 'todas las posiciones' : positions.find((p) => p.id === positionId)?.name ?? 'posición eliminada';
   const SD = { L: 'Izquierda', R: 'Derecha', S: 'Valor' };
-  const shown = sides.map((sd) => (cell[basisShown + sd].value != null ? { side: sd, value: cell[basisShown + sd].value, ev: cell[basisShown + sd].ev, info: ctx.info(cell[basisShown + sd].value, basisShown).join(' · ') } : null)).filter(Boolean);
-  const asym = sides.length === 2 && shown.length === 2 ? asymmetryPct(shown[0].value, shown[1].value) : null;
-  const g2 = sides.filter((sd) => cell['last' + sd].value != null || cell['pa' + sd].value != null);
-  const refOk = (b, sd) => cell[b + sd].ev?.sufficient && cell[b + sd].ev.p50 != null;
+  // Escala: bases del jugador (Resultado actual, Personal Best, Personal Average) y marcas de referencia, todas opcionales. Por defecto: Personal Average, P50 La Liga y P50 Premier League.
+  const baseRows = (b) => sides.map((sd) => (cell[b + sd].value != null ? { side: sd, value: cell[b + sd].value, ev: cell[b + sd].ev, info: ctx.info(cell[b + sd].value, b).join(' · ') } : null)).filter(Boolean);
+  const ctxPos = posJugador != null ? refContext({ refData, test, variable, sides, filters, playerId: player.id, positionId: posJugador, srcVar: abs?.variable ?? null }) : null;
+  const posNom = positions.find((p) => p.id === posJugador)?.name ?? 'posición';
+  const REFS = [['p50', 'P50 La Liga', ctx.lines.p50, PAL.laLiga, ICONO_LALIGA, 'P50', false], ['p75', 'P75 La Liga', ctx.lines.p75, PAL.laLiga, ICONO_LALIGA, 'P75', false],
+    ['p50pos', `P50 La Liga (${posNom})`, ctxPos?.lines.p50pos ?? null, PAL.laLiga, ICONO_LALIGA, 'P50 pos.', false], ['p75pos', `P75 La Liga (${posNom})`, ctxPos?.lines.p75pos ?? null, PAL.laLiga, ICONO_LALIGA, 'P75 pos.', false],
+    ['premier50', 'P50 Premier League', ctx.lines.premier50, PAL.premier, ICONO_PREMIER, 'P50', true], ['premier75', 'P75 Premier League', ctx.lines.premier75, PAL.premier, ICONO_PREMIER, 'P75', true]];
+  const chosenSm = q.sm === undefined ? ['pa', 'p50', 'premier50'] : String(q.sm).split(',').filter((k) => k && k !== 'none');
+  const baseOff = (b) => baseRows(b).length === 0;
+  const refOff = (k) => REFS.find((r) => r[0] === k)[2] == null;
+  const toggleSm = (k, on) => setQ({ sm: (on ? [...chosenSm, k] : chosenSm.filter((x) => x !== k)).join(',') || 'none' });
+  const filas = [BASES[2], BASES[1], BASES[0]].filter(([b]) => chosenSm.includes(b) && !baseOff(b)).map(([b, n]) => { const rows = baseRows(b); return { base: b, etiqueta: b === 'pa' ? 'PA' : b === 'pb' ? 'PB' : 'Actual', rows, asym: sides.length === 2 && rows.length === 2 ? asymmetryPct(rows[0].value, rows[1].value) : null }; });
+  const refsSel = REFS.filter(([k]) => chosenSm.includes(k) && !refOff(k)).map(([k, n, v, color, icon, txt, premier]) => ({ key: k, v, icon, color, txt, premier, dash: false, label: `${n}: ${nfv(v)} ${unit ?? ''}` }));
+  const insuf = filas.some((f) => f.rows.some((r) => r.ev.n && !r.ev.sufficient));
   const pbMissing = sides.map((sd) => stats?.[sd]?.pb).find((b) => b && !b.defined && b.reason);
   const nat = findNatera(test, variable); // referencia de Natera: tercera columna por lado en el mismo cuadro
   const nCols = nat ? 4 : 3;
   const tipSpan = (t, tip) => (tip ? html`<span title=${tip} aria-label=${`${t}. ${tip}`} tabindex="0">${t}</span>` : html`${t}`);
-  return html`<section class="refs"><h4>Resultados y percentiles: La Liga y Premier League</h4>
+  const escala = html`<section class="refs"><fieldset class="modes"><legend>Marcadores de la escala</legend>
+      ${[BASES[2], BASES[1], BASES[0]].map(([b, n]) => html`<label class="check" key=${b} title=${baseOff(b) ? 'Sin sesiones válidas en el periodo.' : ''}><input type="checkbox" disabled=${baseOff(b)} checked=${!baseOff(b) && chosenSm.includes(b)} onChange=${(e) => toggleSm(b, e.target.checked)} /> ${n}</label>`)}
+      ${REFS.map(([k, n]) => html`<label class="check" key=${k} title=${refOff(k) ? (k.startsWith('premier') ? 'Esta variable no figura en las tablas de la Premier League.' : k.endsWith('pos') && posJugador == null ? 'El jugador no tiene posición principal.' : `Sin muestra suficiente (mínimo ${minN} jugadores).`) : ''}><input type="checkbox" disabled=${refOff(k)} checked=${!refOff(k) && chosenSm.includes(k)} onChange=${(e) => toggleSm(k, e.target.checked)} /> ${n}</label>`)}</fieldset>
+    ${filas.length ? html`<${EscalaG4} filas=${filas} refs=${refsSel} unit=${unit} target=${sides.map((sd) => targets[sd]).filter(Boolean).filter((t, i, a) => a.findIndex((v) => v.value === t.value) === i)} />` : html`<p class="muted">Marca al menos un marcador del jugador (Resultado actual, Personal Best o Personal Average) para ver la escala.</p>`}
+    ${insuf ? html`<p class="status warn">Muestra insuficiente para clasificar: no se dibuja la mediana ni se colorea (N inferior a ${minN}).</p>` : null}</section>`;
+  if (parte === 'escala') return escala;
+  const tabla = html`<section class="refs"><h4>Resultados y percentiles: La Liga y Premier League</h4>
     <div class="filters"><label>Referencia de La Liga <select value=${rp} onChange=${(e) => setQ({ rp: e.target.value })}><option value="all">Todas las posiciones</option>${positions.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label></div>
     <div class="table-wrap"><table><caption>${variable.name}${unit && !variable.name.includes(`(${unit})`) ? ` (${unit})` : ''}${plRef ? ` · Premier League ${PREMIER_SEASON}` : ''}</caption>
       <thead><tr><th rowspan="2" scope="col">Medida</th>${sides.map((sd) => html`<th key=${sd} colspan=${nCols} scope="colgroup">${SD[sd]}</th>`)}</tr>
@@ -184,10 +195,6 @@ export function PercentilesPanel({ player, test, variable, mine, q, setQ, filter
       : html`<p class="muted">Premier League (${PREMIER_SEASON}, tabla «In Season»${plRef.unitConverted ? ', convertida a la unidad del catálogo' : ''}): se indica la zona entre los cortes publicados (P5, P25, P50, P75, P95), sin interpolar percentiles. P50 = ${nf(plRef.cuts[2], 3)}${u}. Los umbrales de la Premier no están validados como de rendimiento.</p>`}
     <p class="muted">Pasa el cursor sobre un valor o un percentil para ver su fecha, periodo, N y el P50 de La Liga. Método: percentil exacto por rango medio. El resultado actual y el Personal Average se comparan con el Personal Average de los demás jugadores (mismo valor, mismo percentil); el Personal Best con sus Personal Best. Referencia de La Liga: un valor por jugador y base (${posName}), sin sesiones excluidas, <strong>sin datos sintéticos y sin este jugador</strong>; mínimo ${minN} jugadores (cámbialo en Configuración).${sides.length === 2 ? ' Con dos lados, la referencia junta los valores izquierdo y derecho de todos los jugadores: hay un único P50 para ambas piernas.' : ''} El percentil de rendimiento tiene en cuenta la dirección de la variable; el color sigue las seis bandas de la guía.</p>
     </details>
-    <fieldset class="modes"><legend>Marcadores de la escala</legend>${BASES.slice().reverse().map(([b, n]) => html`<label class="check" key=${b}><input type="radio" name="rb" checked=${basisShown === b} onChange=${() => setQ({ rb: b })} /> ${n}</label>`)}</fieldset>
-    ${shown.length ? html`<${EscalaG4} rows=${shown} unit=${unit} asym=${asym} premierP50=${plRef ? plRef.cuts[2] : null} target=${sides.map((sd) => targets[sd]).filter(Boolean).filter((t, i, a) => a.findIndex((v) => v.value === t.value) === i)} />` : null}
-    ${shown.some((r) => r.ev.n && !r.ev.sufficient) ? html`<p class="status warn">Muestra insuficiente para clasificar: no se dibuja la mediana ni se colorea (N inferior a ${minN}).</p>` : null}
-    ${g2.length ? html`<h4>Resultado actual, Personal Average y referencias</h4><${GraficoG2} unit=${unit} label=${`Barras de ${variable.name}: resultado actual, Personal Average y medianas de La Liga y la Premier League`} labels=${g2.map((sd) => SD[sd])}
-      datasets=${[{ label: 'Resultado actual', data: g2.map((sd) => cell['last' + sd].value), backgroundColor: PAL.gris1, info: g2.map((sd) => ctx.info(cell['last' + sd].value, 'last').join(' · ')) }, { label: 'Personal Average', data: g2.map((sd) => cell['pa' + sd].value), backgroundColor: PAL.gris3, info: g2.map((sd) => ctx.info(cell['pa' + sd].value, 'pa').join(' · ')) }, ...(g2.some((sd) => refOk('pa', sd)) ? [{ label: 'La Liga (mediana de Personal Average)', data: g2.map((sd) => (refOk('pa', sd) ? cell['pa' + sd].ev.p50 : null)), backgroundColor: PAL.laLiga }] : []), ...(plRef ? [{ label: 'Premier League (P50)', data: g2.map(() => plRef.cuts[2]), backgroundColor: PAL.premier }] : [])]} />` : null}
   </section>`;
+  return parte === 'tabla' ? tabla : html`${escala}${tabla}`;
 }

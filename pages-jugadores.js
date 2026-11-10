@@ -187,9 +187,13 @@ function PesoReferencia({ player }) {
     <${Msg} msg=${msg} /></fieldset>`;
 }
 
+// Sección plegada (cerrada por defecto): mismo aspecto de tarjeta, el título es el resumen.
+const Desplegable = ({ titulo, children, abierto = false, onToggle = null, id }) => html`<section class="card despl" id=${id}><details open=${abierto} onToggle=${onToggle}><summary><h2>${titulo}</h2></summary>${children}</details></section>`;
+
 function Antropometria({ player, records }) {
   const { db, bump } = useApp();
   const [f, setF] = useState(emptyForm(records[0]));
+  const [formAbierto, setFormAbierto] = useState(false);
   const { msg, run, busy } = useRunner();
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const build = () => {
@@ -204,19 +208,10 @@ function Antropometria({ player, records }) {
     setF(emptyForm(Object.fromEntries(METRICS.map((m) => [m.key, { unit: f[m.key + 'U'] }]))));
     bump();
   }, f.id ? 'medición actualizada.' : 'medición añadida.');
-  const load = (r) => setF({ id: r.id, date: r.date, source: r.source ?? '', notes: r.notes ?? '', ...Object.fromEntries(METRICS.flatMap((m) => [[m.key + 'V', r[m.key]?.value ?? ''], [m.key + 'U', r[m.key]?.unit ?? '']])) });
+  const load = (r) => { setFormAbierto(true); setF({ id: r.id, date: r.date, source: r.source ?? '', notes: r.notes ?? '', ...Object.fromEntries(METRICS.flatMap((m) => [[m.key + 'V', r[m.key]?.value ?? ''], [m.key + 'U', r[m.key]?.unit ?? '']])) }); };
   const cell = (r, k) => (r[k] ? `${String(r[k].value).replace('.', ',')} ${r[k].unit}` : '—');
-  return html`
-    <${Card} titulo="Antropometría con historial">
-      <p>Cada medición es un registro fechado; no se sustituye un valor único. Los cálculos con masa corporal (relativos BW/SW, DSI, MVIC, %BW/%SW, 1RM estimado…) usan la medición de masa <strong>más cercana a la fecha</strong>, anterior o posterior, y si no hay ninguna, el peso de referencia de abajo. La unidad la indicas tú.</p>
-      ${records.length === 0 ? html`<p class="muted">Sin mediciones.</p>` : html`<div class="table-wrap"><table>
-        <thead><tr><th scope="col">Fecha</th>${METRICS.map((m) => html`<th scope="col" key=${m.key}>${m.label}</th>`)}<th scope="col">Fuente</th><th scope="col">Observaciones</th><th scope="col"><span class="sr">Acciones</span></th></tr></thead>
-        <tbody>${records.map((r) => html`<tr key=${r.id}><td>${fmtDay(r.date)} ${r.synthetic ? html`<${Sintetico} />` : null}</td>${METRICS.map((m) => html`<td key=${m.key}>${cell(r, m.key)}</td>`)}<td>${r.source || '—'}</td><td>${r.notes || '—'}</td>
-          <td class="acts"><button type="button" class="secondary" onClick=${() => load(r)}>Editar</button>
-          <button type="button" class="secondary" onClick=${run(async () => { if (confirm('¿Eliminar esta medición?')) { await deleteAnthropometry(db, r.id); bump(); } })}>Eliminar</button></td></tr>`)}</tbody></table></div>`}
-      <${AntropPercentiles} player=${player} />
-      <h3>${f.id ? 'Editar medición' : 'Añadir medición'}</h3>
-      <form onSubmit=${save}>
+  const formulario = html`<form onSubmit=${save}>
+
         <div class="fields">
           <label>Fecha de medición <input type="date" required value=${f.date} onInput=${set('date')} /></label>
           ${METRICS.map((m) => html`<fieldset key=${m.key}><legend>${m.label}</legend>
@@ -231,10 +226,22 @@ function Antropometria({ player, records }) {
         </div>
       </form>
       <p class="muted">Rellena solo las medidas que tengas; al menos una. La unidad es obligatoria cuando hay valor.</p>
-      <${Msg} msg=${msg} />
+      <${Msg} msg=${msg} />`;
+  return html`
+    <${Desplegable} titulo="Percentil de peso y altura"><${AntropPercentiles} player=${player} /><//>
+    <${Desplegable} titulo="Añadir medición" abierto=${formAbierto} onToggle=${(e) => setFormAbierto(e.currentTarget.open)}>
+      ${formulario}<//>
+    <${Desplegable} titulo="Antropometría con historial">
+      <p>Cada medición es un registro fechado; no se sustituye un valor único. Los cálculos con masa corporal (relativos BW/SW, DSI, MVIC, %BW/%SW, 1RM estimado…) usan la medición de masa <strong>más cercana a la fecha</strong>, anterior o posterior, y si no hay ninguna, el peso de referencia de abajo. La unidad la indicas tú.</p>
+      ${records.length === 0 ? html`<p class="muted">Sin mediciones.</p>` : html`<div class="table-wrap"><table>
+        <thead><tr><th scope="col">Fecha</th>${METRICS.map((m) => html`<th scope="col" key=${m.key}>${m.label}</th>`)}<th scope="col">Fuente</th><th scope="col">Observaciones</th><th scope="col"><span class="sr">Acciones</span></th></tr></thead>
+        <tbody>${records.map((r) => html`<tr key=${r.id}><td>${fmtDay(r.date)} ${r.synthetic ? html`<${Sintetico} />` : null}</td>${METRICS.map((m) => html`<td key=${m.key}>${cell(r, m.key)}</td>`)}<td>${r.source || '—'}</td><td>${r.notes || '—'}</td>
+          <td class="acts"><button type="button" class="secondary" onClick=${() => load(r)}>Editar</button>
+          <button type="button" class="secondary" onClick=${run(async () => { if (confirm('¿Eliminar esta medición?')) { await deleteAnthropometry(db, r.id); bump(); } })}>Eliminar</button></td></tr>`)}</tbody></table></div>`}
       <${PesoReferencia} player=${player} />
     <//>`;
 }
+
 
 function UnificarEliminar({ player }) {
   const { db, bump } = useApp();
@@ -294,15 +301,14 @@ export function PerfilJugador({ id, query = {} }) {
   if (!data) return html`<p>Cargando…</p>`;
   if (data.missing) return html`<p>El jugador no existe. <a href="#jugadores">Volver a la lista</a></p>`;
   const { player } = data;
+  const edicion = html`<${Basicos} key=${'b' + player.id + player.updatedAt} player=${player} />
+    <${Alias} player=${player} aliases=${data.aliases} />
+    <${Posiciones} player=${player} history=${data.history} positions=${data.positions} />
+    <${UnificarEliminar} key=${'u' + player.id} player=${player} />`;
+  const antrop = html`<${Antropometria} key=${'a' + player.id} player=${player} records=${data.records} />`;
   return html`
     <p><a href="#jugadores">← Jugadores</a></p>
     <h2 class="page-title">${playerLabel(player)} ${player.synthetic ? html`<${Sintetico} />` : null} ${player.active ? null : html`<span class="badge">INACTIVO</span>`}</h2>
-    <${ResultadosJugador} key=${'r' + player.id} player=${player} query=${query} />
-    <${Basicos} key=${'b' + player.id + player.updatedAt} player=${player} />
-    <${Alias} player=${player} aliases=${data.aliases} />
-    <${UnificarEliminar} key=${'u' + player.id} player=${player} />
-    <${Posiciones} player=${player} history=${data.history} positions=${data.positions} />
-    <${Antropometria} key=${'a' + player.id} player=${player} records=${data.records} />
-    <${FvPanel} key=${'fv' + player.id} player=${player} />
+    <${ResultadosJugador} key=${'r' + player.id} player=${player} query=${query} edicion=${edicion} antrop=${antrop} fv=${html`<${FvPanel} key=${'fv' + player.id} player=${player} />`} />
   `;
 }

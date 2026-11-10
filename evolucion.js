@@ -69,7 +69,8 @@ export function personalBest(points, direction) {
 export const currentResult = (points) => (points.length ? points[points.length - 1] : null);
 
 // G5: asimetría por sesión (D25: (R − L) / máx × 100, positivo = domina la derecha). Solo sesiones con ambos lados.
-export function asymmetrySeries(sessions, variableId, { from = null, to = null, protocolId = undefined } = {}) {
+// «diff»: variables en grados (ángulos): asimetría = derecha − izquierda en la propia unidad (como en el Excel del usuario); admite valores negativos. Si no, porcentaje (D25).
+export function asymmetrySeries(sessions, variableId, { from = null, to = null, protocolId = undefined, diff = false } = {}) {
   const out = [];
   for (const s of sessions) {
     if (s.status === 'excluded') continue;
@@ -78,7 +79,7 @@ export function asymmetrySeries(sessions, variableId, { from = null, to = null, 
     if (to && s.date > to) continue;
     const l = valueOf(s, variableId, 'L'), r = valueOf(s, variableId, 'R');
     if (l === null || r === null) continue;
-    const pct = asymmetryPct(l, r);
+    const pct = diff ? r - l : asymmetryPct(l, r);
     if (pct === null) continue;
     out.push({ sessionId: s.id, date: s.date, time: s.time || '', left: l, right: r, pct, repsL: repsOf(s, 'L'), repsR: repsOf(s, 'R') });
   }

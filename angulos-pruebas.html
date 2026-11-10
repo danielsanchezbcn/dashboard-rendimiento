@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; base-uri 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pruebas de geometría — GFC S&amp;C</title>
+<link rel="stylesheet" href="angulos-pruebas.css">
+</head>
+<body>
+<header>
+  <h1>Pruebas de geometría</h1>
+  <p class="sub">Se ejecutan sobre el código real de la aplicación (<code>../js</code>). Esta página funciona abriéndola directamente (<code>file://</code>), sin servidor ni instalación.</p>
+</header>
+
+<section class="summary" aria-live="polite">
+  <div class="card pass"><span class="num" id="count-pass">–</span><span class="lbl">Superadas</span></div>
+  <div class="card fail"><span class="num" id="count-fail">–</span><span class="lbl">Fallidas</span></div>
+  <div class="card total"><span class="num" id="count-total">–</span><span class="lbl">Total</span></div>
+</section>
+<div id="banner" class="banner">Ejecutando…</div>
+<noscript><p class="banner fail-banner">Se necesita JavaScript para ejecutar las pruebas.</p></noscript>
+
+<main id="results"></main>
+
+<!-- runner.js va primero: asi captura tambien los errores de carga de los scripts siguientes -->
+<script src="angulos-pruebas-runner.js"></script>
+
+<!-- Código real de la aplicación: mismas rutas y mismo orden que index.html, sin las partes que dependen del DOM -->
+<script src="angulos-utils.js"></script>
+<script src="angulos-registry.js"></script>
+<script src="angulos-engine.js"></script>
+<script src="angulos-test-jurdan.js"></script>
+<script src="angulos-test-aket.js"></script>
+
+<script src="angulos-pruebas-geometria.js"></script>
+</body>
+</html>

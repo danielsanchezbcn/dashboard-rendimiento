@@ -28,3 +28,6 @@
 ## Lectura de imágenes (OCR) — fase 7v
 - **Tesseract.js 5.1.1** (Apache-2.0) → `ocr-tesseract.js` (módulo ES) y `ocr-worker.js`; **tesseract.js-core 5.1.1** (Apache-2.0) → `ocr-core.js` (núcleo wasm con SIMD); **@tesseract.js-data/eng 1.0.0** (Apache-2.0, `4.0.0_best_int`) → `eng.traineddata.gz`.
 - Se cargan desde el mismo origen (sin red externa); `cacheMethod: 'none'`. Solo se usan al importar una imagen de antropometría.
+
+## MediaPipe Tasks Vision 0.10.14 (ángulos, 10/11/2026)
+Archivos copiados sin modificar del paquete npm oficial `@mediapipe/tasks-vision@0.10.14` (licencia Apache-2.0). SHA-256: vision_bundle.mjs e77f281f…7669 · vision_wasm_internal.js 9440cf0c…ab9c · vision_wasm_internal.wasm f82a8e6c…17dc · vision_wasm_nosimd_internal.js abe9b6fb…e054 · vision_wasm_nosimd_internal.wasm 38b61fea…8b97. Pendiente: el modelo pose_landmarker_heavy.task, que sube el usuario.

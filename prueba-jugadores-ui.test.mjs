@@ -10,6 +10,7 @@ globalThis.window = w; globalThis.document = w.document; globalThis.location = w
 Object.defineProperty(globalThis, 'navigator', { value: { platform: 'test', userAgent: 'smoke', storage: { persist: async () => false, persisted: async () => false, estimate: async () => ({ usage: 1048576, quota: 1073741824 }) } }, configurable: true });
 Object.defineProperty(w, 'indexedDB', { value: globalThis.indexedDB, configurable: true });
 w.scrollTo = () => {};
+globalThis.Event = w.Event;
 if (!globalThis.crypto?.subtle) globalThis.crypto = webcrypto;
 let captured = null;
 globalThis.URL.createObjectURL = (b) => { captured = b; return 'blob:x'; };
@@ -28,6 +29,7 @@ const go = async (hash) => { w.location.hash = '#' + hash; w.dispatchEvent(new w
 const card = (title) => $$('section.card').find((c) => c.querySelector('h2')?.textContent.trim().startsWith(title));
 const btn = (root, label) => $$('button, a.btn', root).find((b) => b.textContent.trim() === label || b.getAttribute('aria-label') === label);
 const click = async (el, ms = 300) => { el.click(); await tick(ms); };
+const tab = async (name) => { await click($$('button[role=tab]').find((b) => b.textContent.trim().startsWith(name)), 400); };
 const setVal = async (el, v, evt = 'input') => { el.value = v; el.dispatchEvent(new w.Event(evt, { bubbles: true })); await tick(40); };
 const field = (root, labelStart) => { const l = $$('label', root).find((x) => x.textContent.trim().startsWith(labelStart)); return l.querySelector('input, select'); };
 const rowsOf = (root) => $$('tbody tr', root).map((r) => r.textContent.replace(/\s+/g, ' ').trim());
@@ -89,7 +91,9 @@ check('jugador sin posición: figura «Sin posición»', cellsOf(card('Lista')).
 const link = $$('tbody a', card('Lista')).find((a) => a.textContent === 'Real Uno');
 const realHash = link.getAttribute('href').slice(1);
 await go(realHash);
-check('perfil: tres bloques (pestañas) sin sesiones y secciones', /Manifestaciones de la fuerza/.test(text()) && /aún no tiene sesiones de fuerza/.test(text()) && /Perímetros/.test(text()) && /NME/.test(text()) && ['Datos básicos', 'Alias por fuente', 'Posición', 'Antropometría con historial'].every((t) => card(t)));
+check('perfil: cuatro bloques (Edición, Manifestaciones, Datos antropométricos, NME); Edición y antropometría ocultas hasta abrir su bloque', ['Edición', 'Manifestaciones de la fuerza', 'Datos antropométricos', 'NME'].every((n) => $$('button[role=tab]').some((b) => b.textContent.trim().startsWith(n))) && !card('Datos básicos') && !card('Antropometría con historial'));
+await tab('Edición');
+check('Edición contiene Datos básicos, Alias por fuente y Posición', ['Datos básicos', 'Alias por fuente', 'Posición'].every((t) => card(t)));
 // alias
 let ac = card('Alias por fuente');
 await setVal(field(ac, 'Texto original'), 'REAL UNO NOMBRE COMPLETO');
@@ -113,27 +117,30 @@ const secForm = $$('form', pp)[1];
 await setVal($$('select', secForm)[0], alfaId, 'change');
 await click($$('button', secForm)[0], 500);
 check('secundaria: aparece aparte y no cambia la principal', stat().includes('Beta') && /Alfa/.test(card('Posición').querySelector('ul')?.textContent ?? ''), card('Posición').textContent.slice(0, 400));
-// antropometría
-let an = card('Antropometría con historial');
+// antropometría (bloque Datos antropométricos: tres secciones plegadas)
+await tab('Datos antropométricos');
+check('Datos antropométricos: Percentil de peso y altura, Añadir medición y Antropometría con historial', ['Percentil de peso y altura', 'Añadir medición', 'Antropometría con historial'].every((t) => card(t)));
+let an = card('Añadir medición');
 await setVal(field(an, 'Fecha de medición'), '2026-03-01');
 const fs1 = $$('fieldset', an);
 await setVal($$('input', fs1[0])[0], '80,5');
 await click(btn(an, 'Añadir medición'), 400);
-check('antropometría: unidad obligatoria', /indica la unidad/.test(card('Antropometría con historial').textContent));
-an = card('Antropometría con historial');
+check('antropometría: unidad obligatoria', /indica la unidad/.test(card('Añadir medición').textContent));
+an = card('Añadir medición');
 await setVal($$('input', $$('fieldset', an)[0])[1], 'kg');
 await click(btn(an, 'Añadir medición'), 500);
 an = card('Antropometría con historial');
 check('antropometría: medición añadida con unidad y decimales', cellsOf(an).some((r) => r[0] === '01/03/2026' && r[1] === '80,5 kg' && r[2] === '—' && r[3] === '—'), cellsOf(an).map((r) => r.slice(0, 4).join('|')).join(' ; '));
+an = card('Añadir medición');
 check('antropometría: la unidad se recuerda para la siguiente medición', $$('input', $$('fieldset', an)[0])[1].value === 'kg');
 await setVal(field(an, 'Fecha de medición'), '2999-01-01');
 await setVal($$('input', $$('fieldset', an)[1])[0], '180');
 await setVal($$('input', $$('fieldset', an)[1])[1], 'cm');
 await click(btn(an, 'Añadir medición'), 400);
-check('antropometría: fecha futura rechazada', /fecha de medición no puede ser futura/.test(card('Antropometría con historial').textContent));
+check('antropometría: fecha futura rechazada', /fecha de medición no puede ser futura/.test(card('Añadir medición').textContent));
 an = card('Antropometría con historial');
 await click(btn(an, 'Editar'), 200);
-an = card('Antropometría con historial');
+an = card('Añadir medición');
 check('antropometría: editar carga el registro', field(an, 'Fecha de medición').value === '2026-03-01' && btn(an, 'Guardar cambios'));
 await setVal($$('input', $$('fieldset', an)[0])[0], '81');
 await click(btn(an, 'Guardar cambios'), 500);
@@ -141,6 +148,7 @@ check('antropometría: edición guardada', cellsOf(card('Antropometría con hist
 await click(btn(card('Antropometría con historial'), 'Eliminar'), 400);
 check('antropometría: eliminada con confirmación', /Sin mediciones/.test(card('Antropometría con historial').textContent) && /¿Eliminar esta medición\?/.test(confirms.at(-1)));
 // desactivar
+await tab('Edición');
 await click(btn(card('Datos básicos'), 'Desactivar'), 400);
 check('desactivar: se conserva el historial', /INACTIVO/.test(text()) && /Beta/.test(card('Posición').textContent));
 
@@ -148,12 +156,14 @@ check('desactivar: se conserva el historial', /INACTIVO/.test(text()) && /Beta/.
 await go('jugadores');
 await setVal(field(card('Lista'), 'Buscar'), 'sintetico a');
 await go($$('tbody a', card('Lista'))[0].getAttribute('href').slice(1));
+await tab('Edición');
 const askA = async () => card('Posición').querySelector('p.status[role=status]').textContent;
 check('sintético A: una sola posición (la 2), sin fechas', (await askA()).includes('Posición sintética 2'));
 check('sintético A: dos alias de fuentes distintas y etiqueta', cellsOf(card('Alias por fuente')).length === 2 && /SINTÉTICO/.test(card('Alias por fuente').textContent) && /VALD/.test(card('Alias por fuente').textContent) && /Excel/.test(card('Alias por fuente').textContent));
 await go('jugadores');
 await setVal(field(card('Lista'), 'Buscar'), 'sintetico d');
 await go($$('tbody a', card('Lista'))[0].getAttribute('href').slice(1));
+await tab('Edición');
 check('sintético D: posición 1', (await askA()).includes('Posición sintética 1'));
 
 // ---- Copia con todas las tablas, eliminación de sintéticos y restauración

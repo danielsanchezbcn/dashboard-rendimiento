@@ -301,3 +301,28 @@ Estilo y biblioteca (D20) cerrados el 6 de noviembre de 2026. Ese mismo día se 
 - Líneas de referencia: el Personal Average (I/D o único) deja de dibujarse siempre y pasa a ser una casilla más. Marcadas por defecto: P50 La Liga y P50 Premier League (si hay dato). Se guarda en la dirección de la página (rl=none = ninguna).
 - Asimetría: se elimina el texto «Última: …» bajo el gráfico (los valores salen en el gráfico y el tooltip).
 - Versión 8k.
+
+## (82) Jurdan Test, primer sub-apartado de NME (10/11/2026)
+- Catálogo (versión de semilla 10): sub-apartado «Jurdan Test» en el bloque NME con un test «Jurdan Test» y 5 variables, con los nombres de las cabeceras de tu Excel: TOE-TOUCH TEST (valor único, sin unidad: el Excel solo dice «fingers-floor distance»), JURDAN HAMS, JURDAN PSOAS, JURDAN RECTUS FEMORIS y JURDAN RESULTS (por lado, en °). Sin dirección «mejor/peor» (no la indicaste): los bloques Perímetros y NME quedan fuera de la asignación automática de «más alto es mejor».
+- JURDAN RESULTS se importa tal como viene calculado en el Excel (izquierda = Hams izq − Psoas der; derecha = Hams der − Psoas izq). Las columnas ASYMMETRY del Excel (derecha − izquierda, en grados) no se importan; la aplicación calcula la suya.
+- Importador: la segunda fila de cabecera con textos como «LEFT HAMS» / «RIGHT SHIN vs LEFT THIGH» / «ASYMMETRY» se reconoce y propone todas las columnas solas (solo hay que indicar la fecha única).
+- Asimetría de variables en grados: derecha − izquierda en grados (como en tu Excel), también con ángulos negativos (en % no se puede con valores negativos). Positivo = mayor a la derecha (convención del dashboard); tu comentario de la celda dice «a favor de la IZQUIERDA será +», que contradice tu fórmula D−C; pendiente de confirmar.
+- Nuevos tests de ángulos: se crean en el bloque NME desde el catálogo; importación y ficha del jugador ya los admiten. La conexión con la aplicación de medición de ángulos queda pendiente de recibir esa aplicación.
+- Versión 8l.
+
+## (83) Medir ángulos dentro del dashboard (10/11/2026)
+- La aplicación de ángulos del usuario se incorpora tal cual (misma geometría; sus 55 pruebas pasan) como página aislada `angulos.html` dentro de un marco del mismo origen, en NME → «Medir ángulos» (`#nme-angulos`). Solo se añade `frame-src 'self'` a la política del dashboard; la página tiene su propia política (sin red).
+- Se guarda una sesión del Jurdan Test por jugador, fecha y hora (origen «angulos»), con los ángulos a 1 decimal y JURDAN RESULTS calculado como en el Excel. Las fotos no se guardan. Sin sobrescribir.
+- Se eligió el marco (y no reescribir la herramienta en el dashboard) para no tocar su geometría ni sus invariantes y poder seguir actualizándola con sus archivos.
+- Detección automática (MediaPipe): el dashboard no permite internet, así que el detector busca sus archivos en la misma carpeta. Sin ellos, la foto pasa a MANUAL. No verificada (no se pudo descargar el modelo); documentado en ANGULOS.md.
+- Nuevos tests de ángulos: archivo del test en la herramienta + test y variables en el catálogo NME + entrada en `angulos-mapa.js` (ANGULOS.md). AKET queda sin destino hasta que se cree en el catálogo.
+- Versión 8m.
+
+## (84) Toe-Touch como sub-apartado propio de NME y comprobación del medidor (10/11/2026)
+- «Toe-Touch Test» deja de ser variable del Jurdan Test y pasa a ser su propio sub-apartado y test de NME (una variable, TOE-TOUCH TEST, en cm, valor único, sin dirección). Unidad confirmada por el usuario. El Jurdan Test queda con 4 variables en °. Desde el mismo Excel se importan en dos pasadas: una con el test Jurdan y otra con el Toe-Touch (cada test solo propone sus columnas).
+- Medidor de ángulos: comprobada la equivalencia con la aplicación original adjunta (archivos del motor idénticos byte a byte; misma conducta en una prueba de 10 pasos). Detalle en ANGULOS.md. Guardado en el jugador comprobado de punta a punta (sesión creada y visible en la pestaña NME del jugador).
+- Versión 8n.
+
+(85) 10/11/2026 — Ficha del jugador en cuatro bloques: Edición (Datos básicos, Alias por fuente, Posición y Unificar/Eliminar), Manifestaciones de la fuerza, Datos antropométricos (antes Perímetros; con Percentil de peso y altura, Añadir medición y Antropometría con historial plegados) y NME. Los tests se listan todos, una línea cada uno, con las manifestaciones resaltadas; los sin sesiones quedan desactivados salvo Iso-Hold/RM (abre Alta manual de carga) y perfiles Force–Velocity (abre Perfil carga-velocidad). «Añadir medición» va solo en Datos antropométricos (la petición lo citaba dos veces).
+(86) 10/11/2026 — Escala: marcadores opcionales (Resultado actual, PB, PA, P50/P75 La Liga, por posición, P50/P75 Premier; por defecto PA, P50 La Liga y P50 Premier; parámetro `sm`). Eliminado el gráfico de barras. Orden: escala, tabla de percentiles, líneas de referencia, target, asimetría.
+(87) 10/11/2026 — Ángulos: signo de asimetría como el resto del dashboard; AKET solo calcula (sin registro); archivos de ejecución de MediaPipe incluidos, falta el modelo .task.

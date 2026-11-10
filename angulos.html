@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Página aislada: sin red. Se permiten atributos style en línea (los usa el panel de resultados) y WebAssembly solo para el detector local opcional (ver ANGULOS.md). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; base-uri 'none'; form-action 'none'">
+<title>GFC S&C — Medir ángulos</title>
+<link rel="stylesheet" href="angulos.css">
+</head>
+<body>
+<div class="app">
+  <div class="stage" id="stageP1">
+    <div class="stage-top"><span class="stage-label">Foto 1</span><span class="status-tag" id="statusP1" style="display:none;"></span></div>
+    <div id="dropP1" class="dropzone">
+      <b>Suelta la foto 1</b><span>o selecciona un archivo</span>
+      <input type="file" id="fileP1" accept="image/*">
+      <button class="browse-btn" data-target="fileP1">Elegir foto</button>
+    </div>
+    <div class="stage-inner" id="stageInnerP1">
+      <canvas id="canvasP1"></canvas>
+      <div class="zoom-lens" id="zoomLensP1"><canvas id="zoomCanvasP1" width="210" height="210"></canvas></div>
+    </div>
+    <div class="export-block" id="exportP1">
+      <div class="export-row">
+        <input type="text" class="export-name" id="exportNameP1" placeholder="Nombre de archivo (opcional)" aria-label="Nombre de archivo (opcional)" autocomplete="off" spellcheck="false" disabled>
+        <button type="button" class="export-btn" id="exportPngP1" disabled>Descargar PNG</button>
+        <button type="button" class="export-btn" id="exportSvgP1" disabled>Descargar SVG</button>
+        <button type="button" class="export-btn" id="exportCopyP1" disabled>Copiar PNG para PowerPoint</button>
+      </div>
+      <div class="export-hint" id="exportHintP1" aria-live="polite">El PNG conserva exactamente la apariencia. El SVG conserva la composición, aunque la fotografía seguirá siendo raster.</div>
+    </div>
+  </div>
+
+  <div class="stage" id="stageP2">
+    <div class="stage-top"><span class="stage-label">Foto 2</span><span class="status-tag" id="statusP2" style="display:none;"></span></div>
+    <div id="dropP2" class="dropzone">
+      <b>Suelta la foto 2</b><span>o selecciona un archivo</span>
+      <input type="file" id="fileP2" accept="image/*">
+      <button class="browse-btn" data-target="fileP2">Elegir foto</button>
+    </div>
+    <div class="stage-inner" id="stageInnerP2">
+      <canvas id="canvasP2"></canvas>
+      <div class="zoom-lens" id="zoomLensP2"><canvas id="zoomCanvasP2" width="210" height="210"></canvas></div>
+    </div>
+    <div class="export-block" id="exportP2">
+      <div class="export-row">
+        <input type="text" class="export-name" id="exportNameP2" placeholder="Nombre de archivo (opcional)" aria-label="Nombre de archivo (opcional)" autocomplete="off" spellcheck="false" disabled>
+        <button type="button" class="export-btn" id="exportPngP2" disabled>Descargar PNG</button>
+        <button type="button" class="export-btn" id="exportSvgP2" disabled>Descargar SVG</button>
+        <button type="button" class="export-btn" id="exportCopyP2" disabled>Copiar PNG para PowerPoint</button>
+      </div>
+      <div class="export-hint" id="exportHintP2" aria-live="polite">El PNG conserva exactamente la apariencia. El SVG conserva la composición, aunque la fotografía seguirá siendo raster.</div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="brand"><span class="eyebrow">GFC · S&C</span><h1>Digitalizador de tests</h1></div>
+
+    <div>
+      <div class="results" id="resultsPanel"></div>
+      <button class="copy-btn" id="copyBtn">Copiar resultados</button>
+      <button class="reset-btn" id="resetBtn">Cargar otras fotos</button>
+    </div>
+
+    <div><select class="test-select" id="testSelect"></select></div>
+
+    <div class="side-card">
+      <div class="q">La pierna elevada de la <b>Foto 1</b> es la...</div>
+      <div class="side-toggle" id="globalSideToggle">
+        <button data-side="left" class="active">Izquierda</button>
+        <button data-side="right">Derecha</button>
+      </div>
+    </div>
+
+    <div id="photosContainer"></div>
+
+    <div class="footnotes">
+      <div class="instr"><b>Clic</b> sobre una pierna = esa pierna es elevada. La Foto 2 recibe el lado contrario automáticamente (piernas siempre opuestas). Arrastra un punto solo si el automático (o el manual) está mal.</div>
+      <div class="verify-note">
+        <b>Etiqueta de detección</b> (sobre cada foto; pasa el ratón para ver el detalle). <b>AUTO</b> (verde): MediaPipe detectó la pose y los 6 landmarks superan los umbrales de visibilidad y presencia (0,50 por defecto). <b>REVISAR</b> (ámbar): hay pose y se conservan sus coordenadas, pero algún landmark no supera esos umbrales; revisa los puntos, no se bloquea nada. <b>MANUAL</b> (rojo): MediaPipe falló o no detectó ninguna pose; se usa el posicionamiento de respaldo, coloca los puntos a mano. <b>AJUSTADO</b> (cian): has desplazado algún landmark; se mantiene hasta cargar otras fotos. Un fallo de MediaPipe solo afecta a la detección.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Orden de carga: utils/registry primero (sin dependencias), luego el motor,
+     luego cada assessment se registra a si mismo, luego las funciones (exportacion)
+     y por ultimo app.js que ensambla la interfaz concreta. Todo con <script src> clasico -- funciona
+     abriendo el archivo directamente (file://) y dentro de un futuro WebView
+     de escritorio, sin paso de compilacion ni servidor. -->
+<script src="angulos-utils.js"></script>
+<script src="angulos-registry.js"></script>
+<script src="angulos-detector.js"></script>
+<script src="angulos-engine.js"></script>
+
+<script src="angulos-test-jurdan.js"></script>
+<script src="angulos-test-aket.js"></script>
+<script src="angulos-test-pendientes.js"></script>
+
+<script src="angulos-exportar.js"></script>
+
+<script src="angulos-app.js"></script>
+</body>
+</html>

@@ -30,8 +30,8 @@ await tick(600);
 
 // Navegación
 const links = $$('nav a').map((a) => a.textContent.trim());
-check('menú con 10 entradas (incluye Relaciones entre variables) y los 3 bloques', links.length === 10 && links.includes('Relaciones entre variables') && ['Manifestaciones de la fuerza', 'Perímetros', 'NME'].every((l) => links.includes(l)), links.join(' | '));
-check('versión visible 4-0.1.0', document.querySelector('.ver')?.textContent === 'v8k-0.1.0', document.querySelector('.ver')?.textContent);
+check('menú con 10 entradas (incluye Relaciones entre variables) y los 3 bloques', links.length === 10 && links.includes('Relaciones entre variables') && ['Manifestaciones de la fuerza', 'Datos antropométricos', 'NME'].every((l) => links.includes(l)), links.join(' | '));
+check('versión visible 4-0.1.0', document.querySelector('.ver')?.textContent === 'v8o-0.1.0', document.querySelector('.ver')?.textContent);
 check('inicio por defecto con aria-current', $('nav a[aria-current="page"]')?.textContent === 'Inicio');
 check('aviso de que no hay copia (sin plazo definido)', /Todavía no has creado ninguna copia/.test(text()));
 check('almacenamiento no persistente explicado', /no garantiza conservar los datos/.test(text()));
@@ -42,7 +42,7 @@ check('Fuerza: muestra el catálogo inicial aportado (fase 2), sin inventar vari
 await go('perimetros');
 check('Perímetros: un test con las 5 medidas que indicó el usuario (9/11), sin inventar otras', /Perímetros/.test(text()) && /5 variable/.test(text()) && !/No hay medidas de perímetro/.test(text()));
 await go('nme');
-check('NME: etiqueta literal, sin expandir ni contenido', $('h2.page-title').textContent === 'NME' && /Bloque sin definir/.test(text()) && !/neuromuscular|NME \(/i.test(text()));
+check('NME: etiqueta literal, sin expandir; primer sub-apartado = Jurdan Test (9/11)', $('h2.page-title').textContent === 'NME' && /Jurdan Test/.test(text()) && !/neuromuscular|NME \(/i.test(text()));
 await go('jugadores');
 check('Jugadores: lista vacía y formulario, sin jugadores inventados', /Todavía no hay jugadores/.test(text()) && /Nuevo jugador/.test(text()));
 await go('importar');
