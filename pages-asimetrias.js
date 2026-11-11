@@ -18,7 +18,7 @@ const BASES = [['pa', 'Personal Average'], ['pb', 'Personal Best'], ['last', 'Ac
 const nf = (n, d = 1) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 
 // Valor y fecha de un jugador en una variable y lado, según la base (definición única: valorBase en evolucion.js).
-const own = (sessions, v, side, base) => { const x = valorBase(sessions, v, side, base, {}); return x ? { value: x.value, date: x.date } : null; };
+const own = (sessions, v, side, base) => { const x = valorBase(sessions, v, side, base, {}); return x ? { value: x.value, date: x.date, from: x.from ?? x.date } : null; };
 
 // Exclusiones (pedidas el 10/11/2026) como propiedades editables en el catálogo (test: «excluir de Asimetrías»; variable: ídem). Por defecto: el test Nordic Hamstring Exercise completo
 // y las variables Torque, Force at 100 ms y RFD at 100 ms. Solo afecta a esta pestaña.
@@ -33,10 +33,10 @@ export function filasAsimetria(test, catalog, tsess, base) {
       const deg = esGrados(v);
       const pct = asimetriaLR(v, L.value, R.value);
       if (pct === null || !Number.isFinite(pct)) continue;
-      rows.push({ v, deg, pct, L: L.value, R: R.value, date: [L.date, R.date].sort().at(-1) });
+      rows.push({ v, deg, pct, L: L.value, R: R.value, date: [L.date, R.date].sort().at(-1), from: [L.from, R.from].sort()[0] });
     } else {
       const S = own(tsess, v, 'S', base);
-      if (S && Number.isFinite(S.value)) rows.push({ v, deg: false, pct: S.value, L: null, R: null, date: S.date, vald: true });
+      if (S && Number.isFinite(S.value)) rows.push({ v, deg: false, pct: S.value, L: null, R: null, date: S.date, from: S.from ?? S.date, vald: true });
     }
   }
   return rows;
@@ -72,12 +72,13 @@ export function PanelAsimetrias({ catalog, sessions, q, setQ }) {
       ${bloques.map((b) => html`<div class="asim-bloque" key=${b.key}><h3 class="asim-h-bloque">${b.nombre}</h3>
         ${b.grupos.map((g) => html`<div key=${g.g ?? '-'}>${g.g ? html`<h4 class="asim-h-sub">${g.g}</h4>` : null}
           ${g.tests.map(({ t, rows, falta }) => html`<div class="table-wrap asim-test" key=${t.id}><table class="asim"><caption><strong>${dn(t.name)}</strong>${zName(t) ? html` <span class="muted">· ${zName(t)}</span>` : null}</caption>
-            <thead><tr><th scope="col">Variable</th><th scope="col" class="asim-th-barra"><span class="asim-l">◄ Left</span> <span class="asim-r">Right ►</span></th><th scope="col">Asimetría</th><th scope="col">Valores</th></tr></thead>
+            <thead><tr><th scope="col">Variable</th><th scope="col" class="asim-th-barra"><span class="asim-l">◄ Left</span> <span class="asim-r">Right ►</span></th><th scope="col">Asimetría</th><th scope="col">Valores</th><th scope="col">${base === 'last' ? 'Fecha' : base === 'pa' ? 'Periodo' : 'Sesión'}</th></tr></thead>
             <tbody>${rows.map((r) => html`<tr key=${r.v.id} title=${fmtDay(r.date)}>
               <th scope="row">${dn(r.v.name)}</th>
               <td class="asim-barra"><${Barra} pct=${r.pct} lim=${r.deg ? limDeg : limPct} /></td>
               <td class="num">${r.deg ? html`<${AsimTexto} pct=${r.pct} texto=${Math.abs(r.pct) < 0.05 ? '0 °' : `${nf(Math.abs(r.pct))} ° ${r.pct > 0 ? 'R' : 'L'}`} />` : html`<${AsimTexto} pct=${r.pct} />`}</td>
-              <td class="num muted">${r.vald ? 'VALD' : html`<span class="asim-l">L ${nf(r.L, 2)}</span> · <span class="asim-r">R ${nf(r.R, 2)}</span>${r.v.unit ? ' ' + r.v.unit : ''}`}</td></tr>`)}</tbody></table>${falta.length ? html`<p class="muted asim-falta">Sin valores en este jugador: ${falta.map((v) => dn(v.name)).join(', ')}. Para verlas hay que importar esas columnas de VALD en su sesión.</p>` : null}</div>`)}
+              <td class="num muted">${r.vald ? 'VALD' : html`<span class="asim-l">L ${nf(r.L, 2)}</span> · <span class="asim-r">R ${nf(r.R, 2)}</span>${r.v.unit ? ' ' + r.v.unit : ''}`}</td>
+              <td class="num muted asim-fecha">${base === 'last' ? fmtDay(r.date) : base === 'pb' ? `PB · ${fmtDay(r.date)}` : `PA · ${r.from === r.date ? fmtDay(r.date) : `${fmtDay(r.from)} – ${fmtDay(r.date)}`}`}</td></tr>`)}</tbody></table>${falta.length ? html`<p class="muted asim-falta">Sin valores en este jugador: ${falta.map((v) => dn(v.name)).join(', ')}. Para verlas hay que importar esas columnas de VALD en su sesión.</p>` : null}</div>`)}
         </div>`)}</div>`)}`}
   </section>`;
 }

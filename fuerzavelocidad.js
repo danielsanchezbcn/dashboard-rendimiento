@@ -85,11 +85,21 @@ function validate({ date, exercise, points, fdmVelocity }) {
   if (fv === null || fv <= 0 || fv > 3) throw new Error('La velocidad de la FDM debe estar entre 0 y 3 m/s.');
   return { date: d, exercise: String(exercise ?? '').trim().slice(0, 80), points: pts, fdmVelocity: fv };
 }
+// Test de perfil F–V al que pertenece el perfil. Los perfiles guardados antes de 9n no lo tienen (null = sin asignar) y se muestran en todos los tests de perfil F–V hasta que el usuario los asigne.
+export const fvTestId = (x) => (Number.isInteger(Number(x)) && Number(x) > 0 ? Number(x) : null);
+export async function asignarFvProfile(db, id, testId) {
+  const cur = await db.fvProfiles.get(id);
+  if (!cur) throw new Error('El perfil no existe.');
+  const t = fvTestId(testId);
+  if (t === null) throw new Error('Elige un test.');
+  await db.fvProfiles.update(id, { testId: t });
+  await audit(db, 'perfil-fv-asignado', { id, playerId: cur.playerId, testId: t });
+}
 export async function addFvProfile(db, input) {
   const player = await db.players.get(input.playerId);
   if (!player) throw new Error('Elige un jugador.');
   const v = validate(input);
-  const id = await db.fvProfiles.add({ playerId: input.playerId, ...v, source: input.source ?? 'manual', createdAt: new Date().toISOString(), ...(player.synthetic ? { synthetic: 1 } : {}) });
+  const id = await db.fvProfiles.add({ playerId: input.playerId, ...v, testId: fvTestId(input.testId), source: input.source ?? 'manual', createdAt: new Date().toISOString(), ...(player.synthetic ? { synthetic: 1 } : {}) });
   await audit(db, 'perfil-fv-alta', { id, playerId: input.playerId, date: v.date, puntos: v.points.length });
   return id;
 }
@@ -97,7 +107,7 @@ export async function updateFvProfile(db, id, input) {
   const cur = await db.fvProfiles.get(id);
   if (!cur) throw new Error('El perfil no existe.');
   const v = validate(input);
-  await db.fvProfiles.update(id, { ...v, correctedAt: new Date().toISOString() });
+  await db.fvProfiles.update(id, { ...v, ...(input.testId === undefined ? {} : { testId: fvTestId(input.testId) }), correctedAt: new Date().toISOString() });
   await audit(db, 'perfil-fv-corregido', { id, playerId: cur.playerId, date: v.date });
 }
 export async function deleteFvProfile(db, id) {

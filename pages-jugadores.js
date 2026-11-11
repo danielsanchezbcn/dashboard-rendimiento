@@ -309,6 +309,6 @@ export function PerfilJugador({ id, query = {} }) {
   return html`
     <p><a href="#jugadores">← Jugadores</a></p>
     <h2 class="page-title">${playerLabel(player)} ${player.synthetic ? html`<${Sintetico} />` : null} ${player.active ? null : html`<span class="badge">INACTIVO</span>`}</h2>
-    <${ResultadosJugador} key=${'r' + player.id} player=${player} query=${query} edicion=${edicion} antrop=${antrop} fv=${html`<${FvPanel} key=${'fv' + player.id} player=${player} />`} />
+    <${ResultadosJugador} key=${'r' + player.id} player=${player} query=${query} edicion=${edicion} antrop=${antrop} fv=${(t) => html`<${FvPanel} key=${'fv' + player.id + '-' + t.id} player=${player} test=${t} />`} />
   `;
 }

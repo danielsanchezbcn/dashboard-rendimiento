@@ -10,8 +10,9 @@ import { massNearest, withReferenceWeights } from './relaciones.js';
 import { readFileGrid } from './excel.js';
 import { downloadBlob } from './io.js';
 import { BANDS } from './percentiles.js';
-import { fitLoadVelocity, classText, compareWithSquad, parseFvGrid, referenceFrom, addFvProfile, updateFvProfile, deleteFvProfile, FV_REFERENCE_DEFAULT, FV_MAX_POINTS, FDM_VELOCITY_DEFAULT } from './fuerzavelocidad.js';
+import { fitLoadVelocity, classText, compareWithSquad, parseFvGrid, referenceFrom, addFvProfile, updateFvProfile, deleteFvProfile, asignarFvProfile, FV_REFERENCE_DEFAULT, FV_MAX_POINTS, FDM_VELOCITY_DEFAULT } from './fuerzavelocidad.js';
 import { playerLabel } from './jugadores.js';
+import { dn } from './nombres.js';
 import { Copiable } from './copiar.js';
 import { PAL } from './colores.js';
 
@@ -31,9 +32,9 @@ export function fvChartConfig({ fit, reference, name }) {
   return {
     type: 'line',
     data: { datasets: [
-      { label: 'Balanced (referencia)', data: reference.map((p) => ({ x: p.load, y: p.velocity })), borderColor: PAL.laLiga, backgroundColor: PAL.laLiga, borderDash: [8, 5], borderWidth: 3, pointRadius: 0, tension: 0 },
+      { label: 'Balanced (reference)', data: reference.map((p) => ({ x: p.load, y: p.velocity })), borderColor: PAL.laLiga, backgroundColor: PAL.laLiga, borderDash: [8, 5], borderWidth: 3, pointRadius: 0, tension: 0 },
       { label: `${name}`, data: pts.map((p) => ({ x: p.load, y: p.velocity })), borderColor: BLANCO, backgroundColor: BLANCO, pointBackgroundColor: BLANCO, pointBorderColor: BLANCO, pointRadius: 5, borderWidth: 2.5, tension: 0.3 },
-      { label: 'Recta de regresión', data: trend, borderColor: BLANCO, borderWidth: 2, pointRadius: 0, tension: 0, borderDash: [3, 4] },
+      { label: 'Regression line', data: trend, borderColor: BLANCO, borderWidth: 2, pointRadius: 0, tension: 0, borderDash: [3, 4] },
     ] },
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
@@ -54,14 +55,14 @@ function FvChart({ config, label, canvasRef }) {
   return html`<${Copiable} nombre="perfil-carga-velocidad"><div class="chart-box" style="background:#000;border-radius:.5rem;height:380px"><canvas ref=${canvasRef} role="img" aria-label=${label}></canvas></div><//>`;
 }
 
-function FvForm({ player, editing, initial, onDone, setInitial }) {
+function FvForm({ player, test, editing, initial, onDone, setInitial }) {
   const { db } = useApp();
   const { msg, setMsg, busy, run } = useRunner();
   const [f, setF] = useState({ date: initial?.date ?? todayIso(), exercise: initial?.exercise ?? '', fdm: String(initial?.fdmVelocity ?? FDM_VELOCITY_DEFAULT).replace('.', ',') });
   const [rows, setRows] = useState(initial ? rowsOf(initial.points) : emptyRows());
   const [blocks, setBlocks] = useState(null);
   const setRow = (i, k) => (e) => setRows(rows.map((r, j) => (j === i ? { ...r, [k]: e.target.value } : r)));
-  const input = () => ({ playerId: player.id, date: f.date, exercise: f.exercise, fdmVelocity: f.fdm, points: rows.map((r) => ({ load: r.load, velocity: r.velocity })), source: blocks ? 'Excel' : 'manual' });
+  const input = () => ({ playerId: player.id, testId: editing ? (initial?.testId ?? (test ? test.id : null)) : (test ? test.id : null), date: f.date, exercise: f.exercise, fdmVelocity: f.fdm, points: rows.map((r) => ({ load: r.load, velocity: r.velocity })), source: blocks ? 'Excel' : 'manual' });
   const save = run(async () => {
     if (editing) await updateFvProfile(db, editing, input()); else await addFvProfile(db, input());
     setRows(emptyRows()); setBlocks(null); onDone();
@@ -122,30 +123,34 @@ function Comparacion({ data, cur, player }) {
     <details class="notas"><summary>Cómo se calcula el percentil</summary><p class="muted">Percentil por rango medio, sin el propio jugador, mínimo de muestra el de tus ajustes de percentiles. Vo, Fo ÷ masa y potencia óptima llevan color («más alto es mejor»); en la pendiente el color indica solo la posición en La Liga, porque no hay mejor ni peor.</p></details>`;
 }
 
-export function FvPanel({ player }) {
-  const { db, version } = useApp();
+export function FvPanel({ player, test = null }) {
+  const { db, version, bump } = useApp();
   const [tick, setTick] = useState(0);
   const [sel, setSel] = useState(null);
   const [editId, setEditId] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
   const [msg, setMsg] = useState(null);
   const canvasRef = useRef(null);
-  const reload = () => setTick((t) => t + 1);
+  // Un perfil guardado, corregido, borrado o asignado también cambia la lista de tests del jugador (deja de estar «sin datos aún»): se refresca toda la ficha, no solo este panel.
+  const reload = () => { setTick((t) => t + 1); bump(); };
   const { data } = useLoad(async () => {
     const [profiles, anthro, ref, allProfiles, allPlayers, allAnthro, minN] = await Promise.all([db.fvProfiles.where('playerId').equals(player.id).toArray(), db.anthropometry.where('playerId').equals(player.id).toArray(), getSetting(db, 'fvReference'), db.fvProfiles.toArray(), db.players.toArray(), db.anthropometry.toArray(), getSetting(db, 'percentileMinN')]);
     return { profiles: profiles.sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id), anthro: withReferenceWeights(anthro, [await db.players.get(player.id)]), reference: referenceFrom(ref),
       allProfiles, players: Object.fromEntries(allPlayers.map((p) => [p.id, p])), allAnthro: withReferenceWeights(allAnthro, allPlayers), minN: Number.isInteger(minN) && minN >= 1 ? minN : undefined };
   }, [db, version, player.id, tick]);
   if (!data) return null;
-  const { profiles, anthro, reference } = data;
+  const { anthro, reference } = data;
+  // Solo los perfiles de ESTE test de perfil F–V, más los que aún no tienen test asignado (guardados antes de 9n), que se pueden asignar con un botón.
+  const profiles = test ? data.profiles.filter((p) => (p.testId ?? null) === test.id || (p.testId ?? null) === null) : data.profiles;
   const cur = profiles.find((p) => p.id === sel) ?? profiles[0] ?? null;
   const editing = editId === null ? null : profiles.find((p) => p.id === editId) ?? null;
   const mass = cur ? massNearest(anthro, cur.date) : null;
   const fit = cur ? fitLoadVelocity(cur.points, { fdmVelocity: cur.fdmVelocity, mass: mass?.kg ?? null }) : null;
   const done = () => { setEditId(null); reload(); };
   return html`<${Card} titulo="Perfil carga-velocidad (VBT)" id="fv">
+    ${cur && test && (cur.testId ?? null) === null ? html`<p class="status warn" role="status">Este perfil se guardó sin test asignado, así que aparece en todos los tests de perfil carga-velocidad. <button type="button" class="secondary" onClick=${async () => { try { await asignarFvProfile(db, cur.id, test.id); reload(); } catch (e) { setMsg({ level: 'fail', text: e.message }); } }}>Asignar a «${dn(test.name)}»</button></p>` : null}
     ${cur ? html`
-      ${profiles.length > 1 ? html`<label>Perfil <select value=${cur.id} onChange=${(e) => { setSel(Number(e.target.value)); setConfirmDel(null); }}>${profiles.map((p) => html`<option key=${p.id} value=${p.id}>${fmtDay(p.date)}${p.exercise ? ` · ${p.exercise}` : ''}</option>`)}</select></label>` : null}
+      ${profiles.length > 1 ? html`<label>Perfil <select value=${cur.id} onChange=${(e) => { setSel(Number(e.target.value)); setConfirmDel(null); }}>${profiles.map((p) => html`<option key=${p.id} value=${p.id}>${fmtDay(p.date)}${p.exercise ? ` · ${p.exercise}` : ''}${(p.testId ?? null) === null ? ' · sin test asignado' : ''}</option>`)}</select></label>` : null}
       ${fit.points?.length ? html`<${FvChart} canvasRef=${canvasRef} config=${fvChartConfig({ fit, reference, name: `${playerLabel(player)}${cur.exercise ? ' · ' + cur.exercise : ''}` })} label=${`Relación carga-velocidad de ${playerLabel(player)} el ${fmtDay(cur.date)}: ${fit.points.map((p) => `${p.load} kg ${nf(p.velocity)} m/s`).join(', ')}`} />
         <div class="actions"><button type="button" class="secondary" onClick=${() => canvasRef.current?.toBlob((b) => (b ? downloadBlob(b, `perfil-carga-velocidad-${playerLabel(player)}-${cur.date}.png`.replace(/[^\w.-]+/g, '_')) : setMsg({ level: 'fail', text: 'No se pudo crear la imagen.' })))}>Descargar imagen (PNG)</button></div>` : null}
       <p class=${'fv-conclusion' + (fit.ok ? '' : ' sint')} role="status" title="Umbrales de tu Excel; la pendiente depende también del nivel de fuerza, así que no es una clasificación validada"><span class="fv-conclusion-rot">Conclusión del perfil</span><strong>${classText(fit.class)}</strong> <span class="muted">(clasificación de tu Excel, no validada)</span></p>
@@ -165,8 +170,8 @@ export function FvPanel({ player }) {
         ${confirmDel === cur.id ? html` <button type="button" class="danger" onClick=${async () => { try { await deleteFvProfile(db, cur.id); setSel(null); setConfirmDel(null); reload(); } catch (e) { setMsg({ level: 'fail', text: e.message }); } }}>Confirmar: eliminar este perfil</button> <button type="button" class="secondary" onClick=${() => setConfirmDel(null)}>Cancelar</button>` : html` <button type="button" class="secondary" onClick=${() => setConfirmDel(cur.id)}>Eliminar…</button>`}</p><${Msg} msg=${msg} />
       ${profiles.length > 1 ? html`<div class="table-wrap"><table><caption>Historial de perfiles</caption><thead><tr><th>Fecha</th><th>Ejercicio</th><th class="num">Fo (kg)</th><th class="num">Pendiente</th><th>Perfil</th></tr></thead>
         <tbody>${profiles.map((p) => { const x = fitLoadVelocity(p.points, { fdmVelocity: p.fdmVelocity }); return html`<tr key=${p.id}><th scope="row">${fmtDay(p.date)}</th><td>${p.exercise || '—'}</td><td class="num">${nf(x.fo, 1)}</td><td class="num">${nf(x.slope, 2)}</td><td>${classText(x.class)}</td></tr>`; })}</tbody></table></div>` : null}`
-      : html`<p class="muted">Este jugador aún no tiene perfiles carga-velocidad. Introduce uno a mano o cárgalo desde tu Excel (filas «CARGA» y «VMP»).</p>`}
-    ${editId !== null && editing ? html`<${FvForm} key=${'e' + editId} player=${player} editing=${editId} initial=${editing} setInitial=${() => {}} onDone=${done} />` : html`<${FvForm} key=${'n' + profiles.length} player=${player} editing=${null} initial=${null} setInitial=${() => {}} onDone=${() => { setSel(null); reload(); }} />`}
+      : html`<p class="muted">Este jugador aún no tiene perfiles carga-velocidad en este test. Introduce uno a mano o cárgalo desde tu Excel (filas «CARGA» y «VMP»).</p>`}
+    ${editId !== null && editing ? html`<${FvForm} key=${'e' + editId} player=${player} test=${test} editing=${editId} initial=${editing} setInitial=${() => {}} onDone=${done} />` : html`<${FvForm} key=${'n' + profiles.length} player=${player} test=${test} editing=${null} initial=${null} setInitial=${() => {}} onDone=${() => { setSel(null); reload(); }} />`}
     <${ReferenceEditor} key=${'r' + tick} reference=${reference} onDone=${reload} />
     <details class="notas"><summary>Método</summary><p class="muted"><strong>Método:</strong> recta de mínimos cuadrados velocidad = a × carga + b con ≥ 3 cargas distintas; Fo = −b/a (kg), Vo = b (m/s), pendiente = −a × 1000, FDM = carga con la que la velocidad llega a la velocidad de la FDM, potencia óptima = Fo × Vo ÷ 4. Los umbrales del perfil (pendiente ≥ 13,1 Moderate VELOCITY; ≥ 11,1 Slight VELOCITY; ≥ 9 BALANCED; ≥ 7 Slight FORCE; ≥ 1 Moderate FORCE) y la línea Balanced son los de tu Excel; no están contrastados con una fuente publicada. La pendiente es V0 ÷ L0, así que depende del nivel de fuerza además de la orientación: un jugador más fuerte tiene una pendiente menor sin ser «más de fuerza». Fo y Vo son extrapolaciones; cuanto más lejos de las cargas probadas, menos fiables. Tu Excel calcula «Vo» como a + b (velocidad con 1 kg); aquí es el intercepto, y la diferencia con Ansu es de un 0,7 %.</p></details>
   <//>`;

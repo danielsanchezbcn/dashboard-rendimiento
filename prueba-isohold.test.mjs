@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { createDb, initDb } from './db.js';
 import { seedInitialCatalog } from './catalogo-inicial.js';
 import { expandRelative, isViewable, hasData } from './relativos.js';
-import { pairContext } from './isohold.js';
+import { pairContext, pairNameOf } from './isohold.js';
 import { withReferenceWeights, G } from './relaciones.js';
 import { setReferenceWeight, clearReferenceWeight } from './antropometria.js';
 let fail = 0; const check = (n, ok, d = '') => { console.log((ok ? 'OK   ' : 'FAIL ') + n + (ok ? '' : ' ' + d)); if (!ok) fail = 1; };
@@ -64,4 +64,10 @@ await clearReferenceWeight(db, p1);
 check('peso de referencia: eliminar lo borra y se audita', (await db.players.get(p1)).referenceWeight === undefined && (await db.auditLog.toArray()).some((a) => a.action === 'peso-referencia-eliminado'));
 let bad = 0; for (const x of ['', 'x', '-3']) { try { await setReferenceWeight(db, p1, x, 'kg'); bad++; } catch {} } try { await setReferenceWeight(db, p1, '70', 'stone'); bad++; } catch {}
 check('peso de referencia: valor y unidad válidos obligatorios', bad === 0);
+// Pareja Iso-Hold → Iso-Push: el nombre se busca sin distinguir mayúsculas ni espacios, y el nombre antiguo del Ankle Iso-Hold (el duplicado que la migración conserva) apunta a la misma pareja.
+check('pareja: nombre exacto', pairNameOf('Knee Iso-Hold 20 s') === 'Run-Specific Knee Iso-Push');
+check('pareja: mayúsculas y espacios no importan', pairNameOf('  hip iso-hold 20 S ') === 'Run-Specific Hip Iso-Push');
+check('pareja: el prefijo «Run-Specific» del Iso-Hold no impide encontrarla (hip, knee y ankle)', ['Hip', 'Knee', 'Ankle'].every((z) => pairNameOf(`Run-Specific ${z} Iso-Hold 20 s`) === `Run-Specific ${z} Iso-Push` && pairNameOf(`${z} Iso-Hold 20 s`) === `Run-Specific ${z} Iso-Push`));
+check('pareja: el talón sentado conserva la suya', pairNameOf('Single-Leg Seated Calf Raise Iso-Hold 20 s') === 'Single-Leg Seated Calf Raise');
+check('pareja: un test que no es Iso-Hold no tiene pareja', pairNameOf('CMJ') === null && pairNameOf(null) === null);
 process.exit(fail);

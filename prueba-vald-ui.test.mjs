@@ -64,6 +64,6 @@ check('resumen: 6 sesiones nuevas', /6\s*sesiones nuevas/.test(text().replace(/\
 await click(btn(document, 'Guardar importación'), 600);
 check('guardado: 6 sesiones y lote en el historial con origen VALD', /6 sesiones creadas/.test(text()) && /vald\.csv/.test(card('Importaciones anteriores').textContent));
 captured = null;
-await click(btn(document, 'Descargar informe (CSV)'));
+await click(btn(document, 'Descargar informe (CSV)'), 600);
 check('informe incluye la fusión y no los valores', captured && /fusionadas/.test(await captured.text()) && !/355/.test(await captured.text()));
 process.exit(failed ? 1 : 0);

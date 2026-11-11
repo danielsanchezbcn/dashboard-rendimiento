@@ -523,3 +523,8 @@ table.pano.norm .badge { white-space: normal; font-size: .68rem; padding: .05rem
 .pano-wrap { overflow-x: visible; }
 .panorama .filters { align-items: flex-end; }
 .panorama + .pano-wrap, .panorama .pano-wrap + .pano-wrap { margin-top: .8rem; }
+
+/* Asimetrías: 5 columnas; asimetría, valores y fecha centrados bajo su título. */
+table.asim thead th:nth-child(1) { width: 22%; } table.asim thead th:nth-child(2) { width: 30%; } table.asim thead th:nth-child(3) { width: 13%; } table.asim thead th:nth-child(4) { width: 20%; } table.asim thead th:nth-child(5) { width: 15%; }
+table.asim thead th:nth-child(n+3), table.asim td.num { text-align: center; }
+table.asim td.asim-fecha { white-space: normal; }

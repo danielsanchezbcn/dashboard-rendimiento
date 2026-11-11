@@ -38,14 +38,14 @@ export function profileFromSetting(cfg) {
 export const RADAR_REFS = [
   { key: 'p50', label: 'P50 La Liga', group: 'liga' },
   { key: 'p75', label: 'P75 La Liga', group: 'liga' },
-  { key: 'p50pos', label: 'P50 La Liga por posición', group: 'liga', needsPosition: true },
-  { key: 'p75pos', label: 'P75 La Liga por posición', group: 'liga', needsPosition: true },
+  { key: 'p50pos', label: 'P50 La Liga by position', group: 'liga', needsPosition: true },
+  { key: 'p75pos', label: 'P75 La Liga by position', group: 'liga', needsPosition: true },
   { key: 'premier50', label: 'P50 Premier League', group: 'premier' },
   { key: 'premier75', label: 'P75 Premier League', group: 'premier' },
-  { key: 'first', label: 'Primera medida del jugador', group: 'jugador' },
+  { key: 'first', label: 'Player first measurement', group: 'jugador' },
   { key: 'pa', label: 'Personal Average', group: 'jugador' },
   { key: 'pb', label: 'Personal Best', group: 'jugador' },
-  { key: 'last', label: 'Última medida del jugador', group: 'jugador' },
+  { key: 'last', label: 'Player latest measurement', group: 'jugador' },
 ];
 export const RADAR_REFS_DEFAULT = ['p50', 'premier50', 'pa'];
 export const radarRefsFromSetting = (v) => (Array.isArray(v) ? v.filter((k) => RADAR_REFS.some((r) => r.key === k)) : RADAR_REFS_DEFAULT);

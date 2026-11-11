@@ -30,27 +30,51 @@ const server = http.createServer((req, res) => {
     const db = await new Promise((ok) => { const r = indexedDB.open('dashboard-rendimiento'); r.onsuccess = () => ok(r.result); });
     const all = (st) => new Promise((ok) => { const rq = db.transaction(st).objectStore(st).getAll(); rq.onsuccess = () => ok(rq.result); });
     const tests = await all('tests'), vars = await all('variables'); const now = new Date().toISOString(); const out = { players: [], byTest: {} };
-    const seed = (test, pid, date, k, i) => {
+    const seed = (test, pid, date, k, i, mult = 1) => {
       const values = {};
       for (const v of vars.filter((x) => x.testId === test.id && x.kind === 'raw' && !x.archived)) {
-        const rsi = /\bRSI\b/i.test(v.name); const b = rsi ? [0.5, 0.9, 0.6][k] + i * 0.01 : 30 + (v.id % 7) + [2, 0, 3][k] + i;
+        const rsi = /\bRSI\b/i.test(v.name); const b = rsi ? [0.5, 0.9, 0.6][k] + i * 0.01 : (30 + (v.id % 7) + [2, 0, 3][k] + i) * mult;
         values[v.id] = v.sides === 'LR' ? { L: b, R: b + ((v.id % 3) - 1) * (1 + k * 0.5) } : { S: /asym/i.test(v.name) ? ((v.id % 2) ? 1 : -1) * (3 + k) : b };
       }
       return new Promise((ok) => { const tx = db.transaction('sessions', 'readwrite'); tx.objectStore('sessions').add({ playerId: pid, testId: test.id, protocolId: null, date, time: '', values, reps: { L: 3, R: 3, S: 3, total: 3 }, status: 'valid', excludedReason: '', source: 'sintetico', createdAt: now, updatedAt: now }); tx.oncomplete = ok; });
     };
     const T = (n) => tests.find((t) => t.name === n); const per = tests.find((t) => t.blockKey === 'perimetros');
-    for (const [k, n] of Object.entries({ cmj: 'CMJ', sl: 'SL CMJ', hop: 'Double-Leg Hop Test', dj: 'DL Drop Jump 30 cm', sj: 'Squat Jump', hip: 'Run-Specific Hip Iso-Push', nordic: 'Nordic Hamstring Exercise', jur: 'Jurdan Test' })) out.byTest[k] = T(n).id;
+    for (const [k, n] of Object.entries({ cmj: 'CMJ', sl: 'SL CMJ', hop: 'Double-Leg Hop Test', dj: 'DL Drop Jump 30 cm', sj: 'Squat Jump', hip: 'Run-Specific Hip Iso-Push', kpush: 'Run-Specific Knee Iso-Push', khold: 'Knee Iso-Hold 20 s', bsq: 'Back Squat Force–Velocity Profile', nordic: 'Nordic Hamstring Exercise', jur: 'Jurdan Test' })) out.byTest[k] = T(n).id;
     out.byTest.per = per.id;
     for (let i = 0; i < 12; i++) {
       const id = await new Promise((ok) => { const rq = db.transaction('players', 'readwrite').objectStore('players').add({ jerseyName: 'J' + (i + 1), active: true, referenceWeight: { value: 75, unit: 'kg' }, createdAt: now, updatedAt: now }); rq.onsuccess = () => ok(rq.result); });
       out.players.push(id);
       for (const [k, d] of [[0, '2026-08-01'], [1, '2026-09-01'], [2, '2026-10-01']]) for (const key of ['cmj', 'hop', 'dj', 'sj']) await seed(T({ cmj: 'CMJ', hop: 'Double-Leg Hop Test', dj: 'DL Drop Jump 30 cm', sj: 'Squat Jump' }[key]), id, d, k, i);
-      await seed(T('SL CMJ'), id, '2026-10-01', 1, i); await seed(per, id, '2026-10-01', 1, i); await seed(T('Run-Specific Hip Iso-Push'), id, '2026-10-01', 1, i); await seed(T('Nordic Hamstring Exercise'), id, '2026-10-01', 1, i); await seed(T('Jurdan Test'), id, '2026-10-01', 1, i); await seed(T('DL Drop Jump 45 cm'), id, '2026-10-02', 2, i);
+      await seed(T('SL CMJ'), id, '2026-10-01', 1, i); await seed(per, id, '2026-10-01', 1, i); await seed(T('Run-Specific Hip Iso-Push'), id, '2026-10-01', 1, i); await seed(T('Nordic Hamstring Exercise'), id, '2026-10-01', 1, i); await seed(T('Jurdan Test'), id, '2026-10-01', 1, i); await seed(T('Run-Specific Knee Iso-Push'), id, '2026-10-01', 1, i, 70); for (const [k2, d2] of [[0, '2026-09-01'], [1, '2026-10-01']]) await seed(T('Knee Iso-Hold 20 s'), id, d2, k2, i); await seed(T('DL Drop Jump 45 cm'), id, '2026-10-02', 2, i);
     }
     out.vars = Object.fromEntries(vars.map((v) => [v.id, { name: v.name, testId: v.testId }]));
     return out;
   });
   const P = ids.players[5], iP = 5; const t = ids.byTest;
+
+  // ---- Iso-Hold: Normative Benchmarking arriba del todo, con la carga, el MVIC iso-push, el %PIMA y el %BW/%SW y sus percentiles
+  await go(`#jugador-${P}?t=${t.khold}&b=fuerza`, '.evo table.pano', 1500);
+  await shot('isohold');
+  const iso = await page.evaluate(() => ({ primero: document.querySelector('.evo')?.firstElementChild?.className ?? '', cab: [...document.querySelectorAll('table.pano thead tr:first-child th')].map((x) => x.innerText.split('\n')[0].trim()), fil: Object.fromEntries([...document.querySelectorAll('table.pano tbody tr')].map((r) => [r.querySelector('th').innerText.trim(), [...r.querySelectorAll('td')].map((d) => d.innerText.trim())])) }));
+  check('Iso-Hold: Normative Benchmarking es lo primero del test', iso.primero === 'panorama', iso.primero);
+  check('Iso-Hold: una columna para la carga, el MVIC iso-push, el %PIMA y el %BW/%SW', iso.cab.join('|') === 'carga externa (kg)|mvic iso-push (kg)|%pima|%bw', iso.cab.join('|'));
+  check('Iso-Hold: las cuatro variables, calculadas incluidas, tienen percentil de La Liga', (iso.fil['Valor (percentil La Liga)'] ?? []).length === 4 && (iso.fil['Valor (percentil La Liga)'] ?? []).every((x) => /^(\d+|n<\d+)$/.test(x)), JSON.stringify(iso.fil));
+
+  // Mismo test renombrado con el prefijo «Run-Specific» (como en la base del usuario): debe seguir encontrando su Iso-Push y calcular MVIC y %PIMA.
+  await page.evaluate(async (id) => { const db = await new Promise((ok) => { const r = indexedDB.open('dashboard-rendimiento'); r.onsuccess = () => ok(r.result); }); await new Promise((ok, no) => { const tx = db.transaction('tests', 'readwrite'); const st = tx.objectStore('tests'); const rq = st.get(id); rq.onsuccess = () => { const t = rq.result; t.name = 'Run-Specific Knee Iso-Hold 20 s'; st.put(t); }; tx.oncomplete = ok; tx.onerror = () => no(tx.error); }); }, t.khold);
+  await page.reload(); await page.waitForSelector('.evo table.pano', { timeout: 15000 }); await page.waitForTimeout(1200);
+  const iso2 = await page.evaluate(() => [...document.querySelectorAll('table.pano tbody tr')][0].innerText.replace(/\s+/g, ' '));
+  check('Iso-Hold renombrado «Run-Specific …»: el MVIC iso-push y el %PIMA se siguen calculando', !/—/.test(iso2) && /run-specific knee iso-hold/.test(await page.locator('.test-sticky h3').innerText()), iso2);
+
+  // ---- Perfil carga-velocidad: al guardarlo, el test deja de aparecer «sin datos aún» en la lista (sin recargar la página)
+  await go(`#jugador-${P}?t=${t.bsq}&b=fuerza`, 'form[aria-label="Nuevo perfil carga-velocidad"]', 800);
+  const itemBsq = page.locator('.test-item', { hasText: 'back squat force–velocity profile' }).first();
+  check('Perfil F–V sin perfil guardado: el test aparece «sin datos aún»', /sin datos aún/.test(await itemBsq.innerText()));
+  for (const [i, [kg, vel]] of [[40, '1,20'], [60, '0,95'], [80, '0,70']].entries()) { await page.getByLabel(`Carga ${i + 1} (kg)`).fill(String(kg)); await page.getByLabel(`Velocidad ${i + 1} (m/s)`).fill(vel); }
+  await page.locator('form[aria-label="Nuevo perfil carga-velocidad"] button[type=submit]').click();
+  await page.waitForSelector('canvas', { timeout: 15000 }); await page.waitForTimeout(800);
+  check('Perfil F–V guardado: el test ya no aparece «sin datos aún» (la lista se refresca sola)', !/sin datos aún/.test(await itemBsq.innerText()) && !/vacio/.test(await itemBsq.getAttribute('class')), await itemBsq.innerText());
+  await page.evaluate(async () => { const db = await new Promise((ok) => { const r = indexedDB.open('dashboard-rendimiento'); r.onsuccess = () => ok(r.result); }); await new Promise((ok) => { const tx = db.transaction('fvProfiles', 'readwrite'); tx.objectStore('fvProfiles').clear(); tx.oncomplete = ok; }); });
 
   // ---- Menú y pestañas
   await go('#inicio', '.tabs-nav');
@@ -139,6 +163,17 @@ const server = http.createServer((req, res) => {
   const caps = await texts('table.asim caption'); const filas = await texts('table.asim tbody th');
   check('Asimetrías: aparecen cmj, sl cmj y perímetros', ['cmj', 'sl cmj', 'perímetros'].every((n) => caps.includes(n)), caps.join('|'));
   check('Asimetrías: Nordic, torque y 100 ms fuera; las 5 asimetrías de CMJ dentro', !caps.some((c) => /nordic/i.test(c)) && !filas.some((f) => /torque|(force|rfd) at 100 ms/i.test(f)) && filas.filter((f) => /asym$/i.test(f)).length === 5, filas.join('|'));
+  const centr = await page.evaluate(() => { const t = document.querySelector('table.asim'); const al = (e) => getComputedStyle(e).textAlign; return [...t.querySelectorAll('thead th')].slice(2).every((h) => al(h) === 'center') && [...t.querySelectorAll('tbody td.num')].every((d) => al(d) === 'center') && t.querySelectorAll('thead th').length === 5; });
+  check('Asimetrías: 5 columnas y Asimetría · Valores · Fecha centrados bajo su título', centr);
+  const f1 = await texts('table.asim tbody td.asim-fecha');
+  check('Asimetrías con Personal Average: la columna indica PA y su periodo', f1.length > 0 && f1.every((x) => /^PA · /.test(x)), f1.slice(0, 2).join('|'));
+  await page.locator('input[name="asim-base"]').nth(1).check(); await page.waitForTimeout(300);
+  const f2 = await texts('table.asim tbody td.asim-fecha');
+  check('Asimetrías con Personal Best: la columna indica PB y la fecha', f2.length > 0 && f2.every((x) => /^PB · \d/.test(x)), f2.slice(0, 2).join('|'));
+  await page.locator('input[name="asim-base"]').nth(2).check(); await page.waitForTimeout(300);
+  const f3 = await texts('table.asim tbody td.asim-fecha');
+  check('Asimetrías con Actual: la columna muestra la fecha de cada asimetría', f3.length > 0 && f3.every((x) => /^\d{2}\/\d{2}\/\d{4}$/.test(x.trim())), f3.slice(0, 2).join('|'));
+  await page.locator('input[name="asim-base"]').nth(0).check(); await page.waitForTimeout(300);
   check('Asimetrías: barras azules (L) y naranjas (R) y texto coloreado', (await page.locator('.asim-svg .bar-l').count()) > 0 && (await page.locator('.asim-svg .bar-r').count()) > 0 && (await page.locator('table.asim td .asim-r').count()) > 0 && (await page.locator('table.asim td .asim-l').count()) > 0);
   check('Asimetrías: encabezados de bloque y subbloque en mayúscula', (await page.locator('.asim-h-bloque').first().evaluate((e) => getComputedStyle(e).textTransform)) === 'uppercase' && (await page.locator('.asim-h-sub').first().evaluate((e) => getComputedStyle(e).textTransform)) === 'uppercase');
   const colores = await page.evaluate(() => { const c = (s) => getComputedStyle(document.querySelector(s)).color; return { l: c('table.asim td .asim-l'), r: c('table.asim td .asim-r') }; });

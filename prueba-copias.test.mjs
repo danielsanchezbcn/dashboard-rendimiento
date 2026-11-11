@@ -110,7 +110,11 @@ for (const [gzip, pw] of [[false, ''], [true, ''], [false, 'clave-segura-1'], [t
   const big = await B.buildBackup(db, D.APP_VERSION);
   const { blob } = await B.encodeBackup(big, { gzip: true, password: 'clave-segura-1' });
   const { inner } = await B.decodeBackupObject(B.parseBackupText(await blob.text()), 'clave-segura-1');
-  check('5.000 filas: ida y vuelta válida', (await B.validateBackup(db, inner)).ok && inner.counts.auditLog === big.counts.auditLog);
+  const vb = await B.validateBackup(db, inner);
+  check('5.000 filas: ida y vuelta válida', vb.ok && inner.counts.auditLog === big.counts.auditLog, JSON.stringify(vb.errors ?? []).slice(0, 300));
+  // Un campo con valor undefined se pierde al pasar por JSON: la suma de verificación debe ignorarlo para no avisar de un fichero «dañado» que está bien.
+  check('la suma de verificación ignora los campos undefined (como JSON)', (await B.checksumTables({ t: [{ a: undefined, b: 2 }] })) === (await B.checksumTables({ t: [{ b: 2 }] })));
+  check('el catálogo inicial no deja variables sin test', (await db.variables.toArray()).every((v) => Number.isInteger(v.testId)));
 }
 
 console.log(failed ? `\n${failed} PRUEBA(S) FALLIDA(S)` : '\nTodas las pruebas pasan');

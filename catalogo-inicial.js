@@ -185,7 +185,7 @@ async function sembrarCatalogo(db) {
         await addVar(t, { name: 'Peak Force asimetría (%)', unit: '%', sides: 'single', kind: 'derived', manifestationId: manId['Max Isometric Strength'], formula: { op: 'ASIMETRIA', operands: [peak], params: {}, text: '' } });
         for (const e of ISO_EXPLOSIVE) await addVar(t, { name: e.name, unit: e.unit, sides: e.sides, manifestationId: manId[e.manifestation], notes: e.notes });
       }
-      for (const [test, vars] of Object.entries(VARIABLES_BY_TEST)) for (const x of vars) await addVar(testIds[test], { ...x, manifestationId: x.manifestation ? manId[x.manifestation] : x.manifestationId });
+      for (const [test, vars] of Object.entries(VARIABLES_BY_TEST)) for (const x of vars) if (testIds[test]) await addVar(testIds[test], { ...x, manifestationId: x.manifestation ? manId[x.manifestation] : x.manifestationId });
       await ensureDerived(db, ts, counts);
       await ensureGroinAnkle(db, ts, counts);
     }

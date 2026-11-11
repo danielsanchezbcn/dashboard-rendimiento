@@ -25,10 +25,14 @@ export async function readSnapshot(db) {
 
 export const countTables = (tables) => Object.fromEntries(Object.keys(tables).sort().map((n) => [n, tables[n].length]));
 
+// Los campos con valor undefined se omiten, igual que hace JSON.stringify: si no, una copia con un campo undefined cambiaría de suma de verificación
+// al guardarse y leerse (JSON los pierde) y se avisaría de un fichero «dañado» sin estarlo.
 export function canonicalStringify(v) {
   if (v === null || typeof v !== 'object') return JSON.stringify(v);
-  if (Array.isArray(v)) return '[' + v.map(canonicalStringify).join(',') + ']';
-  return '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + canonicalStringify(v[k])).join(',') + '}';
+  if (Array.isArray(v)) return '[' + v.map((x) => canonicalStringify(x) ?? 'null').join(',') + ']';
+  const partes = [];
+  for (const k of Object.keys(v).sort()) { const s = canonicalStringify(v[k]); if (s !== undefined) partes.push(JSON.stringify(k) + ':' + s); }
+  return '{' + partes.join(',') + '}';
 }
 
 export async function sha256Hex(text) {

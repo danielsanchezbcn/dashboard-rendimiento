@@ -94,14 +94,14 @@ const baseOptions = (c, unit, yMin, yMax) => ({
 // Gráfico único con los dos lados (azul = izquierda, naranja = derecha): sesiones, Personal Average (discontinua), Personal Best (punteada) y Target (verde con bandera).
 function lineConfig(c, { sides, series, unit, yMin, yMax, tg, refLines = [], info, sel = [] }) {
   const lr = sides.length === 2;
-  const sfx = (sd) => (lr ? ` (${sd === 'L' ? 'I' : 'D'})` : '');
+  const sfx = (sd) => (lr ? ` (${sd})` : '');
   const all = sides.flatMap((sd) => series[sd].valid.map((p) => dayNum(p.date)));
   const x0 = all.length ? Math.min(...all) : 0, x1 = all.length ? Math.max(...all) : 1;
   const datasets = [];
   for (const sd of sides) {
     const col = colorLado(sd);
-    datasets.push({ side: sd, label: `Average de sesión${sfx(sd)}`, data: series[sd].valid.map((p) => ({ x: dayNum(p.date), y: p.value, p })), borderColor: col, backgroundColor: col, pointRadius: series[sd].valid.map((p) => (sel.includes(sd + ':' + p.sessionId) ? 9 : 4)), pointBorderColor: series[sd].valid.map((p) => (sel.includes(sd + ':' + p.sessionId) ? '#FFFFFF' : col)), pointBorderWidth: series[sd].valid.map((p) => (sel.includes(sd + ':' + p.sessionId) ? 3 : 1)), hitRadius: 12, tension: 0, borderWidth: 2 });
-    if (series[sd].excluded.length) datasets.push({ label: `Sesión excluida${sfx(sd)}`, data: series[sd].excluded.map((p) => ({ x: dayNum(p.date), y: p.value })), showLine: false, borderColor: PAL.texto, backgroundColor: 'transparent', pointStyle: 'crossRot', pointRadius: 6, borderWidth: 2 });
+    datasets.push({ side: sd, label: `Session average${sfx(sd)}`, data: series[sd].valid.map((p) => ({ x: dayNum(p.date), y: p.value, p })), borderColor: col, backgroundColor: col, pointRadius: series[sd].valid.map((p) => (sel.includes(sd + ':' + p.sessionId) ? 9 : 4)), pointBorderColor: series[sd].valid.map((p) => (sel.includes(sd + ':' + p.sessionId) ? '#FFFFFF' : col)), pointBorderWidth: series[sd].valid.map((p) => (sel.includes(sd + ':' + p.sessionId) ? 3 : 1)), hitRadius: 12, tension: 0, borderWidth: 2 });
+    if (series[sd].excluded.length) datasets.push({ label: `Excluded session${sfx(sd)}`, data: series[sd].excluded.map((p) => ({ x: dayNum(p.date), y: p.value })), showLine: false, borderColor: PAL.texto, backgroundColor: 'transparent', pointStyle: 'crossRot', pointRadius: 6, borderWidth: 2 });
     // el Personal Best no se dibuja como línea (es el punto más alto) y el Personal Average solo si se marca entre las líneas de referencia (10/11/2026)
   }
   refLines.forEach((r) => datasets.push({ label: r.label, data: [{ x: x0, y: r.value }, { x: x1 === x0 ? x0 + 1 : x1, y: r.value }], borderColor: r.color, borderDash: r.dash, pointRadius: 0, borderWidth: r.w }));
@@ -110,7 +110,7 @@ function lineConfig(c, { sides, series, unit, yMin, yMax, tg, refLines = [], inf
   const o = baseOptions(c, unit, yMin, yMax);
   o.plugins.tooltip.callbacks.label = (it) => {
     const p = it.raw?.p;
-    return p ? `${it.dataset.label}: ${nf(p.value)} ${unit ?? ''} · ${p.reps ?? '?'} rep.` : `${it.dataset.label}: ${nf(it.parsed.y)} ${unit ?? ''}`;
+    return p ? `${it.dataset.label}: ${nf(p.value)} ${unit ?? ''} · ${p.reps ?? '?'} reps` : `${it.dataset.label}: ${nf(it.parsed.y)} ${unit ?? ''}`;
   };
   o.plugins.tooltip.callbacks.afterLabel = (it) => (it.raw?.p && info ? info(it.raw.p.value) : []); // percentil de La Liga y zona de la Premier League del punto
   return { type: 'line', data: { datasets }, options: o };
@@ -253,9 +253,9 @@ function asymConfig(c, asym, variable, deg = false) {
     const meta = ch.getDatasetMeta(0); const g = ch.ctx; g.save(); g.font = 'bold 12px sans-serif'; g.fillStyle = PAL.texto; g.textBaseline = 'middle';
     meta.data.forEach((bar, i) => { const v = asym[i].pct; g.textAlign = v >= 0 ? 'left' : 'right'; g.fillText(deg ? `${nf(Math.abs(v), 1)} °` : `${nf(Math.abs(v), 1)} %`, bar.x + (v >= 0 ? 6 : -6), bar.y); });
     g.restore(); } };
-  return { type: 'bar', plugins: [etiquetas], data: { labels: asym.map((a) => fmtDay(a.date)), datasets: [{ label: deg ? 'Asimetría (°)' : 'Asimetría (%)', data: asym.map((a) => a.pct), backgroundColor: asym.map((a) => (a.pct >= 0 ? PAL.der : PAL.izq)), barPercentage: 0.7 }] },
+  return { type: 'bar', plugins: [etiquetas], data: { labels: asym.map((a) => fmtDay(a.date)), datasets: [{ label: deg ? 'Asymmetry (°)' : 'Asymmetry (%)', data: asym.map((a) => a.pct), backgroundColor: asym.map((a) => (a.pct >= 0 ? PAL.der : PAL.izq)), barPercentage: 0.7 }] },
     options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { right: 36, left: 4 } },
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (it) => `${fmtA(it.parsed.x)} · I ${nf(asym[it.dataIndex].left)} / D ${nf(asym[it.dataIndex].right)} ${variable.unit ?? ''}` } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (it) => `${fmtA(it.parsed.x)} · L ${nf(asym[it.dataIndex].left)} / R ${nf(asym[it.dataIndex].right)} ${variable.unit ?? ''}` } } },
       scales: { x: { min: -lim, max: lim, title: { display: true, text: deg ? 'Asimetría interlateral (°, right − left) · left ◄  ► right' : 'Asimetría interlateral (%) · left ◄  ► right', color: PAL.texto }, ticks: { color: PAL.texto, callback: (v) => `${Math.abs(v)}` }, grid: { color: (ctx) => (ctx.tick.value === 0 ? PAL.texto : PAL.rejilla) } },
         y: { ticks: { color: PAL.texto }, grid: { display: false } } } } };
 }
@@ -332,10 +332,10 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const abs = srcVar ? (() => { const ser = Object.fromEntries(sides.map((sd) => [sd, buildSeries(sessions, srcVar.id, sd, f)])); return { variable: srcVar, stats: Object.fromEntries(sides.map((sd) => [sd, { pa: personalAverage(ser[sd].valid), pb: personalBestFor(sessions, srcVar, sd, f) }])), current: Object.fromEntries(sides.map((sd) => [sd, currentResult(ser[sd].valid)])) }; })() : null;
   const ctx = refData ? refContext({ refData, test, variable, sides, filters: f, playerId: player.id, positionId, srcVar }) : null;
   const posNombre = positions.find((p) => p.id === positionId)?.name;
-  const REF_OPTS = [['p50', 'P50 La Liga', 'p50', [], 2], ['p50pos', `P50 La Liga (${posNombre ?? 'posición'})`, 'p50pos', [8, 4], 2], ['p75', 'P75 La Liga', 'p75', [2, 3], 2], ['p75pos', `P75 La Liga (${posNombre ?? 'posición'})`, 'p75pos', [10, 3, 2, 3], 2], ['premier50', 'P50 Premier League', 'premier50', [], 1.5], ['premier75', 'P75 Premier League', 'premier75', [8, 3], 1.5]];
+  const REF_OPTS = [['p50', 'P50 La Liga', 'p50', [], 2], ['p50pos', `P50 La Liga (${posNombre ?? 'position'})`, 'p50pos', [8, 4], 2], ['p75', 'P75 La Liga', 'p75', [2, 3], 2], ['p75pos', `P75 La Liga (${posNombre ?? 'position'})`, 'p75pos', [10, 3, 2, 3], 2], ['premier50', 'P50 Premier League', 'premier50', [], 1.5], ['premier75', 'P75 Premier League', 'premier75', [8, 3], 1.5]];
   // Por defecto: P50 La Liga y P50 Premier League. «none» = ninguna marcada.
   const chosen = q.rl === undefined ? ['p50', 'premier50'] : String(q.rl).split(',').filter((x) => x && x !== 'none');
-  const paOpts = sides.map((sd) => ['pa' + sd, variable.sides === 'LR' ? `Personal Average (${sd === 'L' ? 'I' : 'D'})` : 'Personal Average', [6, 4], 2, variable.sides === 'LR' ? colorLado(sd) : PAL.texto, stats[sd].pa.defined ? stats[sd].pa.value : null]);
+  const paOpts = sides.map((sd) => ['pa' + sd, variable.sides === 'LR' ? `Personal Average (${sd})` : 'Personal Average', [6, 4], 2, variable.sides === 'LR' ? colorLado(sd) : PAL.texto, stats[sd].pa.defined ? stats[sd].pa.value : null]);
   const opts = [...REF_OPTS.map(([k, label, , dash, w]) => [k, label, dash, w, k.startsWith('premier') ? PAL.premier : PAL.laLiga, ctx?.lines[k] ?? null]), ...paOpts];
   const refLines = opts.filter(([k, , , , , v]) => chosen.includes(k) && v != null).map(([k, label, dash, w, color, v]) => ({ k, label, value: v, dash, w, color }));
   const all = sides.flatMap((sd) => [...series[sd].valid, ...series[sd].excluded].map((p) => p.value).concat(tg[sd] ? [tg[sd].value] : [])).concat(refLines.map((r) => r.value));
@@ -427,19 +427,23 @@ export function ResultadosJugador({ player, query = {}, edicion = null, antrop =
     const anthropometry = withReferenceWeights(await db.anthropometry.where('playerId').equals(player.id).toArray(), [await db.players.get(player.id)]);
     let sessions = []; const omitted = {};
     for (const t of catalog.tests) { const e = expandRelative(catalog.variables, t.id, raw.filter((s) => s.testId === t.id), anthropometry, { tests: catalog.tests, allSessions: raw }); sessions = sessions.concat(e.sessions); Object.assign(omitted, e.omitted); }
-    const [targets, positions, hist] = await Promise.all([db.targets.toArray(), db.positions.toArray(), db.playerPositions.where('playerId').equals(player.id).toArray()]);
-    return { catalog, sessions, omitted, targets, positions, positionId: positionOnDate(hist).principal?.positionId ?? null };
+    const [targets, positions, hist, fvProfiles] = await Promise.all([db.targets.toArray(), db.positions.toArray(), db.playerPositions.where('playerId').equals(player.id).toArray(), db.fvProfiles.where('playerId').equals(player.id).toArray()]);
+    return { catalog, sessions, omitted, targets, positions, fvProfiles, positionId: positionOnDate(hist).principal?.positionId ?? null };
   }, [db, player.id, version, tick]);
   const block = BLOQUES.some(([k]) => k === query.b) ? query.b : 'fuerza';
   const testId = query.t ? Number(query.t) : null;
   const setQ = (patch) => replaceQuery(`jugador-${player.id}`, { ...query, ...patch });
   if (error) return html`<p class="status fail">${error}</p>`;
   if (!data) return html`<p>Cargando…</p>`;
-  const { catalog, sessions, omitted, targets, positions, positionId } = data;
+  const { catalog, sessions, omitted, targets, positions, fvProfiles, positionId } = data;
   const hasSessions = (t) => sessions.some((s) => s.testId === t.id);
+  // Los perfiles carga-velocidad no se guardan como sesiones: el test tiene datos si hay un perfil suyo, o uno sin test asignado (guardado antes de 9n).
+  const hasFv = (t) => vbtTest(t) && fvProfiles.some((p) => (p.testId ?? null) === t.id || (p.testId ?? null) === null);
+  const sinAsignar = (t) => vbtTest(t) && !fvProfiles.some((p) => (p.testId ?? null) === t.id) && fvProfiles.some((p) => (p.testId ?? null) === null);
   const loadTest = (t) => catalog.variables.some((v) => v.testId === t.id && !v.archived && v.kind !== 'derived' && LOAD_VARIABLE_NAMES.includes(v.name)); // Iso-Hold y RM: la carga se escribe a mano
   const vbtTest = (t) => /velocity profile/i.test(t.name); // perfiles fuerza–velocidad: el perfil carga-velocidad se introduce aquí
   const angTest = (t) => t.name === 'Jurdan Test'; // test de ángulos: se mide a partir de fotografías (herramienta integrada)
+  const conDatos = (t) => hasSessions(t) || hasFv(t);
   const selectable = (t) => hasSessions(t) || loadTest(t) || vbtTest(t) || angTest(t);
   const allOf = (b) => catalog.tests.filter((t) => (t.blockKey ?? 'fuerza') === b && !t.archived);
   const tests = allOf(block);
@@ -451,12 +455,12 @@ export function ResultadosJugador({ player, query = {}, edicion = null, antrop =
   const ordered = (g) => tests.filter((t) => mName(t) === g).map((t, i) => [t, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([t]) => t);
   const cuerpoTest = () => !test ? html`<p class="muted">Elige un test de la lista.</p>` : html`
       <div class="test-sticky"><span class="muted">${playerLabel(player)} ·</span> <h3>${dn(test.name)}</h3></div>
-      ${hasSessions(test) ? html`<${PanelTest} key=${test.id} player=${player} test=${test} catalog=${catalog} sessions=${sessions.filter((s) => s.testId === test.id)} omitted=${omitted} reload=${reload} q=${query} setQ=${setQ} targets=${targets} positions=${positions} positionId=${positionId} />` : html`<p class="muted">Este jugador aún no tiene sesiones de este test.</p>`}
+      ${hasSessions(test) ? html`<${PanelTest} key=${test.id} player=${player} test=${test} catalog=${catalog} sessions=${sessions.filter((s) => s.testId === test.id)} omitted=${omitted} reload=${reload} q=${query} setQ=${setQ} targets=${targets} positions=${positions} positionId=${positionId} />` : vbtTest(test) ? null : html`<p class="muted">Este jugador aún no tiene sesiones de este test.</p>`}
       ${loadTest(test) ? html`<${AltaManualCarga} key=${'am' + test.id} player=${player} catalog=${catalog} reload=${reload} fixedTest=${test} />` : null}
-      ${vbtTest(test) ? fv : null}
+      ${vbtTest(test) ? (typeof fv === 'function' ? fv(test) : fv) : null}
       ${angTest(test) ? html`<${Card} titulo="Medir ángulos con fotografías"><p class="muted">Carga las dos fotos, revisa los puntos y guarda: las medidas se añaden a este jugador.</p><${Angulos} key=${'ang' + player.id} jugadorId=${player.id} /><//>` : null}`;
   const listaTests = () => !tests.length ? html`<p class="muted">Bloque sin tests definidos.</p>` : html`
-      <div class=${`test-list cols-${Math.min(5, groups.length)}`}>${groups.map((g) => html`<div key=${g}>${g === 'Sin manifestación' ? null : html`<h3>${g}</h3>`}<div class="test-items">${ordered(g).map((t) => { const ok = selectable(t); return html`<button type="button" key=${t.id} disabled=${!ok} title=${!ok ? 'Sin sesiones de este test' : hasSessions(t) ? t.name : 'Aún sin datos: pulsa para añadirlos'} class=${(test && t.id === test.id ? 'test-item on' : 'test-item') + (!hasSessions(t) && ok ? ' vacio' : '')} aria-pressed=${!!test && t.id === test.id} onClick=${() => setQ({ t: t.id, v: undefined })}>${zName(t) ? zName(t) + ' · ' : ''}${dn(t.name)}${!hasSessions(t) && ok ? html` <span class="sin-datos">· sin datos aún</span>` : null}</button>`; })}</div></div>`)}</div>
+      <div class=${`test-list cols-${Math.min(5, groups.length)}`}>${groups.map((g) => html`<div key=${g}>${g === 'Sin manifestación' ? null : html`<h3>${g}</h3>`}<div class="test-items">${ordered(g).map((t) => { const ok = selectable(t); return html`<button type="button" key=${t.id} disabled=${!ok} title=${!ok ? 'Sin sesiones de este test' : sinAsignar(t) ? 'Tiene un perfil sin test asignado: ábrelo y asígnalo' : conDatos(t) ? t.name : 'Aún sin datos: pulsa para añadirlos'} class=${(test && t.id === test.id ? 'test-item on' : 'test-item') + (!conDatos(t) && ok ? ' vacio' : '')} aria-pressed=${!!test && t.id === test.id} onClick=${() => setQ({ t: t.id, v: undefined })}>${zName(t) ? zName(t) + ' · ' : ''}${dn(t.name)}${!conDatos(t) && ok ? html` <span class="sin-datos">· sin datos aún</span>` : null}</button>`; })}</div></div>`)}</div>
       ${cuerpoTest()}`;
   return html`<${Card} titulo="Resultados por bloque">
     ${test ? html`<${Migas} items=${[{ label: 'Jugadores', href: '#jugadores' }, { label: playerLabel(player) }, { label: dn(test.name) }]} />` : null}

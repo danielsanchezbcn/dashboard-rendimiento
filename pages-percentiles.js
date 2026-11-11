@@ -23,7 +23,7 @@ import { dn } from './nombres.js';
 const nf = (n, d = 1) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 const nfv = (n) => nf(n, 2);
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-const SIDE = { L: 'Left', R: 'Right', S: 'Valor' };
+const SIDE = { L: 'Left', R: 'Right', S: 'Value' };
 const BASIS = { pa: 'Personal Average', last: 'Última sesión válida' };
 
 export function Banda({ ev }) {
@@ -87,7 +87,7 @@ function EscalaG4({ filas, refs, unit, target }) {
         <circle cx=${f.cx[i]} cy=${yb + 28} r="11" fill=${colorLado(r.side)} />
         ${r.side === 'S' ? null : html`<text x=${f.cx[i]} y=${yb + 32} text-anchor="middle" font-size="12" font-weight="700" fill=${PAL.fondo}>${r.side}</text>`}
         <text x=${f.cx[i] + (f.close ? (f.cx[i] === Math.min(...f.cx) ? 4 : -4) : 0)} y=${yb + 56} text-anchor=${f.close ? (f.cx[i] === Math.min(...f.cx) ? 'end' : 'start') : 'middle'} font-size="12" fill=${T}>${nfv(r.value)}</text></g>`)}
-      ${f.asym != null && f.rows.length === 2 ? html`<g><path d=${`M ${f.cx[0]} ${yb + 72} v 6 H ${f.cx[1]} v -6`} fill="none" stroke=${T} stroke-opacity="0.6" /><text x=${Math.min(W - 90, Math.max(90, (f.cx[0] + f.cx[1]) / 2))} y=${yb + 94} text-anchor="middle" font-size="12" fill=${T}>Asimetría <tspan class=${asimClase(f.asym) || null}>${asymText(f.asym)}</tspan></text></g>` : null}</g></g>`; })}
+      ${f.asym != null && f.rows.length === 2 ? html`<g><path d=${`M ${f.cx[0]} ${yb + 72} v 6 H ${f.cx[1]} v -6`} fill="none" stroke=${T} stroke-opacity="0.6" /><text x=${Math.min(W - 90, Math.max(90, (f.cx[0] + f.cx[1]) / 2))} y=${yb + 94} text-anchor="middle" font-size="12" fill=${T}>Asymmetry <tspan class=${asimClase(f.asym) || null}>${asymText(f.asym)}</tspan></text></g>` : null}</g></g>`; })}
     <text x=${L} y=${Hs - 6} text-anchor="start" font-size="11" fill=${T}>${nfv(min)} ${unit ?? ''}</text><text x=${W - R} y=${Hs - 6} text-anchor="end" font-size="11" fill=${T}>${nfv(max)} ${unit ?? ''}</text>
   </svg></div><//>${out ? html`<p class="muted">Algún valor queda fuera del rango de la referencia de La Liga: la escala se ha ampliado para mostrarlo.</p>` : null}`;
 }
@@ -123,9 +123,9 @@ export function refContext({ refData, test, variable, sides, filters, playerId, 
   const info = (value, basis = 'last') => {
     if (!Number.isFinite(value)) return [];
     const ev = evalValor(value, basis, null);
-    const ll = !ev.sufficient ? ev.reason : ev.percentilePerf != null ? `${nf(ev.percentilePerf, 0)}` : `P${nf(ev.percentileStat, 0)} estadístico (sin color)`;
+    const ll = !ev.sufficient ? `insufficient sample (N = ${ev.n}, min ${ev.minN})` : ev.percentilePerf != null ? `${nf(ev.percentilePerf, 0)}` : `P${nf(ev.percentileStat, 0)} (statistical, no colour)`;
     const pl = plRef ? placeAgainstPremier(plRef, value) : null;
-    return [`Percentil La Liga: ${ll}`, `Premier League: ${plRef ? (pl?.placed ? pl.text + (plRef.estimated ? ' (estimado)' : '') : 'sin ubicar') : 'sin referencia'}`];
+    return [`La Liga percentile: ${ll}`, `Premier League: ${plRef ? (pl?.placed ? pl.text + (plRef.estimated ? ' (estimated)' : '') : 'not placed') : 'no reference'}`];
   };
   return { entries: ent, plRef, lines, info, evalValor, minN, histories, playersById };
 }
@@ -162,10 +162,10 @@ export function PercentilesPanel({ player, test, variable, mine, q, setQ, filter
   // Escala: bases del jugador (Resultado actual, Personal Best, Personal Average) y marcas de referencia, todas opcionales. Por defecto: Personal Average, P50 La Liga y P50 Premier League.
   const nat = findNatera(test, variable); // referencias de Natera (solo Iso-Push): tres marcas opcionales y una columna en el cuadro
   const diasActual = [...new Set(sides.map((sd) => current?.[sd]?.date).filter(Boolean))];
-  const etiquetaActual = diasActual.length ? diasActual.map(fmtDay).join(' / ') : 'Resultado actual'; // la fecha del test, como en el cuadro
+  const etiquetaActual = diasActual.length ? diasActual.map(fmtDay).join(' / ') : 'Latest result'; // la fecha del test, como en el cuadro
   const baseRows = (b) => sides.map((sd) => (cell[b + sd].value != null ? { side: sd, value: cell[b + sd].value, ev: cell[b + sd].ev, info: ctx.info(cell[b + sd].value, b).join(' · ') } : null)).filter(Boolean);
   const ctxPos = posJugador != null ? refContext({ refData, test, variable, sides, filters, playerId: player.id, positionId: posJugador, srcVar: abs?.variable ?? null }) : null;
-  const posNom = positions.find((p) => p.id === posJugador)?.name ?? 'posición';
+  const posNom = positions.find((p) => p.id === posJugador)?.name ?? 'position';
   const REFS = [['p50', 'P50 La Liga', ctx.lines.p50, PAL.laLiga, ICONO_LALIGA, 'P50', false], ['p75', 'P75 La Liga', ctx.lines.p75, PAL.laLiga, ICONO_LALIGA, 'P75', false],
     ['p50pos', `P50 La Liga (${posNom})`, ctxPos?.lines.p50pos ?? null, PAL.laLiga, ICONO_LALIGA, 'P50 pos.', false], ['p75pos', `P75 La Liga (${posNom})`, ctxPos?.lines.p75pos ?? null, PAL.laLiga, ICONO_LALIGA, 'P75 pos.', false],
     ['premier50', 'P50 Premier League', ctx.lines.premier50, PAL.premier, ICONO_PREMIER, 'P50', true], ['premier75', 'P75 Premier League', ctx.lines.premier75, PAL.premier, ICONO_PREMIER, 'P75', true],

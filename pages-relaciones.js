@@ -62,7 +62,7 @@ function Cuadrante({ titulo, xLabel, yLabel, bg, cutX, cutY, mine, n, minN, nomb
       ${bg.map((p, i) => html`<circle key=${i} cx=${px(p.x)} cy=${py(p.y)} r="3.5" fill=${PAL.laLiga} opacity="0.6" />`)}
       ${cutX !== null ? html`<line x1=${px(cutX)} x2=${px(cutX)} y1=${T} y2=${H - B} stroke=${PAL.laLiga} stroke-width="2" stroke-dasharray="6 4" />` : null}
       ${cutY !== null ? html`<line x1=${L} x2=${W - R} y1=${py(cutY)} y2=${py(cutY)} stroke=${PAL.laLiga} stroke-width="2" stroke-dasharray="6 4" />` : null}
-      ${mine.map((p, i) => html`<g key=${i}><circle cx=${px(p.x)} cy=${py(p.y)} r="9" fill=${p.short === 'D' ? PAL.der : p.short === 'I' ? PAL.izq : PAL.jugador} stroke=${PAL.fondo} stroke-width="2" />${p.label ? html`<text x=${px(p.x) + 14} y=${py(p.y) + 5} font-size="16" font-weight="700" fill=${PAL.texto}>${p.short ?? ''}</text>` : null}</g>`)}
+      ${mine.map((p, i) => html`<g key=${i}><circle cx=${px(p.x)} cy=${py(p.y)} r="9" fill=${p.short === 'R' ? PAL.der : p.short === 'L' ? PAL.izq : PAL.jugador} stroke=${PAL.fondo} stroke-width="2" />${p.label ? html`<text x=${px(p.x) + 14} y=${py(p.y) + 5} font-size="16" font-weight="700" fill=${PAL.texto}>${p.short ?? ''}</text>` : null}</g>`)}
       <text x=${(L + W - R) / 2} y=${H - 8} text-anchor="middle" font-size="15" fill=${PAL.texto}>${xLabel}</text>
       <text transform=${`translate(18 ${(T + H - B) / 2}) rotate(-90)`} text-anchor="middle" font-size="15" fill=${PAL.texto}>${yLabel}</text></svg><//>
     <details class="notas"><summary>Cómo se lee el gráfico</summary><p class="muted">Puntos amarillos: otros jugadores de La Liga (sin sintéticos). Punto grande: ${playerLabel} (azul = izquierda, naranja = derecha, blanco = valor único). Líneas amarillas discontinuas: mediana de La Liga de cada eje${noCut ? ` (sin mediana: N = ${n} < ${minN})` : ` (N = ${n})`}. No hay zona neutra: un valor igual al corte cuenta como «por encima» y no se conoce el error de medida.</p></details>
@@ -96,8 +96,8 @@ function RelacionTestCarga({ player, isDsi }) {
         ${sides.map(([k, nm, ev, kev]) => { const d = m.dsi[k]; const det = d.defined ? `SL ${nf(d.slBW)} BW (${d.slSessions} ses.) ÷ Knee ${nf(d.kneeBW)} BW (${d.kneeSessions} ses.)${d.omittedKnee ? ` · ${d.omittedKnee} sesión(es) de Knee sin masa previa, omitidas` : ''}` : d.reason;
           return html`<tr key=${k}><th scope="row">${nm}</th><td class="num" title=${det}>${d.defined ? nf(d.value) : html`<span class="muted" title=${det}>—</span>`}</td><td><${Chip} ev=${ev} detail=${det} /></td><td><${Orient} o=${d.defined ? strengthOrientation('dsi', ev, [{ label: nm.toLowerCase(), ev: kev }]) : null} /></td></tr>`; })}
       </tbody></table></div>
-      <${Cuadrante} titulo="Cuadrante DSI: fuerza isométrica frente a fuerza dinámica" xLabel="Knee Iso-Push Peak Force (BW)" yLabel="SL CMJ Peak Force (BW)" bg=${q.dsi.bg} cutX=${q.dsi.cutX} cutY=${q.dsi.cutY} n=${q.dsi.n} minN=${data.minN} nombre="cuadrante-DSI" playerLabel=${playerLabel(player)}
-        mine=${q.mine.dsi.map((p) => ({ x: p.x, y: p.y, label: p.side === 'L' ? 'Izquierda' : 'Derecha', short: p.side === 'L' ? 'I' : 'D' }))} />
+      <${Cuadrante} titulo="DSI quadrant: isometric vs dynamic force" xLabel="Knee Iso-Push Peak Force (BW)" yLabel="SL CMJ Peak Force (BW)" bg=${q.dsi.bg} cutX=${q.dsi.cutX} cutY=${q.dsi.cutY} n=${q.dsi.n} minN=${data.minN} nombre="cuadrante-DSI" playerLabel=${playerLabel(player)}
+        mine=${q.mine.dsi.map((p) => ({ x: p.x, y: p.y, label: p.side === 'L' ? 'Izquierda' : 'Derecha', short: p.side }))} />
     </section>`;
   }
   const e = m.eur;
@@ -110,7 +110,7 @@ function RelacionTestCarga({ player, isDsi }) {
       <tr><td class="num" title=${det}>${e.defined ? nf(e.value) : html`<span class="muted" title=${det}>—</span>`}</td><td><${Chip} ev=${r.eur} detail=${det} /></td>
         <td><${Orient} o=${e.defined ? strengthOrientation('eur', r.eur, [{ label: 'izquierda', ev: r.kneeL }, { label: 'derecha', ev: r.kneeR }]) : null} /></td></tr>
     </tbody></table></div>
-    <${Cuadrante} titulo="Cuadrante EUR: Squat Jump frente a CMJ" xLabel="Squat Jump JH imp-mom, Personal Best (cm)" yLabel="CMJ JH imp-mom, Personal Average (cm)" bg=${q.eur.bg} cutX=${q.eur.cutX} cutY=${q.eur.cutY} n=${q.eur.n} minN=${data.minN} nombre="cuadrante-EUR" playerLabel=${playerLabel(player)}
+    <${Cuadrante} titulo="EUR quadrant: Squat Jump vs CMJ" xLabel="Squat Jump JH imp-mom, Personal Best (cm)" yLabel="CMJ JH imp-mom, Personal Average (cm)" bg=${q.eur.bg} cutX=${q.eur.cutX} cutY=${q.eur.cutY} n=${q.eur.n} minN=${data.minN} nombre="cuadrante-EUR" playerLabel=${playerLabel(player)}
       mine=${q.mine.eur ? [{ x: q.mine.eur.x, y: q.mine.eur.y, label: playerLabel(player), short: '' }] : []} />
   </section>`;
 }
