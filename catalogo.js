@@ -125,7 +125,6 @@ export const PERFILES_POR_DEFECTO = {
   'dl drop jump 45 cm': { pb: RSI, panel: true },
   'squat jump': { pb: /^JH \(imp-mom\)$/i }, // Squat Jump: mejor Jump Height
   'nordic hamstring exercise': { sinAsimetrias: true },
-  'jurdan test': { panel: true, porLado: true }, // cuadro de columnas con L y R lado a lado, percentil de cada lado y asimetría en grados
 };
 const perfilDefecto = (test) => PERFILES_POR_DEFECTO[lcn(test?.name)] ?? null;
 // Variables candidatas a criterio: de origen (no calculadas), activas y que no sean asimetrías.
@@ -139,10 +138,8 @@ export function pbCriterionOf(test, variables) {
   const c = d?.pb ? cand.find((v) => d.pb.test(v.name)) : null;
   return c ? { id: c.id, name: c.name } : null;
 }
-// Desde 10/11/2026 todos los tests muestran por defecto la tabla de columnas (una columna por variable); se puede quitar test a test en el Catálogo. Con una sola variable con datos no se dibuja salvo que se haya marcado a mano (pages-panorama.js).
+// Normative Benchmarking (pages-normativo.js): por defecto muestra todas las variables del test en columnas; con `panelColumnas: false` (Catálogo) solo la variable seleccionada.
 export const usaPanelColumnas = (test) => (typeof test?.panelColumnas === 'boolean' ? test.panelColumnas : !!test);
-// Panel de columnas con un percentil por lado (en vez del promedio de ambas piernas) y sin percentil de la asimetría. Solo si el panel está activo.
-export const usaPercentilPorLado = (test) => usaPanelColumnas(test) && !!perfilDefecto(test)?.porLado;
 export const testExcluidoDeAsimetrias = (test) => (typeof test?.excluirAsimetrias === 'boolean' ? test.excluirAsimetrias : !!perfilDefecto(test)?.sinAsimetrias);
 export const sinAsimetriaPorDefecto = (name) => /\btorque\b/i.test(name) || /^(force|rfd) at 100\s*ms$/i.test(String(name).trim());
 export const variableExcluidaDeAsimetrias = (v) => (typeof v?.excluirAsimetrias === 'boolean' ? v.excluirAsimetrias : sinAsimetriaPorDefecto(v?.name ?? ''));

@@ -2,7 +2,7 @@
 import { Copiable } from './copiar.js';
 import { html } from './libs.js';
 import { useApp } from './context.js';
-import { Card, useLoad } from './componentes.js';
+import { Card, Desplegable, useLoad } from './componentes.js';
 import { getSetting } from './db.js';
 import { fmtDay } from './fechas.js';
 import { listCatalog } from './catalogo.js';
@@ -101,6 +101,6 @@ export function Relaciones({ query = {} }) {
         <details class="notas"><summary>Cómo se calcula</summary><p class="muted">Correlación de medidas repetidas (Bakdash y Marusich, 2017): cada jugador tiene su propio nivel y comparte una pendiente común; mide si, cuando una variable sube en un jugador, la otra tiende a subir o bajar <em>en ese mismo jugador</em>. Las líneas del gráfico unen los días de cada jugador. Es distinta de la relación entre jugadores y puede tener signo opuesto.</p></details>` : html`<p class="status warn">${res.rm.reason}</p>`}` : null}
       ${res.n ? html`<details><summary>Tabla de observaciones (${res.n})</summary><div class="table-wrap"><table><thead><tr><th>Jugador</th>${mode === 'within' ? html`<th>Fecha</th>` : html`<th>Periodo</th>`}<th class="num">${dn(xo.variable.name)}${xo.unit ? ` (${xo.unit})` : ''}</th><th class="num">${dn(yo.variable.name)}${yo.unit ? ` (${yo.unit})` : ''}</th></tr></thead>
         <tbody>${res.obs.map((o, i) => html`<tr key=${i}><th scope="row">${o.name}${o.synthetic ? ' (sintético)' : ''}</th><td>${mode === 'within' ? fmtDay(o.date) : `${fmtDay(o.from)} a ${fmtDay(o.to)}`}</td><td class="num">${nf(o.x)}</td><td class="num">${nf(o.y)}</td></tr>`)}</tbody></table></div></details>` : null}
-      <p class="muted">Criterio estadístico <strong>provisional</strong>: pendiente de tu confirmación. Descripción de asociaciones; no implica causalidad.</p>
+      <${Desplegable} titulo="Criterio estadístico (provisional)"><p class="muted">Criterio estadístico <strong>provisional</strong>: pendiente de tu confirmación. Descripción de asociaciones; no implica causalidad.</p><//>
     <//>`}`;
 }

@@ -509,3 +509,17 @@ table.pano .lr.lr-h { flex-direction: row; justify-content: center; align-items:
 .fv-conclusion strong { font-size: 1.35rem; font-weight: 750; color: var(--text, #f1f1f1); }
 .fv-conclusion-rot { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .fv-conclusion.sint { border-color: var(--warn); }
+
+/* Normative Benchmarking: tabla unificada, sin desplazamiento horizontal (las variables se reparten en bloques que caben); L a la izquierda y R a la derecha en cada variable */
+table.pano.norm { min-width: 0; table-layout: fixed; width: 100%; }
+table.pano.norm .pano-lab { width: 8.2rem; }
+table.pano.norm th, table.pano.norm td { padding: .3rem .12rem; font-size: .8rem; overflow-wrap: anywhere; }
+table.pano.norm .num { line-height: 1.15; }
+table.pano.norm .val { display: inline-block; }
+table.pano.norm .val.l, table.pano.norm .lados th.l { color: var(--side-l); } table.pano.norm .val.r, table.pano.norm .lados th.r { color: var(--side-r); }
+table.pano.norm .lados th { font-size: .72rem; font-weight: 700; padding: .1rem 0 .25rem; border-bottom: 1px solid var(--line); }
+table.pano.norm .var { display: block; font-size: .68rem; font-weight: 500; color: var(--muted); }
+table.pano.norm .badge { white-space: normal; font-size: .68rem; padding: .05rem .3rem; line-height: 1.15; }
+.pano-wrap { overflow-x: visible; }
+.panorama .filters { align-items: flex-end; }
+.panorama + .pano-wrap, .panorama .pano-wrap + .pano-wrap { margin-top: .8rem; }

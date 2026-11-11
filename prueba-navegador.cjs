@@ -62,15 +62,15 @@ const server = http.createServer((req, res) => {
 
   // ---- Perímetros: orden de filas y percentil de asimetría
   await go(`#jugador-${P}?t=${t.per}&b=perimetros`, 'table.pano');
-  check('Perímetros: filas Valor · Percentil La Liga · Asimetría · Percentil asimetría', (await texts('table.pano tbody th')).join('|') === 'Valor|Percentil La Liga (media de ambas piernas)|Asimetría|Percentil asimetría', (await texts('table.pano tbody th')).join('|'));
-  check('Perímetros: 5 columnas y texto de asimetría en color', (await page.locator('table.pano thead th').count()) === 5 && (await page.locator('table.pano tbody tr').nth(2).locator('.asim-l, .asim-r').count()) >= 1);
+  check('Perímetros: filas Valor · Percentil La Liga · Asimetría · Percentil asimetría', (await texts('table.pano tbody th')).join('|') === 'Valor (% última sesión vs Personal Average)|Valor (percentil La Liga)|Asimetría|Asimetría (percentil La Liga)', (await texts('table.pano tbody th')).join('|'));
+  check('Perímetros: 5 variables y texto de asimetría en color', (await page.locator('table.pano thead tr:first-child th').count()) === 5 && (await page.locator('table.pano tbody tr').nth(2).locator('.asim-l, .asim-r').count()) >= 1);
   check('Perímetros: percentil de asimetría con valores o «n<»', (await texts('table.pano tbody tr:nth-child(4) td')).every((x) => /^(\d+|n<\d+)$/.test(x.trim())), (await texts('table.pano tbody tr:nth-child(4) td')).join(','));
   await shot('perimetros');
 
   // ---- Jurdan Test: L y R lado a lado, percentil de cada lado, asimetría en grados
   await go(`#jugador-${P}?t=${t.jur}&b=nme`, 'table.pano');
-  check('Jurdan: filas Valor · Percentil La Liga (L · R) · Asimetría (°), sin percentil de asimetría', (await texts('table.pano tbody th')).join('|') === 'Valor|Percentil La Liga (L · R)|Asimetría (°)', (await texts('table.pano tbody th')).join('|'));
-  check('Jurdan: 4 columnas, con L y R lado a lado en el valor y en el percentil', (await page.locator('table.pano thead th').count()) === 4 && (await page.locator('table.pano tbody tr:nth-child(1) .lr-h').count()) === 4 && (await page.locator('table.pano tbody tr:nth-child(2) .lr-h > span').count()) === 8);
+  check('Jurdan: filas Valor · Percentil La Liga · Asimetría (°), sin percentil de asimetría', (await texts('table.pano tbody th')).join('|') === 'Valor (% última sesión vs Personal Average)|Valor (percentil La Liga)|Asimetría', (await texts('table.pano tbody th')).join('|'));
+  check('Jurdan: 4 variables, con L y R por separado (izquierda a la izquierda) en valor y percentil', (await page.locator('table.pano thead tr:first-child th').count()) === 4 && (await page.locator('table.pano thead tr.lados th').allInnerTexts()).join('') === 'LRLRLRLR' && (await page.locator('table.pano tbody tr:nth-child(1) td').count()) === 8 && (await page.locator('table.pano tbody tr:nth-child(2) td').count()) === 8);
   check('Jurdan: asimetría en grados con letra de lado y color', (await texts('table.pano tbody tr:nth-child(3) td')).every((x) => /^\d+(,\d+)? ° [LR]$|^0 °$/.test(x.trim())) && (await page.locator('table.pano tbody tr:nth-child(3) .asim-l, table.pano tbody tr:nth-child(3) .asim-r').count()) >= 1, (await texts('table.pano tbody tr:nth-child(3) td')).join(','));
   check('Jurdan: sin opción Personal Best (ángulos sin dirección)', !(await texts('section.panorama fieldset.modes label')).some((x) => /Personal Best/.test(x)));
   await shot('jurdan');
@@ -82,11 +82,22 @@ const server = http.createServer((req, res) => {
   // ---- Tabla de columnas en todos los tests
   for (const key of ['sl', 'hip', 'nordic']) {
     await go(`#jugador-${P}?t=${t[key]}&b=fuerza`, '.evo');
-    const n = await page.locator('section.panorama table.pano thead th').count();
+    const n = await page.locator('section.panorama table.pano thead tr:first-child th').count();
     const filas = (await texts('section.panorama table.pano tbody th')).join('|');
-    check(`${key}: tabla de columnas con una columna por variable y fila de percentil`, n >= 2 && /Percentil La Liga/.test(filas), `${n} · ${filas}`);
+    check(`${key}: Normative Benchmarking con una columna por variable y fila de percentil`, n >= 2 && /Valor \(percentil La Liga\)/.test(filas), `${n} · ${filas}`);
   }
   await shot('hip');
+  // Guardas del Normative Benchmarking unificado (causa del error «68 vs 60/68»: dos cálculos distintos del mismo percentil)
+  await go(`#jugador-${P}?t=${t.hip}&b=fuerza`, 'table.pano.norm');
+  const g = await page.evaluate(() => { const tb = document.querySelector('table.pano.norm'); const filas = [...tb.querySelectorAll('tbody tr')].map((r) => ({ lab: r.querySelector('th')?.innerText ?? '', n: r.querySelectorAll('td').length, txt: [...r.querySelectorAll('td')].map((d) => d.innerText.trim()) })); const w = tb.closest('.pano-wrap'); return { filas, desborda: w.scrollWidth > w.clientWidth + 1, pagina: document.documentElement.scrollWidth > window.innerWidth + 1, lados: [...tb.querySelectorAll('thead tr.lados th')].map((x) => x.innerText.trim()).join('') }; });
+  check('Normative Benchmarking: izquierda a la izquierda y derecha a la derecha en cada variable', /^(LR)+$/.test(g.lados), g.lados);
+  check('Normative Benchmarking: percentil La Liga por pierna (una celda por lado, ninguna vacía)', (() => { const f = g.filas.find((x) => /percentil La Liga\)$/.test(x.lab) && /^Valor/.test(x.lab)); return !!f && f.txt.length >= 2 && f.txt.every((x) => x !== '' && x !== '—'); })(), JSON.stringify(g.filas.map((x) => x.lab + ':' + x.txt.join(','))));
+  check('Normative Benchmarking: el percentil Premier League aparece también en este test (antes solo en la otra tabla)', g.filas.some((x) => /Premier League/.test(x.lab) && x.txt.some((y) => y !== '—' && y !== '')), JSON.stringify(g.filas.map((x) => x.lab + ':' + x.txt.join(','))));
+  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.locator('.img-botones button', { hasText: 'Descargar PNG' }).first().click()]);
+  const bufPng = require('fs').readFileSync(await dl.path());
+  check('Normative Benchmarking: la tabla se descarga como PNG válido y con contenido', bufPng.subarray(0, 8).toString('hex') === '89504e470d0a1a0a' && bufPng.length > 5000, `${bufPng.length} bytes · ${dl.suggestedFilename()}`);
+  require('fs').writeFileSync(require('path').join(process.env.CAPS_DIR || '/tmp', 'tabla-nb.png'), bufPng);
+  check('Normative Benchmarking: cabe en pantalla sin desplazamiento horizontal', !g.desborda && !g.pagina, JSON.stringify({ d: g.desborda, p: g.pagina }));
   // ---- Cuadrantes arriba del todo (EUR en Squat Jump, DSI en SL CMJ) y RSI por defecto
   for (const [key, nm] of [['sj', 'Squat Jump (EUR)'], ['sl', 'SL CMJ (DSI)']]) {
     await go(`#jugador-${P}?t=${t[key]}&b=fuerza`, '.evo');
@@ -107,7 +118,8 @@ const server = http.createServer((req, res) => {
   const nombreVar = (id) => ids.vars[id].name;
   for (const [key, testName] of [['hop', 'hop'], ['dj', 'dj'], ['cmj', 'cmj']]) {
     await go(`#jugador-${P}?t=${t[key]}&b=fuerza&pn=pb`, 'table.pano');
-    const heads = (await texts('table.pano thead th')).map((x) => x.split('\n')[0]); const vals = (await texts('table.pano tbody tr:first-child td')).map((x) => x.trim());
+    const cols = await page.evaluate(() => { const hs = [...document.querySelectorAll('table.pano thead tr:first-child th')]; const tds = [...document.querySelectorAll('table.pano tbody tr:first-child td')]; let k = 0; return hs.map((h) => { const o = { h: h.querySelector('.pano-nm')?.innerText ?? '', v: tds[k]?.querySelector('strong')?.innerText ?? '' }; k += h.colSpan; return o; }); });
+    const heads = cols.map((c) => c.h); const vals = cols.map((c) => c.v.trim());
     const esperado = Object.entries(ids.vars).filter(([, v]) => v.testId === t[key]).map(([id, v]) => [v.name, id]);
     // cada columna debe ser el valor de la sesión de mejor RSI (k = 1): 30 + id%7 + 0 + i   (las variables RSI: 0,9 + i·0,01)
     let ok = true, det = '';
@@ -156,14 +168,14 @@ const server = http.createServer((req, res) => {
   await go(`#jugador-${P}?t=${t.hop}&b=fuerza&pn=pb`, 'table.pano');
   check('test renombrado: conserva la tabla de columnas y el PB de la mejor sesión', (await page.locator('section.panorama').count()) === 1 && (await texts('fieldset.modes label')).some((x) => /Personal Best \(sesión con mejor RSI/.test(x)));
   await go(`#catalogo-test-${t.hop}`, 'form.fields');
-  const casilla = page.locator('label', { hasText: /Mostrar la tabla «todas las variables»/ }).locator('input');
+  const casilla = page.locator('label', { hasText: /Normative Benchmarking: mostrar todas las variables/ }).locator('input');
   await casilla.uncheck(); await page.locator('form.fields', { has: casilla }).locator('button[type=submit]').click(); await page.waitForTimeout(700);
   await go(`#jugador-${P}?t=${t.hop}&b=fuerza`, '.evo');
-  check('desmarcar «tabla de columnas» en el catálogo la quita del perfil', (await page.locator('section.panorama').count()) === 0);
+  check('desmarcar «todas las variables» deja solo la variable seleccionada', (await page.locator('section.panorama').count()) === 1 && (await page.locator('section.panorama table.pano thead tr:first-child th').count()) === 1);
   await go(`#catalogo-test-${t.hop}`, 'form.fields');
-  const casilla2 = page.locator('label', { hasText: /Mostrar la tabla «todas las variables»/ }).locator('input'); await casilla2.check(); await page.locator('form.fields', { has: casilla2 }).locator('button[type=submit]').click(); await page.waitForTimeout(700);
+  const casilla2 = page.locator('label', { hasText: /Normative Benchmarking: mostrar todas las variables/ }).locator('input'); await casilla2.check(); await page.locator('form.fields', { has: casilla2 }).locator('button[type=submit]').click(); await page.waitForTimeout(700);
   await go(`#jugador-${P}?t=${t.hop}&b=fuerza`, 'table.pano');
-  check('al volver a marcarla, reaparece', (await page.locator('section.panorama').count()) === 1);
+  check('al volver a marcarla, reaparecen todas las variables', (await page.locator('section.panorama table.pano thead tr:first-child th').count()) >= 5);
 
   // ---- Política de seguridad: no se puede salir a internet y no hubo errores
   const externo = await page.evaluate(() => fetch('https://example.com/').then(() => 'salió', () => 'bloqueado'));

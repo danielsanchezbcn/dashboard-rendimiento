@@ -3,7 +3,7 @@
 
 import { html, useState } from './libs.js';
 import { useApp } from './context.js';
-import { Card, Msg, useLoad, useRunner } from './componentes.js';
+import { Card, Desplegable, Msg, useLoad, useRunner } from './componentes.js';
 import * as C from './catalogo.js';
 import { EnlaceAngulos } from './pages-angulos.js';
 import { dn, up } from './nombres.js';
@@ -150,7 +150,7 @@ function Protocolos({ test, protocols }) {
   const [desc, setDesc] = useState('');
   const { msg, run, busy } = useRunner();
   return html`<${Card} titulo="Protocolos">
-    <p class="muted">Posición, ángulos, palanca, carga y criterio de validez. El protocolo se asocia al test; no se cargan protocolos que no hayas definido.</p>
+    <${Desplegable} titulo="Sobre los protocolos"><p class="muted">Posición, ángulos, palanca, carga y criterio de validez. El protocolo se asocia al test; no se cargan protocolos que no hayas definido.</p><//>
     ${protocols.length === 0 ? html`<p class="muted">Este test no tiene protocolos.</p>` : html`<ul>${protocols.map((p) => html`<li key=${p.id} class=${p.archived ? 'inactive' : ''}><strong>${p.name}</strong><${Archivada} x=${p} />${p.description ? ` — ${p.description}` : ''}
       <button type="button" class="secondary" onClick=${run(async () => { await C.setProtocolArchived(db, p.id, !p.archived); bump(); })}>${p.archived ? 'Activar' : 'Archivar'}</button></li>`)}</ul>`}
     <form class="fields" onSubmit=${run(async () => { await C.createProtocol(db, { testId: test.id, name, description: desc }); setName(''); setDesc(''); bump(); }, 'protocolo creado.')}>
@@ -258,7 +258,7 @@ function TestPerfil({ test, vars, data }) {
   return html`<${Card} titulo="Comportamiento en el perfil del jugador">
     <form class="fields" onSubmit=${run(async () => { await C.updateTest(db, test.id, { pbCriterioVariableId: pb === '' ? null : Number(pb), panelColumnas: panel, excluirAsimetrias: sinAsim }); bump(); }, 'guardado.')}>
       <label>Personal Best <select value=${pb} onChange=${(e) => setPb(e.target.value)}><option value="">Clásico: el mejor valor de cada variable por separado</option>${cand.map((v) => html`<option key=${v.id} value=${v.id}>Mejor sesión según ${dn(v.name)}: todas las variables salen de esa misma sesión</option>`)}</select></label>
-      <label class="check"><input type="checkbox" checked=${panel} onChange=${(e) => setPanel(e.target.checked)} /> Mostrar la tabla «todas las variables» (una columna por variable) arriba del test</label>
+      <label class="check"><input type="checkbox" checked=${panel} onChange=${(e) => setPanel(e.target.checked)} /> Normative Benchmarking: mostrar todas las variables del test en columnas (si lo desmarcas, solo la variable seleccionada)</label>
       <label class="check"><input type="checkbox" checked=${sinAsim} onChange=${(e) => setSinAsim(e.target.checked)} /> Excluir este test de la pestaña Asimetrías del jugador</label>
       <div class="actions"><button type="submit" disabled=${busy}>Guardar</button></div>
     </form>

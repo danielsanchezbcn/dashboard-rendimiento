@@ -38,3 +38,6 @@ export function useRunner() {
   };
   return { msg, setMsg, busy, run };
 }
+
+// Texto explicativo desplegable (como «Notas y método de los percentiles»): los textos largos no se muestran enteros, se abren a demanda.
+export const Desplegable = ({ titulo, children }) => html`<details class="notas"><summary>${titulo}</summary>${children}</details>`;

@@ -179,7 +179,7 @@ function PesoReferencia({ player }) {
   const [u, setU] = useState(player.referenceWeight?.unit ?? 'kg');
   const cur = player.referenceWeight;
   return html`<fieldset><legend>Peso de referencia del jugador</legend>
-    <p class="muted">Se usa en todos los cálculos con masa solo si el jugador no tiene ninguna medición de masa corporal. Cualquier medición lo sustituye.${cur ? '' : ' Ahora no hay peso de referencia.'}</p>
+    <${Desplegable} titulo="Sobre el peso de referencia"><p class="muted">Se usa en todos los cálculos con masa solo si el jugador no tiene ninguna medición de masa corporal. Cualquier medición lo sustituye.${cur ? '' : ' Ahora no hay peso de referencia.'}</p><//>
     <div class="fields"><label>Peso de referencia <input type="text" inputmode="decimal" value=${v} onInput=${(e) => setV(e.target.value)} /></label>
       <label>Medida del peso (kg, g o lb) <input type="text" value=${u} onInput=${(e) => setU(e.target.value)} /></label></div>
     <div class="actions"><button type="button" disabled=${busy} onClick=${run(async () => { await setReferenceWeight(db, player.id, v, u); bump(); }, 'peso de referencia guardado.')}>Guardar peso de referencia</button>

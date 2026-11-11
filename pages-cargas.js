@@ -1,7 +1,7 @@
 // pages-cargas.js — Importar → «Cargas de Iso-Hold / RM (Excel)»: lee un libro con jugadores y cargas (kg), vincula los nombres y guarda una sesión manual por jugador.
 import { html, useState } from './libs.js';
 import { useApp } from './context.js';
-import { Card, Msg, useLoad, useRunner } from './componentes.js';
+import { Card, Desplegable, Msg, useLoad, useRunner } from './componentes.js';
 import { readFileGrid } from './excel.js';
 import { listCatalog } from './catalogo.js';
 import { todayIso, isIsoDay, fmtDay } from './fechas.js';
@@ -50,7 +50,7 @@ export function ImportarCargas() {
   }, 'Importación terminada.');
 
   return html`<${Card} titulo="Cargas de Iso-Hold / RM desde Excel">
-    <p class="muted">Sube un Excel con los jugadores en una columna y la carga externa (kg) en otra, con cabecera «ADDED EXTERNAL LOAD», «EXTERNAL LOAD ADDED» o «Carga externa». Cada hoja (HIP, KNEE, ANKLE…) se puede asignar a un test. Solo se leen los valores de esa columna, no las fórmulas. El Excel no trae fecha: elige la de la sesión. Se guarda una sesión manual por jugador; MVIC, %PIMA y %BW/%SW se calculan solos.</p>
+    <${Desplegable} titulo="Formato del Excel de cargas"><p class="muted">Sube un Excel con los jugadores en una columna y la carga externa (kg) en otra, con cabecera «ADDED EXTERNAL LOAD», «EXTERNAL LOAD ADDED» o «Carga externa». Cada hoja (HIP, KNEE, ANKLE…) se puede asignar a un test. Solo se leen los valores de esa columna, no las fórmulas. El Excel no trae fecha: elige la de la sesión. Se guarda una sesión manual por jugador; MVIC, %PIMA y %BW/%SW se calculan solos.</p><//>
     <label class="fields"><span class="muted">Fichero</span><input type="file" accept=".xlsx,.csv,.txt" onChange=${onFile} disabled=${busy} /></label>
     <${Msg} msg=${msg} />
     ${hojas ? html`<div class="filters"><label>Fecha de las sesiones <input type="date" value=${fecha} onInput=${(e) => setFecha(e.target.value)} required /></label></div>

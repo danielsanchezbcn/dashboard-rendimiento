@@ -97,6 +97,16 @@ export function valorBase(sessions, variable, side, base, filters = {}) {
   return a.defined ? { value: a.value, date: a.to, from: a.from, reps: a.reps, sessions: a.sessions } : null;
 }
 
+// Sesión válida inmediatamente anterior a la última (misma serie, mismos filtros): sirve para la variación % de «Actual» en Normative Benchmarking.
+export function valorPrevio(sessions, variable, side, filters = {}) {
+  const pts = buildSeries(sessions, variable.id, side, filters).valid;
+  if (pts.length < 2) return null;
+  const p = pts[pts.length - 2];
+  return { value: p.value, date: p.date, sessionId: p.sessionId };
+}
+// Variación porcentual de «actual» respecto a «referencia» ((actual − referencia) ÷ |referencia| × 100); null si no se puede calcular (sin referencia o referencia 0).
+export const variacionPct = (actual, referencia) => (Number.isFinite(actual) && Number.isFinite(referencia) && referencia !== 0 ? ((actual - referencia) / Math.abs(referencia)) * 100 : null);
+
 export const currentResult = (points) => (points.length ? points[points.length - 1] : null);
 
 // G5: asimetría por sesión (D25: (R − L) / máx × 100, positivo = domina la derecha). Solo sesiones con ambos lados.

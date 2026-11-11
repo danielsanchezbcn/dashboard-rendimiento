@@ -2,7 +2,7 @@
 import './fuentes.js';
 import { html, useState, useEffect, useRef, Chart } from './libs.js';
 import { useApp } from './context.js';
-import { Card, Msg, useLoad, useRunner } from './componentes.js';
+import { Card, Desplegable, Msg, useLoad, useRunner } from './componentes.js';
 import { fmtDay, todayIso } from './fechas.js';
 import { addManualLoad, LOAD_VARIABLE_NAMES } from './isohold.js';
 import { listCatalog, SIDES } from './catalogo.js';
@@ -25,7 +25,7 @@ import { consecutiveDiffs, changeTest } from './cambio.js';
 import { Copiable } from './copiar.js';
 import { RadarPanel } from './pages-radar.js';
 import { Angulos } from './pages-angulos.js';
-import { Panorama, esPanorama } from './pages-panorama.js';
+import { NormativeBenchmarking } from './pages-normativo.js';
 import { ICONO_TARGET } from './iconos.js';
 import { dn } from './nombres.js';
 
@@ -144,7 +144,7 @@ function FormCorregir({ s, variable, done, cancel }) {
     <label>Hora (opcional) <input type="time" value=${f.time} onInput=${set('time')} /></label>
     ${sides.map((sd) => html`<label key=${'v' + sd}>${name[sd]} (${dn(variable.name)}${variable.unit ? `, ${variable.unit}` : ''}) <input inputmode="decimal" value=${f['v' + sd]} onInput=${set('v' + sd)} /></label>`)}
     ${sides.map((sd) => html`<label key=${'r' + sd}>Repeticiones${sides.length === 2 ? ' ' + name[sd].toLowerCase() : ''} <input inputmode="numeric" value=${f['r' + sd]} onInput=${set('r' + sd)} /></label>`)}
-    <p class="muted">Cambiar las repeticiones modifica el peso de la sesión en el Personal Average. Solo se corrige la variable que estás viendo; las demás variables de la sesión no cambian.</p>
+    <${Desplegable} titulo="Sobre las repeticiones"><p class="muted">Cambiar las repeticiones modifica el peso de la sesión en el Personal Average. Solo se corrige la variable que estás viendo; las demás variables de la sesión no cambian.</p><//>
     <button type="submit" disabled=${busy}>Guardar corrección</button> <button type="button" class="secondary" onClick=${cancel}>Cancelar</button><${Msg} msg=${msg} /></form>`;
 }
 
@@ -281,7 +281,7 @@ function CompararPanel({ variable, sides, series, cmp, setCmp, refData, protocol
   const word = res?.improves === true ? 'mejora' : res?.improves === false ? 'empeoramiento' : 'cambio';
   const sgn = (x) => (x > 0 ? '+' : x < 0 ? '−' : '') + nf(Math.abs(x));
   return html`<section class="comparar"><h4 class="sec-titulo">Comparar dos medidas</h4>
-    <p class="muted">Pulsa dos puntos del gráfico (del mismo lado) o elígelos aquí, para ver si el cambio es mayor que el error de medida.</p>
+    <${Desplegable} titulo="Cómo comparar dos puntos"><p class="muted">Pulsa dos puntos del gráfico (del mismo lado) o elígelos aquí, para ver si el cambio es mayor que el error de medida.</p><//>
     <div class="filters">
       ${sides.length === 2 ? html`<label>Lado <select value=${side} onChange=${(e) => setCmp({ side: e.target.value, a: null, b: null })}>${sides.map((sd) => html`<option key=${sd} value=${sd}>${sideName[sd]}</option>`)}</select></label>` : null}
       <label>Medida A <select value=${cmp.a ?? ''} onChange=${(e) => setCmp({ side, a: e.target.value ? Number(e.target.value) : null, b: cmp.b })}><option value="">Elige…</option>${pts.map((p) => html`<option key=${p.sessionId} value=${p.sessionId}>${lbl(p)}</option>`)}</select></label>
@@ -350,13 +350,13 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const selIds = [cmpV.a, cmpV.b].filter((x) => x != null).map((id) => selSide + ':' + id);
   const key = [player.id, test.id, variable.id, proto, from, to, sessions.map((s) => s.id + s.status).join(), sides.map((sd) => (tg[sd] ? tg[sd].origin + tg[sd].value : '-')).join()].join('|');
   const allUrl = buildHash(`test-${test.id}`, { ...KEEP(q), v: variable.id, m: q.m ?? 'pa', j: player.id });
-  const pano = esPanorama(test), cmj = test.name === 'CMJ', relArriba = ['squat jump', 'sl cmj'].includes(String(test.name ?? '').trim().toLowerCase()); // Squat Jump (EUR) y SL CMJ (DSI): su cuadrante va arriba del todo // CMJ y Perímetros: cuadro con todas las variables arriba del todo; en CMJ, justo debajo el radar y el cuadrante EUR
+  const cmj = test.name === 'CMJ', relArriba = ['squat jump', 'sl cmj'].includes(String(test.name ?? '').trim().toLowerCase()); // Squat Jump (EUR) y SL CMJ (DSI): su cuadrante va arriba del todo // CMJ y Perímetros: cuadro con todas las variables arriba del todo; en CMJ, justo debajo el radar y el cuadrante EUR
   const radarEl = html`<${RadarPanel} key=${'radar' + test.id + player.id} player=${player} testName=${test.name} />`;
   const relEl = html`<${RelacionTest} key=${'rel' + test.id + player.id} player=${player} test=${test} />`;
   return html`<div class="evo">
     <${OrzTest} key=${'orz' + test.id + player.id} player=${player} test=${test} />
     ${relArriba ? relEl : null}
-    ${pano ? html`<${Panorama} key=${'pano' + test.id + player.id} player=${player} test=${test} catalog=${catalog} sessions=${sessions} refData=${refData} q=${q} setQ=${setQ} selectedId=${variable.id} />` : null}
+    <${NormativeBenchmarking} key=${'nb' + test.id + player.id} player=${player} test=${test} catalog=${catalog} sessions=${sessions} refData=${refData} q=${q} setQ=${setQ} selectedId=${variable.id} abs=${abs} />
     ${cmj ? html`${radarEl}${relEl}` : null}
     <p id="detalle-variable"><a class="button" href=${allUrl}>Ver todos los jugadores en este test</a></p>
     <div class="filters">
@@ -366,7 +366,6 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
       <label>Hasta <input type="date" value=${to} onInput=${(e) => setQ({ to: e.target.value })} /></label>
     </div>
     <${NotaRelativa} variable=${variable} omitted=${omitted} catalog=${catalog} />
-    <${PercentilesPanel} key=${'t' + variable.id} player=${player} test=${test} variable=${variable} mine=${sessions} q=${q} setQ=${setQ} filters=${f} targets=${tg} refData=${refData} abs=${abs} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} parte="tabla" />
     <${PercentilesPanel} key=${variable.id} player=${player} test=${test} variable=${variable} mine=${sessions} q=${q} setQ=${setQ} filters=${f} targets=${tg} refData=${refData} abs=${abs} stats=${stats} current=${Object.fromEntries(sides.map((sd) => [sd, currentResult(series[sd].valid)]))} parte="escala" posJugador=${positionId} />
     <fieldset class="modes"><legend class="sec-titulo">Longitudinal Performance Relative to Benchmarks</legend>${opts.map(([k, label, , , , v]) => { const off = v == null; return html`<label class="check" key=${k} title=${off ? (k.startsWith('pa') ? 'Sin sesiones válidas en el periodo.' : k.endsWith('pos') && positionId == null ? 'El jugador no tiene posición principal.' : k.startsWith('premier') ? 'Esta variable no figura en las tablas de la Premier League.' : `Sin muestra suficiente (mínimo ${ctx?.minN ?? 10} jugadores).`) : ''}><input type="checkbox" disabled=${off} checked=${!off && chosen.includes(k)} onChange=${(e) => setQ({ rl: (e.target.checked ? [...chosen, k] : chosen.filter((x) => x !== k)).join(',') || 'none' })} /> ${label}</label>`; })}</fieldset>
     ${sides.some((sd) => series[sd].valid.length)
@@ -404,8 +403,8 @@ function AltaManualCarga({ player, catalog, reload, fixedTest = null }) {
     setF({ ...f, load: '' }); reload();
   }, 'Sesión guardada.');
   return html`<${Card} titulo="Alta manual de carga (Iso-Hold y RM)" id="alta-manual">
-    <p class="muted">La carga de estos tests no viene de VALD: escríbela aquí. Se guarda una sesión con la carga (kg); las variables calculadas (MVIC, %PIMA, %BW/%SW, 1RM estimado) se obtienen solas. Si te equivocas, corrígela desde la tabla de sesiones del test.</p>
-    <p class="muted">Las variables calculadas (MVIC iso-push, %PIMA, %BW/%SW) <strong>aparecen en el selector de variables solo después de guardar la primera carga</strong> y requieren, además, una sesión del Iso-Push emparejado y la masa corporal (o el peso de referencia) del jugador.</p>
+    <${Desplegable} titulo="Sobre la carga externa"><p class="muted">La carga de estos tests no viene de VALD: escríbela aquí. Se guarda una sesión con la carga (kg); las variables calculadas (MVIC, %PIMA, %BW/%SW, 1RM estimado) se obtienen solas. Si te equivocas, corrígela desde la tabla de sesiones del test.</p><//>
+    <${Desplegable} titulo="Variables calculadas de carga"><p class="muted">Las variables calculadas (MVIC iso-push, %PIMA, %BW/%SW) <strong>aparecen en el selector de variables solo después de guardar la primera carga</strong> y requieren, además, una sesión del Iso-Push emparejado y la masa corporal (o el peso de referencia) del jugador.</p><//>
     <form class="filters" onSubmit=${save} aria-label="Alta manual de carga">
       ${fixedTest ? html`<p><strong>${fixedTest.name}</strong></p>` : html`<label>Test <select value=${f.testId} onChange=${set('testId')} required><option value="">Elige…</option>${tests.map((t) => html`<option key=${t.id} value=${t.id}>${dn(t.name)}</option>`)}</select></label>`}
       <label>Fecha <input type="date" value=${f.date} onInput=${set('date')} required /></label>

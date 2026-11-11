@@ -1,7 +1,7 @@
 // pages-test.js — fase 5b: vista de un test para toda la plantilla (RF-02), con navegación de ida y vuelta al jugador (RF-03) y G4 básico.
 import { html } from './libs.js';
 import { useApp } from './context.js';
-import { Card, useLoad } from './componentes.js';
+import { Card, Desplegable, useLoad } from './componentes.js';
 import { fmtDay } from './fechas.js';
 import { listCatalog, isAsymVariable, asymText, asymSideLetter, esGrados } from './catalogo.js';
 import { listPositions } from './posiciones.js';
@@ -162,7 +162,7 @@ export function VistaTest({ id, query = {} }) {
     <${NotaRelativa} variable=${variable} omitted=${omitted} catalog=${catalog} />
     <label class="check"><input type="checkbox" checked=${query.ex === '1'} onChange=${(e) => set({ ex: e.target.checked ? '1' : undefined })} /> Mostrar también las sesiones excluidas (solo informativas: no entran en ningún cálculo)</label>
     <fieldset class="modes"><legend>Valor mostrado</legend>${MODES.map(([k, n]) => html`<label class="check" key=${k}><input type="radio" name="modo" checked=${mode === k} onChange=${() => set({ m: k })} /> ${n}</label>`)}</fieldset>
-    ${mode === 'pa' ? html`<p class="muted">Personal Average: media de las sesiones válidas ponderada por repeticiones.</p>` : null}
+    ${mode === 'pa' ? html`<${Desplegable} titulo="Qué es el Personal Average"><p class="muted">Personal Average: media de las sesiones válidas ponderada por repeticiones.</p><//>` : null}
     ${mode === 'pb' && variable.direction !== 'higher' && variable.direction !== 'lower' ? html`<p class="status warn">Esta variable no tiene una dirección que permita definir el Personal Best (${variable.direction === 'target' ? 'rango objetivo, D23' : 'defínela en el catálogo'}).</p>` : null}
     <p>${res.players} jugador(es) con datos · ${res.rows} fila(s). Las sesiones excluidas no aparecen. <button type="button" class="secondary" disabled=${!res.rows} onClick=${exportCsv}>Exportar CSV</button></p>
     ${!res.rows ? html`<p class="muted">Sin datos para estos filtros.</p>` : res.groups.map((g) => html`<div class="table-wrap tabla-wrap-comp" key=${g.key}><table class="tabla-comp"><caption>${g.name}</caption>
@@ -179,7 +179,7 @@ export function VistaTest({ id, query = {} }) {
       <thead><tr><th>Jugador</th><th>Fecha</th>${res.sides.map((s) => html`<th key=${s} class="num">${sideName[s]}</th>`)}<th>Motivo</th></tr></thead>
       <tbody>${excluded.map((s) => html`<tr key=${s.id} class="excluded"><th scope="row">${(playersById[s.playerId] ? playerLabel(playersById[s.playerId]) : '—')}</th><td>${fmtDay(s.date)}</td>${res.sides.map((sd) => html`<td key=${sd} class="num">${isAsymVariable(variable) ? asymText(s.values[variable.id]?.[sd]) : html`${nf(s.values[variable.id]?.[sd])}${unit}`}</td>`)}<td>${s.excludedReason || '—'}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">No hay sesiones excluidas con estos filtros.</p>`) : null}
     ${pctOn ? html`<details class="notas"><summary>Cómo se calcula el percentil</summary><p class="muted">Percentil de rendimiento frente a «La Liga» (todas las posiciones; sin datos sintéticos ni el propio jugador; mínimo ${minN} jugadores; rango medio). Referencia única con las dos piernas juntas (un valor por jugador y lado), la misma que en el perfil del jugador. La última sesión y el Personal Average se comparan con el Personal Average de los demás; el Personal Best con sus Personal Best.</p></details>` : null}
-    ${lr ? html`<p class="muted">Asimetría como en VALD: |D − I| ÷ máx × 100, con la letra del lado que tiene el valor más alto (L left, R right); calculada con los dos valores que se ven en la fila.</p>` : null}
+    ${lr ? html`<${Desplegable} titulo="Cómo se calcula la asimetría"><p class="muted">Asimetría como en VALD: |D − I| ÷ máx × 100, con la letra del lado que tiene el valor más alto (L left, R right); calculada con los dos valores que se ven en la fila.</p><//>` : null}
     <${EscalaG4} groups=${res.groups} sides=${res.sides} unit=${variable.unit} originId=${originId} hrefFor=${hrefFor} />
   <//>`;
 }

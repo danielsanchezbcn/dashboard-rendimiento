@@ -3,7 +3,7 @@
 
 import { html, useState } from './libs.js';
 import { useApp } from './context.js';
-import { Card, Msg, useRunner } from './componentes.js';
+import { Card, Desplegable, Msg, useRunner } from './componentes.js';
 import { leerTablaImagen } from './imagen-ocr.js';
 import { construirFilas, proponerJugador, guardarFilas, RANGO_PESO, RANGO_ALTURA } from './imagen-antropometria.js';
 import { playerLabel } from './jugadores.js';
@@ -146,5 +146,5 @@ export function AntropPercentiles({ player }) {
   return html`<h3>Percentil de peso y altura</h3>
     <div class="table-wrap"><table><thead><tr><th scope="col">Medida</th><th scope="col" class="num">Valor</th><th scope="col">La Liga</th></tr></thead><tbody>
       ${fila('Peso', data.pesos, 'kg', (m) => (m.ref ? 'peso de referencia' : 'masa medida'))}${fila('Altura', data.alturas, 'cm', (m) => fmtDay(m.date))}</tbody></table></div>
-    <p class="muted">Percentil con color de posición (ni más alto ni más bajo es «mejor»): un valor por jugador de la base, sin sintéticos ni este jugador; mínimo ${data.minN} jugadores (Configuración).</p>`;
+    <${Desplegable} titulo="Cómo se calcula el percentil"><p class="muted">Percentil con color de posición (ni más alto ni más bajo es «mejor»): un valor por jugador de la base, sin sintéticos ni este jugador; mínimo ${data.minN} jugadores (Configuración).</p><//>`;
 }
