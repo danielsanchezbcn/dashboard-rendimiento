@@ -1,7 +1,7 @@
 // pages-test.js — fase 5b: vista de un test para toda la plantilla (RF-02), con navegación de ida y vuelta al jugador (RF-03) y G4 básico.
-import { html } from './libs.js';
+import { html, useState } from './libs.js';
 import { useApp } from './context.js';
-import { Card, Desplegable, useLoad } from './componentes.js';
+import { Card, Desplegable, Msg, useLoad, useRunner } from './componentes.js';
 import { fmtDay } from './fechas.js';
 import { listCatalog, isAsymVariable, asymText, asymSideLetter, esGrados } from './catalogo.js';
 import { listPositions } from './posiciones.js';
@@ -20,6 +20,7 @@ import { downloadBlob } from './io.js';
 import { AsimTexto, asimClase } from './asim-ui.js';
 import { playerLabel } from './jugadores.js';
 import { dn } from './nombres.js';
+import { testSessionsSummary, deleteTestSessions } from './evolucion.js';
 
 const nf = (n, d = 2) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 export const Migas = ({ items }) => html`<nav aria-label="Ruta de navegación"><ol class="crumbs">${items.map((it, i) => html`<li key=${i}>${it.href ? html`<a href=${it.href}>${it.label}</a>` : html`<span aria-current="page">${it.label}</span>`}</li>`)}</ol></nav>`;
@@ -181,5 +182,36 @@ export function VistaTest({ id, query = {} }) {
     ${pctOn ? html`<details class="notas"><summary>Cómo se calcula el percentil</summary><p class="muted">Percentil de rendimiento frente a «La Liga» (todas las posiciones; sin datos sintéticos ni el propio jugador; mínimo ${minN} jugadores; rango medio). Referencia única con las dos piernas juntas (un valor por jugador y lado), la misma que en el perfil del jugador. La última sesión y el Personal Average se comparan con el Personal Average de los demás; el Personal Best con sus Personal Best.</p></details>` : null}
     ${lr ? html`<${Desplegable} titulo="Cómo se calcula la asimetría"><p class="muted">Asimetría como en VALD: |D − I| ÷ máx × 100, con la letra del lado que tiene el valor más alto (L left, R right); calculada con los dos valores que se ven en la fila.</p><//>` : null}
     <${EscalaG4} groups=${res.groups} sides=${res.sides} unit=${variable.unit} originId=${originId} hrefFor=${hrefFor} />
+    <${BorrarSesionesTest} test=${test} />
+  <//>`;
+}
+
+
+// Borrado masivo de las sesiones de este test (todos los jugadores), para volver a importarlas desde cero. Va plegado y exige escribir el nombre del test.
+export function BorrarSesionesTest({ test }) {
+  const { db, version, bump } = useApp();
+  const { data: resumen } = useLoad(() => testSessionsSummary(db, test.id), [db, test.id, version]);
+  const [fecha, setFecha] = useState('all');
+  const [texto, setTexto] = useState('');
+  const { msg, busy, run } = useRunner();
+  if (!resumen || !resumen.total) return null;
+  const sel = fecha === 'all' ? null : fecha;
+  const n = sel ? (resumen.fechas.find((f) => f.date === sel)?.sesiones ?? 0) : resumen.total;
+  const borrar = run(async () => {
+    const r = await deleteTestSessions(db, test.id, { confirmText: texto, date: sel });
+    setTexto(''); setFecha('all'); bump();
+    return r;
+  }, (r) => `Eliminadas ${r.eliminadas} sesiones de ${r.jugadores} jugador(es) (${r.fechas.map(fmtDay).join(', ')}). Ya puedes volver a importar el fichero.`);
+  return html`<${Desplegable} titulo=${`Borrar sesiones de este test (${resumen.total} guardadas)`}>
+    <p class="muted">Borra las sesiones de <strong>${dn(test.name)}</strong> de <strong>todos los jugadores</strong>, para volver a importarlas desde cero. No toca el catálogo, ni otros tests, ni los pesos y alturas. <strong>No se puede deshacer:</strong> descarga antes una copia de seguridad en Ajustes.</p>
+    <div class="table-wrap"><table><caption>Sesiones guardadas de este test</caption>
+      <thead><tr><th scope="col">Fecha</th><th scope="col">Sesiones</th><th scope="col">Jugadores</th><th scope="col">Origen</th></tr></thead>
+      <tbody>${resumen.fechas.map((f) => html`<tr key=${f.date}><td>${fmtDay(f.date)}</td><td class="num">${f.sesiones}</td><td class="num">${f.jugadores}</td><td>${f.origenes}</td></tr>`)}</tbody></table></div>
+    <div class="filters">
+      <label>Qué borrar <select value=${fecha} onChange=${(e) => setFecha(e.target.value)}><option value="all">Todas las fechas (${resumen.total} sesiones)</option>${resumen.fechas.map((f) => html`<option key=${f.date} value=${f.date}>Solo ${fmtDay(f.date)} (${f.sesiones} sesiones)</option>`)}</select></label>
+      <label>Escribe «${test.name}» para confirmar <input type="text" value=${texto} onInput=${(e) => setTexto(e.target.value)} placeholder=${test.name} /></label>
+    </div>
+    <div class="actions"><button type="button" class="danger" disabled=${busy || texto.trim().toLowerCase() !== String(test.name).trim().toLowerCase()} onClick=${borrar}>Borrar ${n} ${n === 1 ? 'sesión' : 'sesiones'} definitivamente</button></div>
+    <${Msg} msg=${msg} />
   <//>`;
 }

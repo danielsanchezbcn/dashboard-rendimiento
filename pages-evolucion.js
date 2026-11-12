@@ -106,7 +106,7 @@ function lineConfig(c, { sides, series, unit, yMin, yMax, tg, refLines = [], inf
   }
   refLines.forEach((r) => datasets.push({ label: r.label, data: [{ x: x0, y: r.value }, { x: x1 === x0 ? x0 + 1 : x1, y: r.value }], borderColor: r.color, borderDash: r.dash, pointRadius: 0, borderWidth: r.w }));
   const tgs = sides.map((sd) => tg[sd]).filter(Boolean).filter((t, i, a) => a.findIndex((u) => u.value === t.value) === i);
-  tgs.forEach((t) => datasets.push({ label: `Target (${t.origin})`, data: [{ x: x0, y: t.value }, { x: x1 === x0 ? x0 + 1 : x1, y: t.value }], borderColor: PAL.target, borderDash: [10, 4], pointRadius: 0, borderWidth: 2, bandera: true }));
+  tgs.forEach((t) => datasets.push({ label: `Target (${t.origin === 'posición' ? 'position' : 'individual'})`, data: [{ x: x0, y: t.value }, { x: x1 === x0 ? x0 + 1 : x1, y: t.value }], borderColor: PAL.target, borderDash: [10, 4], pointRadius: 0, borderWidth: 2, bandera: true }));
   const o = baseOptions(c, unit, yMin, yMax);
   o.plugins.tooltip.callbacks.label = (it) => {
     const p = it.raw?.p;
@@ -214,7 +214,7 @@ function TargetPanel({ player, variable, sides, targets, positions, positionId, 
   const pos = positionId == null ? null : targets.find((t) => t.scope === 'position' && t.positionId === positionId && t.variableId === variable.id);
   const posName = positions.find((p) => p.id === positionId)?.name;
   const [form, setForm] = useState({ own: { ...(own?.values ?? {}) }, ownNote: own?.note ?? '', pos: { ...(pos?.values ?? {}) }, posNote: pos?.note ?? '' });
-  const sideName = { L: 'Left', R: 'Right', S: 'Valor' };
+  const sideName = { L: 'Left', R: 'Right', S: 'Value' };
   const u = variable.unit ? ` ${variable.unit}` : '';
   const rows = sides.map((sd) => { const t = resolveTarget(targets, { playerId: player.id, positionId, variableId: variable.id, side: sd }); return t ? { sd, t, cur: current[sd], pa: stats[sd].pa } : null; }).filter(Boolean);
   const fmt = (d) => (d ? `${d.diff > 0 ? '+' : ''}${nf(d.diff)}${u}${d.pct !== null ? ` (${d.pct > 0 ? '+' : ''}${nf(d.pct, 1)} %)` : ''}${d.reached === true ? ' · alcanzado' : d.reached === false ? ' · no alcanzado' : ''}` : '—');
@@ -256,7 +256,7 @@ function asymConfig(c, asym, variable, deg = false) {
   return { type: 'bar', plugins: [etiquetas], data: { labels: asym.map((a) => fmtDay(a.date)), datasets: [{ label: deg ? 'Asymmetry (°)' : 'Asymmetry (%)', data: asym.map((a) => a.pct), backgroundColor: asym.map((a) => (a.pct >= 0 ? PAL.der : PAL.izq)), barPercentage: 0.7 }] },
     options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { right: 36, left: 4 } },
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: (it) => `${fmtA(it.parsed.x)} · L ${nf(asym[it.dataIndex].left)} / R ${nf(asym[it.dataIndex].right)} ${variable.unit ?? ''}` } } },
-      scales: { x: { min: -lim, max: lim, title: { display: true, text: deg ? 'Asimetría interlateral (°, right − left) · left ◄  ► right' : 'Asimetría interlateral (%) · left ◄  ► right', color: PAL.texto }, ticks: { color: PAL.texto, callback: (v) => `${Math.abs(v)}` }, grid: { color: (ctx) => (ctx.tick.value === 0 ? PAL.texto : PAL.rejilla) } },
+      scales: { x: { min: -lim, max: lim, title: { display: true, text: deg ? 'Interlimb asymmetry (°, right − left) · left ◄  ► right' : 'Interlimb asymmetry (%) · left ◄  ► right', color: PAL.texto }, ticks: { color: PAL.texto, callback: (v) => `${Math.abs(v)}` }, grid: { color: (ctx) => (ctx.tick.value === 0 ? PAL.texto : PAL.rejilla) } },
         y: { ticks: { color: PAL.texto }, grid: { display: false } } } } };
 }
 
@@ -268,7 +268,7 @@ function CompararPanel({ variable, sides, series, cmp, setCmp, refData, protocol
   const pa = pts.find((p) => p.sessionId === cmp.a), pb = pts.find((p) => p.sessionId === cmp.b);
   const u = variable.unit ? ` ${variable.unit}` : '';
   const lbl = (p) => `${fmtDay(p.date)}${p.time ? ' ' + p.time : ''} · ${nf(p.value)}${u}`;
-  const sideName = { L: 'Left', R: 'Right', S: 'Valor' };
+  const sideName = { L: 'Left', R: 'Right', S: 'Value' };
   let res = null, ant = null, pos = null;
   if (pa && pb && pa.sessionId !== pb.sessionId && refData) {
     [ant, pos] = (pa.date + pa.time) <= (pb.date + pb.time) ? [pa, pb] : [pb, pa];
@@ -342,7 +342,7 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const pad = all.length ? (Math.max(...all) - Math.min(...all)) * 0.1 || Math.abs(Math.max(...all)) * 0.1 || 1 : 1;
   const yMin = all.length ? Math.min(...all) - pad : undefined, yMax = all.length ? Math.max(...all) + pad : undefined; // mismo eje para ambos lados
   const asym = variable.sides === 'LR' ? asymmetrySeries(sessions, variable.id, { ...f, diff: esGrados(variable) }) : null;
-  const sideName = { L: 'Left', R: 'Right', S: 'Valor' };
+  const sideName = { L: 'Left', R: 'Right', S: 'Value' };
   const cmpV = cmp.varId === variable.id ? cmp : { varId: variable.id, side: null, a: null, b: null };
   const setCmpV = (c) => setCmp({ ...c, varId: variable.id });
   const onPoint = (side, p) => setCmp(() => { const c = cmpV; if (c.side !== side) return { varId: variable.id, side, a: p.sessionId, b: null }; if (c.a === p.sessionId) return { ...c, a: c.b, b: null }; if (c.b === p.sessionId) return { ...c, b: null }; if (c.a == null) return { ...c, a: p.sessionId }; if (c.b == null) return { ...c, b: p.sessionId }; return { varId: variable.id, side, a: p.sessionId, b: null }; });
@@ -437,8 +437,8 @@ export function ResultadosJugador({ player, query = {}, edicion = null, antrop =
   if (!data) return html`<p>Cargando…</p>`;
   const { catalog, sessions, omitted, targets, positions, fvProfiles, positionId } = data;
   const hasSessions = (t) => sessions.some((s) => s.testId === t.id);
-  // Los perfiles carga-velocidad no se guardan como sesiones: el test tiene datos si hay un perfil suyo, o uno sin test asignado (guardado antes de 9n).
-  const hasFv = (t) => vbtTest(t) && fvProfiles.some((p) => (p.testId ?? null) === t.id || (p.testId ?? null) === null);
+  // Los perfiles carga-velocidad no se guardan como sesiones: el test tiene datos si hay un perfil SUYO (uno sin test asignado no cuenta: no se sabe de qué test es).
+  const hasFv = (t) => vbtTest(t) && fvProfiles.some((p) => (p.testId ?? null) === t.id);
   const sinAsignar = (t) => vbtTest(t) && !fvProfiles.some((p) => (p.testId ?? null) === t.id) && fvProfiles.some((p) => (p.testId ?? null) === null);
   const loadTest = (t) => catalog.variables.some((v) => v.testId === t.id && !v.archived && v.kind !== 'derived' && LOAD_VARIABLE_NAMES.includes(v.name)); // Iso-Hold y RM: la carga se escribe a mano
   const vbtTest = (t) => /velocity profile/i.test(t.name); // perfiles fuerza–velocidad: el perfil carga-velocidad se introduce aquí

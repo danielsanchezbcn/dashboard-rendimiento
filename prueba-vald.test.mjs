@@ -42,6 +42,23 @@ check('fecha y hora en formato VALD (dd/mm/aaaa, 12 h)', byName('A')[0].date ===
 check('código desconocido rechazado', !V.parseValdGrid(grid.map((r, i) => (i ? r.map((c, k) => (k === 2 ? 'XXXX' : c)) : r)), cat).ok);
 { const mix = V.parseValdGrid(grid.map((r, i) => (i === 2 ? r.map((c, k) => (k === 2 ? 'RSKIP' : c)) : r)), cat);
   check('fichero con dos tests: dos grupos, uno por test', mix.ok && mix.groups.length === 2 && mix.groups.map((g) => g.testName).sort().join() === 'Run-Specific Hip Iso-Push,Run-Specific Knee Iso-Push'); }
+// Single-Leg Seated Calf Raise (SLSEICR): mismo formato ForceDecks, columnas Peak Vertical Force / Force at 100ms / RFD - 100ms, y una fila con un solo lado.
+{
+  const cab = ['Name', 'ExternalId', 'Test Type', 'Date', 'Time', 'BW [KG]', 'Reps (L)', 'Reps (R)', 'Tags', 'Peak Vertical Force [N] ', 'Peak Vertical Force [N] (L)', 'Peak Vertical Force [N] (R)', 'Peak Vertical Force [N] (Asym)(%)', 'Force at 100ms [N] ', 'Force at 100ms [N] (L)', 'Force at 100ms [N] (R)', 'Force at 100ms [N] (Asym)(%)', 'RFD - 100ms [N/s] ', 'RFD - 100ms [N/s] (L)', 'RFD - 100ms [N/s] (R)', 'RFD - 100ms [N/s] (Asym)(%)'];
+  const fila = (nom, fecha, hora, bw, rl, rr, pf, pfl, pfr, pfa, f1, f1l, f1r, f1a, rf, rfl, rfr, rfa) => [nom, '', 'SLSEICR', fecha, hora, bw, rl, rr, '', pf, pfl, pfr, pfa, f1, f1l, f1r, f1a, rf, rfl, rfr, rfa];
+  const gridC = [cab,
+    fila('Jug. Sintetico A', '12/11/2026', '10:33 AM', '7.6', '2', '2', '1372', '1308', '1435', '8.9 R', '536', '499', '574', '13 R', '1104', '808', '1401', '42 R'),
+    fila('Jug. Sintetico A', '08/07/2024', '10:25 AM', '13.99', '8', '', '656', '656', '', '', '322', '322', '', '', '445', '445', '', '')];
+  const r = V.parseValdGrid(gridC, cat);
+  const gr = r.groups?.[0];
+  check('VALD: el Single-Leg Seated Calf Raise se reconoce y va a su test', r.ok && r.codes[0] === 'SLSEICR' && gr.testName === 'Single-Leg Seated Calf Raise' && gr.rows.length === 2 && gr.rows.every((x) => x.ok), r.error ?? JSON.stringify(gr?.rows?.map((x) => x.issues)));
+  const nom = (id) => cat.variables.find((v) => v.id === Number(id))?.name;
+  const v1 = Object.fromEntries(Object.entries(gr.rows[0].values).map(([id, val]) => [nom(id), val]));
+  check('VALD calf raise: Peak Force, Force at 100 ms y RFD at 100 ms por lado', v1['Peak Force'].L === 1308 && v1['Peak Force'].R === 1435 && v1['Force at 100 ms'].R === 574 && v1['RFD at 100 ms'].L === 808 && gr.rows[0].reps.L === 2);
+  const v2 = Object.fromEntries(Object.entries(gr.rows[1].values).map(([id, val]) => [nom(id), val]));
+  check('VALD calf raise: una fila con un solo lado entra solo con ese lado', v2['Peak Force'].L === 656 && v2['Peak Force'].R === undefined && gr.rows[1].reps.L === 8);
+  check('VALD calf raise: la columna BW no se guarda como peso corporal (aquí es la carga del test)', !JSON.stringify(gr.rows.map((x) => x.body ?? null)).includes('13.99'));
+}
 check('fichero que no es de VALD rechazado', /No parece/.test(V.parseValdGrid([['a', 'b'], [1, 2]], cat).error));
 const cat2 = { ...cat, variables: cat.variables.map((v) => (v.name === 'RFD at 100 ms' && v.testId === res.testId ? { ...v, unit: 'N' } : v)) };
 check('unidad distinta en el catálogo rechazada', /unidad/.test(V.parseValdGrid(grid, cat2).error ?? ''));

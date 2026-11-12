@@ -140,17 +140,19 @@ export function FvPanel({ player, test = null }) {
   }, [db, version, player.id, tick]);
   if (!data) return null;
   const { anthro, reference } = data;
-  // Solo los perfiles de ESTE test de perfil F–V, más los que aún no tienen test asignado (guardados antes de 9n), que se pueden asignar con un botón.
-  const profiles = test ? data.profiles.filter((p) => (p.testId ?? null) === test.id || (p.testId ?? null) === null) : data.profiles;
+  // Solo los perfiles de ESTE test de perfil F–V. Los guardados sin test asignado (antes de 9n) NO se muestran como si fueran suyos —antes aparecían en
+  // todos los tests de perfil carga-velocidad y parecía que los datos se habían copiado (aviso del 11/11/2026)—: se ofrecen aparte para asignarlos.
+  const profiles = test ? data.profiles.filter((p) => (p.testId ?? null) === test.id) : data.profiles;
+  const sinTest = test ? data.profiles.filter((p) => (p.testId ?? null) === null) : [];
   const cur = profiles.find((p) => p.id === sel) ?? profiles[0] ?? null;
   const editing = editId === null ? null : profiles.find((p) => p.id === editId) ?? null;
   const mass = cur ? massNearest(anthro, cur.date) : null;
   const fit = cur ? fitLoadVelocity(cur.points, { fdmVelocity: cur.fdmVelocity, mass: mass?.kg ?? null }) : null;
   const done = () => { setEditId(null); reload(); };
   return html`<${Card} titulo="Perfil carga-velocidad (VBT)" id="fv">
-    ${cur && test && (cur.testId ?? null) === null ? html`<p class="status warn" role="status">Este perfil se guardó sin test asignado, así que aparece en todos los tests de perfil carga-velocidad. <button type="button" class="secondary" onClick=${async () => { try { await asignarFvProfile(db, cur.id, test.id); reload(); } catch (e) { setMsg({ level: 'fail', text: e.message }); } }}>Asignar a «${dn(test.name)}»</button></p>` : null}
+    ${sinTest.length ? html`<p class="status warn" role="status">${sinTest.length === 1 ? 'Hay un perfil guardado sin test asignado' : `Hay ${sinTest.length} perfiles guardados sin test asignado`} (se guardaron antes de poder elegir test). No se muestra en ningún test hasta que digas a cuál pertenece.${sinTest.map((p) => html` <button type="button" class="secondary" key=${p.id} onClick=${async () => { try { await asignarFvProfile(db, p.id, test.id); setSel(p.id); reload(); } catch (e) { setMsg({ level: 'fail', text: e.message }); } }}>Asignar el del ${fmtDay(p.date)}${p.exercise ? ` (${p.exercise})` : ''} a «${dn(test.name)}»</button>`)}</p>` : null}
     ${cur ? html`
-      ${profiles.length > 1 ? html`<label>Perfil <select value=${cur.id} onChange=${(e) => { setSel(Number(e.target.value)); setConfirmDel(null); }}>${profiles.map((p) => html`<option key=${p.id} value=${p.id}>${fmtDay(p.date)}${p.exercise ? ` · ${p.exercise}` : ''}${(p.testId ?? null) === null ? ' · sin test asignado' : ''}</option>`)}</select></label>` : null}
+      ${profiles.length > 1 ? html`<label>Perfil <select value=${cur.id} onChange=${(e) => { setSel(Number(e.target.value)); setConfirmDel(null); }}>${profiles.map((p) => html`<option key=${p.id} value=${p.id}>${fmtDay(p.date)}${p.exercise ? ` · ${p.exercise}` : ''}</option>`)}</select></label>` : null}
       ${fit.points?.length ? html`<${FvChart} canvasRef=${canvasRef} config=${fvChartConfig({ fit, reference, name: `${playerLabel(player)}${cur.exercise ? ' · ' + cur.exercise : ''}` })} label=${`Relación carga-velocidad de ${playerLabel(player)} el ${fmtDay(cur.date)}: ${fit.points.map((p) => `${p.load} kg ${nf(p.velocity)} m/s`).join(', ')}`} />
         <div class="actions"><button type="button" class="secondary" onClick=${() => canvasRef.current?.toBlob((b) => (b ? downloadBlob(b, `perfil-carga-velocidad-${playerLabel(player)}-${cur.date}.png`.replace(/[^\w.-]+/g, '_')) : setMsg({ level: 'fail', text: 'No se pudo crear la imagen.' })))}>Descargar imagen (PNG)</button></div>` : null}
       <p class=${'fv-conclusion' + (fit.ok ? '' : ' sint')} role="status" title="Umbrales de tu Excel; la pendiente depende también del nivel de fuerza, así que no es una clasificación validada"><span class="fv-conclusion-rot">Conclusión del perfil</span><strong>${classText(fit.class)}</strong> <span class="muted">(clasificación de tu Excel, no validada)</span></p>

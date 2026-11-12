@@ -278,25 +278,25 @@ export function parseValdGrid(grid, catalog) {
 // ---- Plan y guardado por grupos (un lote por test; las claves de conflicto llevan el test delante para no chocar)
 export async function planValdImport(db, vald, resolutions) {
   const plans = [];
-  const plan = { sessions: [], pending: [], rowErrors: [], counts: { nuevas: 0, duplicadas: 0, ampliadas: 0, conflictos: 0, conflictosFichero: 0, pendientes: 0, filasConError: 0 } };
+  const plan = { sessions: [], pending: [], rowErrors: [], counts: { nuevas: 0, duplicadas: 0, ampliadas: 0, repetidas: 0, conflictos: 0, conflictosFichero: 0, pendientes: 0, filasConError: 0 } };
   for (const g of vald.groups) {
     const gp = await planImport(db, { rows: g.rows, testId: g.testId, resolutions });
     plans.push({ group: g, plan: gp });
     plan.sessions.push(...gp.sessions.map((x) => ({ ...x, key: `${g.testId}~${x.key}`, testId: g.testId })));
     plan.pending.push(...gp.pending); plan.rowErrors.push(...gp.rowErrors);
-    for (const k of Object.keys(plan.counts)) plan.counts[k] += gp.counts[k];
+    for (const [k, v] of Object.entries(gp.counts)) plan.counts[k] = (plan.counts[k] ?? 0) + v;
   }
   return { plan, plans };
 }
 
-export async function commitValdImport(db, { file, vald, plans, choices = {}, remember = {} }) {
+export async function commitValdImport(db, { file, vald, plans, choices = {}, repeats = {}, remember = {} }) {
   const total = {}; const batchIds = [];
   for (let i = 0; i < plans.length; i++) {
     const { group: g, plan } = plans[i];
-    const own = {};
-    for (const x of plan.sessions) { const c = choices[`${g.testId}~${x.key}`]; if (c) own[x.key] = c; }
+    const own = {}, ownR = {};
+    for (const x of plan.sessions) { const c = choices[`${g.testId}~${x.key}`]; if (c) own[x.key] = c; const cr = repeats[`${g.testId}~${x.key}`]; if (cr) ownR[x.key] = cr; }
     const parsed = { stats: { read: g.readRows, empty: 0, skipped: vald.stats?.skipped ?? 0 }, notes: [...g.notes, ...(i === 0 ? vald.notes : [])] };
-    const r = await commitImport(db, { file, sheetName: 'CSV', mappingName: `Perfil VALD (${g.testName})`, testId: g.testId, mapping: { perfil: vald.codes.join(',') }, parsed, plan, conflictChoices: own, rememberAlias: remember, source: VALD_SOURCE });
+    const r = await commitImport(db, { file, sheetName: 'CSV', mappingName: `Perfil VALD (${g.testName})`, testId: g.testId, mapping: { perfil: vald.codes.join(',') }, parsed, plan, conflictChoices: own, repeatChoices: ownR, rememberAlias: remember, source: VALD_SOURCE });
     batchIds.push(r.batchId);
     for (const [k, v] of Object.entries(r.counts)) total[k] = (total[k] ?? 0) + v;
   }

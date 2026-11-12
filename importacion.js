@@ -355,9 +355,12 @@ export function esAmpliacion(a, b) {
   return ka.every((k) => k in b && Object.keys(a[k]).length === Object.keys(b[k]).length && Object.keys(a[k]).every((sd) => sd in b[k] && sameNum(a[k][sd], b[k][sd])));
 }
 
+// Huella de los valores de una sesión (mismas variables, lados y números). Sirve para reconocer la MISMA medición subida con otra fecha.
+export const valuesKey = (values) => JSON.stringify(Object.keys(values).sort().map((k) => [k, Object.keys(values[k]).sort().map((sd) => [sd, values[k][sd]])]));
+
 // resolutions: { [playerText]: { action: 'link', playerId } | { action: 'new', jerseyName } | { action: 'skip' } }
 export async function planImport(db, { rows, testId, protocolId = null, resolutions }) {
-  const plan = { sessions: [], pending: [], rowErrors: [], body: [], counts: { nuevas: 0, duplicadas: 0, ampliadas: 0, conflictos: 0, conflictosFichero: 0, pendientes: 0, filasConError: 0, pesosNuevos: 0, pesosCambiados: 0, pesosIguales: 0, alturasNuevas: 0, alturasIguales: 0, piernasNuevas: 0, piernasIguales: 0 } };
+  const plan = { sessions: [], pending: [], rowErrors: [], body: [], counts: { nuevas: 0, duplicadas: 0, ampliadas: 0, repetidas: 0, conflictos: 0, conflictosFichero: 0, pendientes: 0, filasConError: 0, pesosNuevos: 0, pesosCambiados: 0, pesosIguales: 0, alturasNuevas: 0, alturasIguales: 0, piernasNuevas: 0, piernasIguales: 0 } };
   const groups = new Map();
   const bodyByRef = new Map(); // ref → { weight (la de la fecha más reciente), heights: Map(fecha|valor) }
   for (const r of rows) {
@@ -379,7 +382,8 @@ export async function planImport(db, { rows, testId, protocolId = null, resoluti
     g.rows.push(r);
     groups.set(key, g);
   }
-  for (const g of groups.values()) {
+  const vistos = new Map(); // ref → Map(huella de valores → fecha) : sesiones ya guardadas + las que ya trae este mismo fichero
+  for (const g of [...groups.values()].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))) {
     const first = g.rows[0];
     const base = { key: g.key, ref: g.ref, resolution: g.res, playerText: g.playerText, date: g.date, time: g.time, rowNumbers: g.rows.map((x) => x.rowNumber), values: first.values, reps: first.reps, merged: first.mergedRows ?? null };
     const distinct = g.rows.filter((x) => !sameValues(x.values, first.values) || JSON.stringify(x.reps) !== JSON.stringify(first.reps));
@@ -397,6 +401,28 @@ export async function planImport(db, { rows, testId, protocolId = null, resoluti
       if (ampl) { plan.counts.ampliadas++; plan.sessions.push({ ...base, status: 'ampliable', existingId: ampl.id, dupRows }); continue; }
       if (existing.length) { plan.counts.conflictos++; plan.sessions.push({ ...base, status: 'conflicto', existingId: existing[0].id, dupRows }); continue; }
     }
+    // Misma medición con OTRA fecha: valores idénticos a una sesión ya guardada del mismo jugador, test y protocolo (o a otra fila anterior de este
+    // mismo fichero). Suele ser el mismo Excel resubido con la fecha de hoy, así que por defecto NO se importa; se puede forzar fila a fila.
+    if (!vistos.has(g.ref)) {
+      const m = new Map();
+      if (g.res.action === 'link') {
+        for (const x of await db.sessions.where('playerId').equals(g.res.playerId).toArray()) {
+          if (x.testId !== testId || (x.protocolId ?? null) !== (protocolId ?? null)) continue;
+          const k = valuesKey(x.values ?? {});
+          if (!m.has(k) || x.date < m.get(k)) m.set(k, x.date);
+        }
+      }
+      vistos.set(g.ref, m);
+    }
+    const mapa = vistos.get(g.ref);
+    const huella = valuesKey(first.values);
+    const otraFecha = mapa.get(huella);
+    if (otraFecha !== undefined && otraFecha !== g.date) {
+      plan.counts.repetidas++;
+      plan.sessions.push({ ...base, status: 'repetida', existingDate: otraFecha, dupRows });
+      continue;
+    }
+    if (!mapa.has(huella)) mapa.set(huella, g.date);
     plan.counts.nuevas++;
     plan.sessions.push({ ...base, status: 'nueva', dupRows });
   }
@@ -426,14 +452,14 @@ export async function planImport(db, { rows, testId, protocolId = null, resoluti
 }
 
 // conflictChoices: { [session.key]: 'omitir' | 'nueva' } (por defecto «omitir»)
-export async function commitImport(db, { file, sheetName, mappingName = '', testId, protocolId = null, mapping, parsed, plan, conflictChoices = {}, rememberAlias = {}, source = IMPORT_SOURCE }) {
+export async function commitImport(db, { file, sheetName, mappingName = '', testId, protocolId = null, mapping, parsed, plan, conflictChoices = {}, repeatChoices = {}, rememberAlias = {}, source = IMPORT_SOURCE }) {
   const tables = [db.players, db.playerAliases, db.sessions, db.importBatches, db.auditLog, db.anthropometry];
   return db.transaction('rw', tables, async () => {
     const now = new Date().toISOString();
     const report = { rowIssues: plan.rowErrors, pendingNames: [...new Set(plan.pending.map((p) => p.name))].map((name) => ({ name, rows: plan.pending.filter((p) => p.name === name).map((p) => p.row) })), sessionNotes: [...(parsed.notes ?? [])] };
     const batchId = await db.importBatches.add({ createdAt: now, source, fileName: file.name, fileHash: file.hash, fileSize: file.size, sheet: sheetName, testId, protocolId, mappingName, rowsRead: parsed.stats.read, rowsEmpty: parsed.stats.empty, status: 'en curso' });
     const playerIds = new Map(); // ref → id
-    const counts = { sesionesCreadas: 0, sesionesAmpliadas: 0, duplicadasOmitidas: 0, conflictosOmitidos: 0, conflictosGuardadosComoNuevas: 0, conflictosFichero: 0, jugadoresNuevos: 0, aliasGuardados: 0, aliasFijados: 0, filasNoImportadasFichero: parsed.stats?.skipped ?? 0, filasSinResolver: plan.counts.pendientes, filasConError: plan.counts.filasConError, pesosGuardados: 0, pesosCambiados: 0, alturasGuardadas: 0, alturasOmitidas: 0, piernasGuardadas: 0, piernasOmitidas: 0 };
+    const counts = { sesionesCreadas: 0, sesionesAmpliadas: 0, duplicadasOmitidas: 0, conflictosOmitidos: 0, conflictosGuardadosComoNuevas: 0, conflictosReemplazados: 0, repetidasOmitidas: 0, repetidasGuardadas: 0, conflictosFichero: 0, jugadoresNuevos: 0, aliasGuardados: 0, aliasFijados: 0, filasNoImportadasFichero: parsed.stats?.skipped ?? 0, filasSinResolver: plan.counts.pendientes, filasConError: plan.counts.filasConError, pesosGuardados: 0, pesosCambiados: 0, alturasGuardadas: 0, alturasOmitidas: 0, piernasGuardadas: 0, piernasOmitidas: 0 };
     const ensurePlayer = async (s) => {
       if (playerIds.has(s.ref)) return playerIds.get(s.ref);
       let id;
@@ -465,6 +491,12 @@ export async function commitImport(db, { file, sheetName, mappingName = '', test
     for (const s of plan.sessions) {
       if (s.status === 'conflicto-fichero') { counts.conflictosFichero++; report.sessionNotes.push({ rows: s.rowNumbers, text: s.note }); continue; }
       if (s.status === 'duplicada') { counts.duplicadasOmitidas++; continue; }
+      if (s.status === 'repetida' && (repeatChoices[s.key] ?? 'omitir') !== 'nueva') {
+        counts.repetidasOmitidas = (counts.repetidasOmitidas ?? 0) + 1;
+        report.sessionNotes.push({ rows: s.rowNumbers, text: `Valores idénticos a los de la sesión del ${s.existingDate}: se ha tomado por la misma medición con otra fecha y no se ha importado.` });
+        continue;
+      }
+      if (s.status === 'repetida') { counts.repetidasGuardadas = (counts.repetidasGuardadas ?? 0) + 1; report.sessionNotes.push({ rows: s.rowNumbers, text: `Valores idénticos a los del ${s.existingDate}; se ha guardado igualmente como sesión nueva por decisión del usuario.` }); }
       if (s.status === 'ampliable') {
         const ex = await db.sessions.get(s.existingId);
         if (!ex) { counts.conflictosOmitidos++; continue; }
@@ -477,6 +509,15 @@ export async function commitImport(db, { file, sheetName, mappingName = '', test
       }
       if (s.status === 'conflicto') {
         const choice = conflictChoices[s.key] ?? 'omitir';
+        // «Reemplazar»: la misma medición corregida en el Excel. Sustituye los valores de la sesión ya guardada en vez de crear otra; no cambia su fecha ni su estado.
+        if (choice === 'reemplazar') {
+          const ex = await db.sessions.get(s.existingId);
+          if (!ex) { counts.conflictosOmitidos++; continue; }
+          await db.sessions.update(ex.id, { values: s.values, ...(s.reps !== undefined ? { reps: s.reps } : {}) });
+          counts.conflictosReemplazados = (counts.conflictosReemplazados ?? 0) + 1;
+          report.sessionNotes.push({ rows: s.rowNumbers, text: 'Ya existía una sesión de ese jugador, fecha y hora: se han sustituido sus valores por los del fichero (decisión del usuario).' });
+          continue;
+        }
         if (choice !== 'nueva') { counts.conflictosOmitidos++; report.sessionNotes.push({ rows: s.rowNumbers, text: 'Ya existía una sesión de ese jugador, test, fecha y hora con valores distintos: no se ha sobrescrito ni guardado.' }); continue; }
         counts.conflictosGuardadosComoNuevas++;
         report.sessionNotes.push({ rows: s.rowNumbers, text: 'Ya existía una sesión con valores distintos; se ha guardado como sesión nueva por decisión del usuario.' });

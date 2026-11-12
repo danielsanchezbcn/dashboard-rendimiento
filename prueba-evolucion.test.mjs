@@ -37,6 +37,28 @@ let err = ''; try { await E.deleteSessionPermanently(db, a, { playerName: 'otro'
 check('eliminar exige jugador y fecha exactos', /no coincide/.test(err) && (await db.sessions.count()) === 2);
 await E.deleteSessionPermanently(db, a, { playerName: 'Jugador X', date: '2026-01-10' });
 check('eliminar borra solo esa sesión', !(await db.sessions.get(a)) && !!(await db.sessions.get(b)));
+// Borrado masivo de las sesiones de un test (todos los jugadores), para volver a importar desde cero
+{
+  const dbx = D.createDb('ev-borrado'); await D.initDb(dbx);
+  const t1 = await dbx.tests.add({ name: 'Supine Isometric Ankle Inversion', blockKey: 'fuerza' });
+  const t2 = await dbx.tests.add({ name: 'Supine Isometric Ankle Eversion', blockKey: 'fuerza' });
+  const p1 = await dbx.players.add({ jerseyName: 'A', active: true }), p2 = await dbx.players.add({ jerseyName: 'B', active: true });
+  const ses = [];
+  for (const pid of [p1, p2]) for (const [tid, fecha] of [[t1, '2026-11-05'], [t1, '2026-11-12'], [t2, '2026-11-05']]) ses.push({ playerId: pid, testId: tid, date: fecha, time: '', values: { 1: { L: 10, R: 11 } }, reps: {}, status: 'valid', source: 'Excel' });
+  await dbx.sessions.bulkAdd(ses);
+  const res = await E.testSessionsSummary(dbx, t1);
+  check('resumen por fecha: dos fechas, dos jugadores cada una', res.total === 4 && res.jugadores === 2 && res.fechas.map((f) => `${f.date}:${f.sesiones}:${f.jugadores}`).join('|') === '2026-11-05:2:2|2026-11-12:2:2' && res.fechas[0].origenes === 'Excel');
+  let e1 = ''; try { await E.deleteTestSessions(dbx, t1, { confirmText: 'ankle inversion' }); } catch (e) { e1 = e.message; }
+  check('borrado masivo: exige el nombre exacto del test', /nombre del test/.test(e1) && (await dbx.sessions.count()) === 6);
+  const r1 = await E.deleteTestSessions(dbx, t1, { confirmText: '  supine isometric ANKLE inversion ', date: '2026-11-12' });
+  check('borrado de una sola fecha: solo esas sesiones', r1.eliminadas === 2 && r1.jugadores === 2 && (await dbx.sessions.count()) === 4 && !(await dbx.sessions.toArray()).some((x) => x.date === '2026-11-12'));
+  const r2 = await E.deleteTestSessions(dbx, t1, { confirmText: 'Supine Isometric Ankle Inversion' });
+  check('borrado de todas las fechas: no toca el otro test', r2.eliminadas === 2 && (await dbx.sessions.toArray()).every((x) => x.testId === t2));
+  let e2 = ''; try { await E.deleteTestSessions(dbx, t1, { confirmText: 'Supine Isometric Ankle Inversion' }); } catch (e) { e2 = e.message; }
+  check('borrado sin sesiones: avisa y no rompe', /No hay sesiones/.test(e2));
+  const lg = await dbx.auditLog.toArray();
+  check('auditoría del borrado masivo: cantidad y fechas, sin valores', lg.filter((l) => l.action === 'sesiones-test-eliminadas').length === 2 && !JSON.stringify(lg).includes('"L":10'));
+}
 const log = await db.auditLog.toArray();
 check('auditoría sin valores', ['sesion-excluida', 'sesion-reincorporada', 'sesion-eliminada'].every((x) => log.some((l) => l.action === x)) && !JSON.stringify(log).includes('prueba fallida'));
 // D50: migración de un catálogo anterior (seed v3, sin direcciones)

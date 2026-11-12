@@ -145,6 +145,40 @@ export async function deleteSessionPermanently(db, sessionId, { playerName, date
   await audit(db, 'sesion-eliminada', { sessionId, playerId: s.playerId, testId: s.testId, date: s.date });
 }
 
+// Resumen de las sesiones guardadas de UN test, por fecha (todos los jugadores). Sirve para decidir qué borrar antes de volver a importar.
+export async function testSessionsSummary(db, testId) {
+  const todas = await db.sessions.where('testId').equals(testId).toArray();
+  const porFecha = new Map();
+  for (const s of todas) {
+    const f = porFecha.get(s.date) ?? { date: s.date, sesiones: 0, jugadores: new Set(), origenes: new Set() };
+    f.sesiones++; f.jugadores.add(s.playerId); f.origenes.add(s.source ?? '—');
+    porFecha.set(s.date, f);
+  }
+  return {
+    total: todas.length,
+    jugadores: new Set(todas.map((s) => s.playerId)).size,
+    fechas: [...porFecha.values()].map((f) => ({ date: f.date, sesiones: f.sesiones, jugadores: f.jugadores.size, origenes: [...f.origenes].sort().join(', ') })).sort((a, b) => a.date.localeCompare(b.date)),
+  };
+}
+
+// Borrado definitivo de TODAS las sesiones de un test (todos los jugadores), o solo las de una fecha. Exige escribir el nombre del test tal cual
+// (mismo criterio que el borrado de una sesión suelta: el alcance se confirma por escrito). No toca el catálogo ni ningún otro test.
+export async function deleteTestSessions(db, testId, { confirmText, date = null } = {}) {
+  const t = await db.tests.get(testId);
+  if (!t) throw new Error('El test no existe.');
+  if (String(confirmText ?? '').trim().toLowerCase() !== String(t.name).trim().toLowerCase()) throw new Error('Para confirmar, escribe el nombre del test exactamente como aparece en el catálogo.');
+  const todas = await db.sessions.where('testId').equals(testId).toArray();
+  const list = date ? todas.filter((s) => s.date === date) : todas;
+  if (!list.length) throw new Error('No hay sesiones guardadas que borrar con ese filtro.');
+  const fechas = [...new Set(list.map((s) => s.date))].sort();
+  const jugadores = new Set(list.map((s) => s.playerId)).size;
+  await db.transaction('rw', [db.sessions, db.auditLog], async () => {
+    await db.sessions.bulkDelete(list.map((s) => s.id));
+    await audit(db, 'sesiones-test-eliminadas', { testId, test: t.name, fecha: date ?? 'todas', cantidad: list.length, jugadores, fechas });
+  });
+  return { eliminadas: list.length, jugadores, fechas };
+}
+
 // Corrección de una sesión ya guardada (fecha, hora, valores de las variables indicadas y repeticiones). Sustituye lo anterior en esa misma fila:
 // no crea otra sesión. Rechaza valores no numéricos, fechas inválidas y colisiones con otra sesión del mismo jugador, test, protocolo, fecha y hora.
 // La auditoría guarda solo QUÉ campos cambian (fecha, hora, variable, repeticiones), nunca los valores.

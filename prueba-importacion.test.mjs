@@ -139,6 +139,38 @@ check('informe CSV: neutraliza fórmulas en nombres y ficheros (=, +, -, @)', !/
   const rN = await M.commitImport(db, { file, sheetName: 'x', testId: test.id, mapping, parsed: p3, plan: plan3, conflictChoices: { [key]: 'nueva' } });
   const sa = await db.sessions.where('playerId').equals(A).toArray();
   check('conflicto «guardar como nueva» conserva la original', rN.counts.conflictosGuardadosComoNuevas === 1 && sa.length === 2 && sa.some((s) => s.values[vPF.id].L === 410));
+  // «reemplazar»: la misma medición corregida en el Excel sustituye los valores de la sesión guardada, sin crear otra ni cambiar su fecha
+  {
+    const antes = (await db.sessions.where('playerId').equals(A).toArray()).sort((x, y) => x.id - y.id)[0];
+    const alt2 = rows0.map((r) => r.slice()); alt2[3][3] = 888;
+    const p4 = M.buildRows(alt2, mapping, vars);
+    const planR = await M.planImport(db, { rows: p4.rows, testId: test.id, resolutions: { 'jug. sintetico A': { action: 'link', playerId: A } } });
+    const keyR = planR.sessions.find((x) => x.status === 'conflicto').key;
+    const rR = await M.commitImport(db, { file, sheetName: 'x', testId: test.id, mapping, parsed: p4, plan: planR, conflictChoices: { [keyR]: 'reemplazar' } });
+    const dsp = await db.sessions.get(antes.id);
+    check('conflicto «reemplazar»: cambia los valores de la sesión guardada y no crea otra', rR.counts.conflictosReemplazados === 1 && rR.counts.sesionesCreadas === 0 && dsp.values[vPF.id].L === 888 && dsp.date === antes.date && dsp.id === antes.id);
+    check('«reemplazar» deja constancia en el informe del lote', JSON.stringify((await db.importBatches.toArray()).at(-1).report).includes('sustituido'));
+  }
+
+  // Misma medición subida con otra fecha: valores idénticos a una sesión ya guardada → no se importa salvo que se fuerce
+  {
+    const hoy = rows0.map((r) => r.slice());
+    for (let i = 1; i < hoy.length; i++) if (hoy[i][1]) hoy[i][1] = '12/11/2026';
+    const p5 = M.buildRows(hoy, mapping, vars);
+    const plan5 = await M.planImport(db, { rows: p5.rows, testId: test.id, resolutions: { ...resolutions, 'Jugador desconocido': { action: 'link', playerId: newP.id } } });
+    check('mismo fichero con la fecha de hoy: las filas sin cambios se detectan como repetidas', plan5.counts.repetidas === 3 && plan5.counts.nuevas === 1, JSON.stringify(plan5.counts));
+    const rep = plan5.sessions.find((x) => x.status === 'repetida');
+    check('la repetida indica con qué fecha coincide', !!rep.existingDate && rep.existingDate !== rep.date);
+    const antes = await db.sessions.count();
+    const r5 = await M.commitImport(db, { file, sheetName: 'x', testId: test.id, mapping, parsed: p5, plan: plan5 });
+    check('por defecto no se importa ninguna repetida (solo entra la fila que sí cambió)', r5.counts.repetidasOmitidas === 3 && r5.counts.sesionesCreadas === 1 && (await db.sessions.count()) === antes + 1);
+    const antes6 = await db.sessions.count();
+    const plan6 = await M.planImport(db, { rows: p5.rows, testId: test.id, resolutions: { ...resolutions, 'Jugador desconocido': { action: 'link', playerId: newP.id } } });
+    const rep6 = plan6.sessions.find((x) => x.status === 'repetida');
+    const r6 = await M.commitImport(db, { file, sheetName: 'x', testId: test.id, mapping, parsed: p5, plan: plan6, repeatChoices: { [rep6.key]: 'nueva' } });
+    check('se puede forzar una repetida concreta (medición repetida de verdad)', r6.counts.repetidasGuardadas === 1 && r6.counts.sesionesCreadas === 1 && (await db.sessions.count()) === antes6 + 1);
+  }
+
   // nombre completo + alias: al confirmar un nombre de Excel sobre un jugador sin alias distinto, ese texto pasa a ser su alias
   const Z = await db.players.add({ jerseyName: 'Zed Zeta Prueba', fullName: 'Zed Zeta Prueba', notes: '', active: true, createdAt: 'x', updatedAt: 'x' });
   const planZ = await M.planImport(db, { rows: p3.rows, testId: test.id, resolutions: { 'jug. sintetico A': { action: 'link', playerId: Z } } });

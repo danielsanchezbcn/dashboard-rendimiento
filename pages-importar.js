@@ -52,6 +52,7 @@ function ImportarFicheros() {
   const [vplans, setVplans] = useState([]);
   const [atl, setAtl] = useState(null);
   const [choices, setChoices] = useState({});
+  const [repeChoices, setRepeChoices] = useState({});
   const [result, setResult] = useState(null);
   const [missing, setMissing] = useState([]);
   const [delIds, setDelIds] = useState({});
@@ -138,12 +139,13 @@ function ImportarFicheros() {
     setMissing(await I.findMissingSessions(db, { source: origin === 'vald' ? 'VALD' : I.IMPORT_SOURCE, groups }));
     setDelIds({});
     setChoices({});
+    setRepeChoices({});
     setStep('resumen');
   });
 
   const save = run(async () => {
     if (origin === 'vald') {
-      const rv = await V.commitValdImport(db, { file, vald, plans: vplans, choices, remember });
+      const rv = await V.commitValdImport(db, { file, vald, plans: vplans, choices, repeats: repeChoices, remember });
       const ids = Object.keys(delIds).filter((k) => delIds[k]).map(Number);
       if (ids.length) {
         const byTest = {}; vplans.forEach((x, i) => { byTest[x.group.testId] = rv.batchIds[i]; });
@@ -153,7 +155,7 @@ function ImportarFicheros() {
       setResult(rv); setStep('resultado'); bump();
       return;
     }
-    const r = await I.commitImport(db, { file, sheetName: sheet.name, mappingName, testId: Number(testId), protocolId: protocolId ? Number(protocolId) : null, mapping: { headerRow, cols, fixedDate, noHeader, subHeader }, parsed, plan, conflictChoices: choices, rememberAlias: remember });
+    const r = await I.commitImport(db, { file, sheetName: sheet.name, mappingName, testId: Number(testId), protocolId: protocolId ? Number(protocolId) : null, mapping: { headerRow, cols, fixedDate, noHeader, subHeader }, parsed, plan, conflictChoices: choices, repeatChoices: repeChoices, rememberAlias: remember });
     const ids = Object.keys(delIds).filter((k) => delIds[k]).map(Number);
     if (ids.length) r.eliminadas = (await I.applyMissingDeletion(db, { ids, source: I.IMPORT_SOURCE, batchByTest: { [Number(testId)]: r.batchId } })).eliminadas;
     const batch = (await I.listBatches(db)).find((b) => b.id === r.batchId);
@@ -201,7 +203,7 @@ function ImportarFicheros() {
     ${step === 'mapeo' ? html`<${PasoMapeo} ...${{ cat, importable, headers, grid, headerRow, subHeader, testId, chooseTest, protocolId, setProtocolId, cols, setCol, setCols, fixedDate, setFixedDate, mappingName, setMappingName, variables, test, msg, toPreview, back: () => setStep('archivo'), busy, db }} />` : null}
     ${step === 'vista' && parsed ? html`<${PasoVista} ...${{ parsed, cols: origin === 'vald' ? [] : cols, headers: origin === 'vald' ? [] : headers, vald: origin === 'vald' ? vald : null, back: () => setStep(origin === 'vald' ? 'archivo' : 'mapeo'), next: toPlayers, busy, msg }} />` : null}
     ${step === 'jugadores' ? html`<${PasoJugadores} ...${{ proposals, resolutions, setResolutions, remember, setRemember, back: () => setStep('vista'), next: toSummary, busy, msg }} />` : null}
-    ${step === 'resumen' && plan ? html`<${PasoResumen} ...${{ plan, choices, setChoices, missing, delIds, setDelIds, cat, variables, test, back: () => setStep('jugadores'), save, busy, msg }} />` : null}
+    ${step === 'resumen' && plan ? html`<${PasoResumen} ...${{ plan, choices, setChoices, repeChoices, setRepeChoices, missing, delIds, setDelIds, cat, variables, test, back: () => setStep('jugadores'), save, busy, msg }} />` : null}
     ${step === 'resultado' && result ? html`<${PasoResultado} ...${{ result, again: reset }} />` : null}
     <${Historial} batches=${batches} cat=${cat} />
   `;
@@ -353,19 +355,21 @@ function PasoAtletas({ atl, back, done }) {
 
 const STATUS_TEXT = { nueva: 'Nueva', duplicada: 'Ya existe idéntica (se omite)', ampliable: 'Ya existe: se completa con variables nuevas', conflicto: 'Ya existe con valores distintos', 'conflicto-fichero': 'Filas contradictorias en el fichero' };
 
-function PasoResumen({ plan, choices, setChoices, missing = [], delIds = {}, setDelIds, cat, back, save, busy, msg }) {
+function PasoResumen({ plan, choices, setChoices, repeChoices = {}, setRepeChoices = () => {}, missing = [], delIds = {}, setDelIds, cat, back, save, busy, msg }) {
   const c = plan.counts;
   const conflicts = plan.sessions.filter((s) => s.status === 'conflicto');
   const inFile = plan.sessions.filter((s) => s.status === 'conflicto-fichero');
+  const repes = plan.sessions.filter((s) => s.status === 'repetida');
   const newPlayers = new Set(plan.sessions.filter((s) => s.status !== 'duplicada' && s.resolution.action === 'new').map((s) => s.ref)).size;
-  const creates = c.nuevas + conflicts.filter((s) => choices[s.key] === 'nueva').length;
+  const creates = c.nuevas + conflicts.filter((s) => choices[s.key] === 'nueva').length + repes.filter((s) => repeChoices[s.key] === 'nueva').length;
   return html`<${Card} titulo="5. Resumen antes de guardar">
     <ul>
       <li><strong>${c.nuevas}</strong> sesiones nuevas.</li>
       <li><strong>${c.duplicadas}</strong> ya existían idénticas: se omiten sin cambios.</li>
       ${c.ampliadas ? html`<li><strong>${c.ampliadas}</strong> ya existían con menos variables: se completan solo con las que faltan (no se cambia ningún valor guardado).</li>` : null}
-      <li><strong>${c.conflictos}</strong> coinciden en jugador, test, fecha y hora con valores distintos: no se sobrescribe nada (elige abajo).</li>
+      <li><strong>${c.conflictos}</strong> coinciden en jugador, test, fecha y hora con valores distintos: no se sobrescribe nada salvo que elijas «reemplazar» abajo.</li>
       <li><strong>${c.conflictosFichero}</strong> grupos de filas contradictorias dentro del fichero: no se importan.</li>
+      ${c.repetidas ? html`<li><strong>${c.repetidas}</strong> con valores idénticos a los de otra fecha ya guardada: se toman por la misma medición y <strong>no se importan</strong> (puedes forzarlas abajo).</li>` : null}
       <li><strong>${c.pendientes}</strong> filas de jugadores sin resolver: no se importan.</li>
       <li><strong>${c.filasConError}</strong> filas con errores: no se importan.</li>
       <li><strong>${newPlayers}</strong> jugadores nuevos se crearán.</li>
@@ -375,7 +379,11 @@ function PasoResumen({ plan, choices, setChoices, missing = [], delIds = {}, set
     </ul>
     ${conflicts.length ? html`<div class="table-wrap"><table><caption>Conflictos con sesiones ya guardadas</caption>
       <thead><tr><th scope="col">Jugador</th><th scope="col">Fecha</th><th scope="col">Qué hacer</th></tr></thead>
-      <tbody>${conflicts.map((s) => html`<tr key=${s.key}><td>${s.playerText}</td><td>${fmtDay(s.date)} ${s.time}</td><td><select aria-label=${'Conflicto de ' + s.playerText + ' ' + s.date} value=${choices[s.key] ?? 'omitir'} onChange=${(e) => setChoices((x) => ({ ...x, [s.key]: e.target.value }))}><option value="omitir">Omitir (conservar la sesión existente)</option><option value="nueva">Guardar como sesión nueva (otra sesión ese día)</option></select></td></tr>`)}</tbody></table></div>` : null}
+      <tbody>${conflicts.map((s) => html`<tr key=${s.key}><td>${s.playerText}</td><td>${fmtDay(s.date)} ${s.time}</td><td><select aria-label=${'Conflicto de ' + s.playerText + ' ' + s.date} value=${choices[s.key] ?? 'omitir'} onChange=${(e) => setChoices((x) => ({ ...x, [s.key]: e.target.value }))}><option value="omitir">Omitir (conservar la sesión existente)</option><option value="nueva">Guardar como sesión nueva (otra sesión ese día)</option><option value="reemplazar">Reemplazar los valores guardados (misma medición corregida)</option></select></td></tr>`)}</tbody></table></div>` : null}
+    ${repes.length ? html`<div class="table-wrap"><table><caption>Mediciones repetidas con otra fecha (${repes.length})</caption>
+      <thead><tr><th scope="col">Jugador</th><th scope="col">Fecha del fichero</th><th scope="col">Ya guardada el</th><th scope="col">Qué hacer</th></tr></thead>
+      <tbody>${repes.map((s) => html`<tr key=${s.key}><td>${s.playerText}</td><td>${fmtDay(s.date)} ${s.time}</td><td>${fmtDay(s.existingDate)}</td><td><select aria-label=${'Medición repetida de ' + s.playerText + ' ' + s.date} value=${repeChoices[s.key] ?? 'omitir'} onChange=${(e) => setRepeChoices((x) => ({ ...x, [s.key]: e.target.value }))}><option value="omitir">No importar (es la misma medición)</option><option value="nueva">Guardar igualmente (se repitió el resultado)</option></select></td></tr>`)}</tbody></table>
+      <p class="muted">Mismos valores en todas las variables y lados que una sesión ya guardada de ese jugador y test, en otra fecha. Si la medición se repitió de verdad con el mismo resultado, elige «Guardar igualmente».</p></div>` : null}
     ${missing.length ? html`<div class="table-wrap missing-box"><table><caption>Sesiones guardadas que no aparecen en este fichero (${missing.length})</caption>
       <thead><tr><th scope="col"><span class="sr">Eliminar</span></th><th scope="col">Jugador</th><th scope="col">Test</th><th scope="col">Fecha</th></tr></thead>
       <tbody>${missing.map((m) => html`<tr key=${m.id}><td><input type="checkbox" aria-label=${'Eliminar la sesión de ' + m.playerName + ' del ' + m.date} checked=${!!delIds[m.id]} onChange=${(e) => setDelIds((x) => ({ ...x, [m.id]: e.target.checked }))} /></td><td>${m.playerName}</td><td>${cat?.tests.find((t) => t.id === m.testId)?.name ?? m.testId}</td><td>${fmtDay(m.date)} ${m.time}</td></tr>`)}</tbody></table>
@@ -393,7 +401,7 @@ function PasoResultado({ result, again }) {
   return html`<${Card} titulo="6. Importación guardada">
     <p class="status ok">${result.batchIds?.length > 1 ? `Lotes ${result.batchIds.join(', ')} guardados` : `Lote ${result.batchId} guardado`}: ${k.sesionesCreadas} sesiones creadas.</p>
     <ul>
-      <li>${k.duplicadasOmitidas} duplicadas omitidas · ${k.conflictosOmitidos} conflictos omitidos · ${k.conflictosGuardadosComoNuevas} conflictos guardados como sesión nueva · ${k.conflictosFichero} grupos contradictorios del fichero sin importar.</li>
+      <li>${k.duplicadasOmitidas} duplicadas omitidas · ${k.conflictosOmitidos} conflictos omitidos · ${k.conflictosGuardadosComoNuevas} conflictos guardados como sesión nueva · ${k.conflictosReemplazados ?? 0} sesiones reemplazadas · ${k.repetidasOmitidas ?? 0} repetidas de otra fecha no importadas · ${k.conflictosFichero} grupos contradictorios del fichero sin importar.</li>
       ${result.eliminadas ? html`<li><strong>${result.eliminadas}</strong> sesiones ausentes del fichero eliminadas por tu decisión.</li>` : null}
       ${k.piernasGuardadas ? html`<li>${k.piernasGuardadas} longitudes de pierna guardadas.</li>` : null}
       ${(k.pesosGuardados || k.alturasGuardadas) ? html`<li>${k.pesosGuardados} pesos de referencia guardados (${k.pesosCambiados} sustituyeron a uno anterior) · ${k.alturasGuardadas} alturas guardadas.</li>` : null}

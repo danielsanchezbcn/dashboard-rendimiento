@@ -55,10 +55,11 @@ const server = http.createServer((req, res) => {
   // ---- Iso-Hold: Normative Benchmarking arriba del todo, con la carga, el MVIC iso-push, el %PIMA y el %BW/%SW y sus percentiles
   await go(`#jugador-${P}?t=${t.khold}&b=fuerza`, '.evo table.pano', 1500);
   await shot('isohold');
+  if (CAP) await page.locator('section.panorama').first().screenshot({ path: path.join(CAP, 'isohold-nb.png') });
   const iso = await page.evaluate(() => ({ primero: document.querySelector('.evo')?.firstElementChild?.className ?? '', cab: [...document.querySelectorAll('table.pano thead tr:first-child th')].map((x) => x.innerText.split('\n')[0].trim()), fil: Object.fromEntries([...document.querySelectorAll('table.pano tbody tr')].map((r) => [r.querySelector('th').innerText.trim(), [...r.querySelectorAll('td')].map((d) => d.innerText.trim())])) }));
   check('Iso-Hold: Normative Benchmarking es lo primero del test', iso.primero === 'panorama', iso.primero);
-  check('Iso-Hold: una columna para la carga, el MVIC iso-push, el %PIMA y el %BW/%SW', iso.cab.join('|') === 'carga externa (kg)|mvic iso-push (kg)|%pima|%bw', iso.cab.join('|'));
-  check('Iso-Hold: las cuatro variables, calculadas incluidas, tienen percentil de La Liga', (iso.fil['Valor (percentil La Liga)'] ?? []).length === 4 && (iso.fil['Valor (percentil La Liga)'] ?? []).every((x) => /^(\d+|n<\d+)$/.test(x)), JSON.stringify(iso.fil));
+  check('Iso-Hold: columnas en el orden pedido (MVIC, carga, %PIMA, %BW/%SW)', iso.cab.join('|') === 'mvic iso-push (kg)|carga externa (kg)|%pima|%bw', iso.cab.join('|'));
+  check('Iso-Hold: las cuatro variables, calculadas incluidas, tienen percentil de La Liga', (iso.fil['Value (La Liga percentile)'] ?? []).length === 4 && (iso.fil['Value (La Liga percentile)'] ?? []).every((x) => /^(\d+|n<\d+)$/.test(x)), JSON.stringify(iso.fil));
 
   // Mismo test renombrado con el prefijo «Run-Specific» (como en la base del usuario): debe seguir encontrando su Iso-Push y calcular MVIC y %PIMA.
   await page.evaluate(async (id) => { const db = await new Promise((ok) => { const r = indexedDB.open('dashboard-rendimiento'); r.onsuccess = () => ok(r.result); }); await new Promise((ok, no) => { const tx = db.transaction('tests', 'readwrite'); const st = tx.objectStore('tests'); const rq = st.get(id); rq.onsuccess = () => { const t = rq.result; t.name = 'Run-Specific Knee Iso-Hold 20 s'; st.put(t); }; tx.oncomplete = ok; tx.onerror = () => no(tx.error); }); }, t.khold);
@@ -74,6 +75,14 @@ const server = http.createServer((req, res) => {
   await page.locator('form[aria-label="Nuevo perfil carga-velocidad"] button[type=submit]').click();
   await page.waitForSelector('canvas', { timeout: 15000 }); await page.waitForTimeout(800);
   check('Perfil F–V guardado: el test ya no aparece «sin datos aún» (la lista se refresca sola)', !/sin datos aún/.test(await itemBsq.innerText()) && !/vacio/.test(await itemBsq.getAttribute('class')), await itemBsq.innerText());
+  check('Perfil F–V: el perfil guardado NO aparece en los demás tests de perfil carga-velocidad', await page.evaluate(async (bsq) => { const db = await new Promise((ok) => { const r = indexedDB.open('dashboard-rendimiento'); r.onsuccess = () => ok(r.result); }); const todos = await new Promise((ok) => { const rq = db.transaction('fvProfiles').objectStore('fvProfiles').getAll(); rq.onsuccess = () => ok(rq.result); }); return todos.length === 1 && todos[0].testId === bsq; }, t.bsq));
+  // Un perfil antiguo sin test asignado no se muestra como propio de ningún test: se ofrece para asignarlo.
+  await page.evaluate(async () => { const db = await new Promise((ok) => { const r = indexedDB.open('dashboard-rendimiento'); r.onsuccess = () => ok(r.result); }); await new Promise((ok) => { const tx = db.transaction('fvProfiles', 'readwrite'); const st = tx.objectStore('fvProfiles'); const rq = st.getAll(); rq.onsuccess = () => { for (const p of rq.result) { p.testId = null; st.put(p); } }; tx.oncomplete = ok; }); });
+  await page.reload(); await page.waitForSelector('form[aria-label="Nuevo perfil carga-velocidad"]', { timeout: 15000 }); await page.waitForTimeout(600);
+  check('Perfil sin test asignado: no se muestra como dato del test y se ofrece asignarlo', (await page.locator('canvas').count()) === 0 && /sin test asignado/.test(await page.locator('.status.warn').first().innerText()) && /sin datos aún/.test(await itemBsq.innerText()));
+  await page.locator('.status.warn button', { hasText: 'Asignar' }).first().click();
+  await page.waitForSelector('canvas', { timeout: 15000 }); await page.waitForTimeout(600);
+  check('Perfil asignado a este test: se muestra y el test deja de estar «sin datos aún»', (await page.locator('.status.warn').count()) === 0 && !/sin datos aún/.test(await itemBsq.innerText()));
   await page.evaluate(async () => { const db = await new Promise((ok) => { const r = indexedDB.open('dashboard-rendimiento'); r.onsuccess = () => ok(r.result); }); await new Promise((ok) => { const tx = db.transaction('fvProfiles', 'readwrite'); tx.objectStore('fvProfiles').clear(); tx.oncomplete = ok; }); });
 
   // ---- Menú y pestañas
@@ -86,14 +95,14 @@ const server = http.createServer((req, res) => {
 
   // ---- Perímetros: orden de filas y percentil de asimetría
   await go(`#jugador-${P}?t=${t.per}&b=perimetros`, 'table.pano');
-  check('Perímetros: filas Valor · Percentil La Liga · Asimetría · Percentil asimetría', (await texts('table.pano tbody th')).join('|') === 'Valor (% última sesión vs Personal Average)|Valor (percentil La Liga)|Asimetría|Asimetría (percentil La Liga)', (await texts('table.pano tbody th')).join('|'));
+  check('Perímetros: filas Value · La Liga percentile · Asymmetry · percentil de asimetría', (await texts('table.pano tbody th')).join('|') === 'Value (% latest session vs Personal Average)|Value (La Liga percentile)|Asymmetry|Asymmetry (La Liga percentile)', (await texts('table.pano tbody th')).join('|'));
   check('Perímetros: 5 variables y texto de asimetría en color', (await page.locator('table.pano thead tr:first-child th').count()) === 5 && (await page.locator('table.pano tbody tr').nth(2).locator('.asim-l, .asim-r').count()) >= 1);
   check('Perímetros: percentil de asimetría con valores o «n<»', (await texts('table.pano tbody tr:nth-child(4) td')).every((x) => /^(\d+|n<\d+)$/.test(x.trim())), (await texts('table.pano tbody tr:nth-child(4) td')).join(','));
   await shot('perimetros');
 
   // ---- Jurdan Test: L y R lado a lado, percentil de cada lado, asimetría en grados
   await go(`#jugador-${P}?t=${t.jur}&b=nme`, 'table.pano');
-  check('Jurdan: filas Valor · Percentil La Liga · Asimetría (°), sin percentil de asimetría', (await texts('table.pano tbody th')).join('|') === 'Valor (% última sesión vs Personal Average)|Valor (percentil La Liga)|Asimetría', (await texts('table.pano tbody th')).join('|'));
+  check('Jurdan: filas Value · La Liga percentile · Asymmetry (°), sin percentil de asimetría', (await texts('table.pano tbody th')).join('|') === 'Value (% latest session vs Personal Average)|Value (La Liga percentile)|Asymmetry', (await texts('table.pano tbody th')).join('|'));
   check('Jurdan: 4 variables, con L y R por separado (izquierda a la izquierda) en valor y percentil', (await page.locator('table.pano thead tr:first-child th').count()) === 4 && (await page.locator('table.pano thead tr.lados th').allInnerTexts()).join('') === 'LRLRLRLR' && (await page.locator('table.pano tbody tr:nth-child(1) td').count()) === 8 && (await page.locator('table.pano tbody tr:nth-child(2) td').count()) === 8);
   check('Jurdan: asimetría en grados con letra de lado y color', (await texts('table.pano tbody tr:nth-child(3) td')).every((x) => /^\d+(,\d+)? ° [LR]$|^0 °$/.test(x.trim())) && (await page.locator('table.pano tbody tr:nth-child(3) .asim-l, table.pano tbody tr:nth-child(3) .asim-r').count()) >= 1, (await texts('table.pano tbody tr:nth-child(3) td')).join(','));
   check('Jurdan: sin opción Personal Best (ángulos sin dirección)', !(await texts('section.panorama fieldset.modes label')).some((x) => /Personal Best/.test(x)));
@@ -108,16 +117,16 @@ const server = http.createServer((req, res) => {
     await go(`#jugador-${P}?t=${t[key]}&b=fuerza`, '.evo');
     const n = await page.locator('section.panorama table.pano thead tr:first-child th').count();
     const filas = (await texts('section.panorama table.pano tbody th')).join('|');
-    check(`${key}: Normative Benchmarking con una columna por variable y fila de percentil`, n >= 2 && /Valor \(percentil La Liga\)/.test(filas), `${n} · ${filas}`);
+    check(`${key}: Normative Benchmarking con una columna por variable y fila de percentil`, n >= 2 && /Value \(La Liga percentile\)/.test(filas), `${n} · ${filas}`);
   }
   await shot('hip');
   // Guardas del Normative Benchmarking unificado (causa del error «68 vs 60/68»: dos cálculos distintos del mismo percentil)
   await go(`#jugador-${P}?t=${t.hip}&b=fuerza`, 'table.pano.norm');
   const g = await page.evaluate(() => { const tb = document.querySelector('table.pano.norm'); const filas = [...tb.querySelectorAll('tbody tr')].map((r) => ({ lab: r.querySelector('th')?.innerText ?? '', n: r.querySelectorAll('td').length, txt: [...r.querySelectorAll('td')].map((d) => d.innerText.trim()) })); const w = tb.closest('.pano-wrap'); return { filas, desborda: w.scrollWidth > w.clientWidth + 1, pagina: document.documentElement.scrollWidth > window.innerWidth + 1, lados: [...tb.querySelectorAll('thead tr.lados th')].map((x) => x.innerText.trim()).join('') }; });
   check('Normative Benchmarking: izquierda a la izquierda y derecha a la derecha en cada variable', /^(LR)+$/.test(g.lados), g.lados);
-  check('Normative Benchmarking: percentil La Liga por pierna (una celda por lado, ninguna vacía)', (() => { const f = g.filas.find((x) => /percentil La Liga\)$/.test(x.lab) && /^Valor/.test(x.lab)); return !!f && f.txt.length >= 2 && f.txt.every((x) => x !== '' && x !== '—'); })(), JSON.stringify(g.filas.map((x) => x.lab + ':' + x.txt.join(','))));
+  check('Normative Benchmarking: percentil La Liga por pierna (una celda por lado, ninguna vacía)', (() => { const f = g.filas.find((x) => /La Liga percentile\)$/.test(x.lab) && /^Value/.test(x.lab)); return !!f && f.txt.length >= 2 && f.txt.every((x) => x !== '' && x !== '—'); })(), JSON.stringify(g.filas.map((x) => x.lab + ':' + x.txt.join(','))));
   check('Normative Benchmarking: el percentil Premier League aparece también en este test (antes solo en la otra tabla)', g.filas.some((x) => /Premier League/.test(x.lab) && x.txt.some((y) => y !== '—' && y !== '')), JSON.stringify(g.filas.map((x) => x.lab + ':' + x.txt.join(','))));
-  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.locator('.img-botones button', { hasText: 'Descargar PNG' }).first().click()]);
+  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.locator('.img-botones button', { hasText: 'Download PNG' }).first().click()]);
   const bufPng = require('fs').readFileSync(await dl.path());
   check('Normative Benchmarking: la tabla se descarga como PNG válido y con contenido', bufPng.subarray(0, 8).toString('hex') === '89504e470d0a1a0a' && bufPng.length > 5000, `${bufPng.length} bytes · ${dl.suggestedFilename()}`);
   require('fs').writeFileSync(require('path').join(process.env.CAPS_DIR || '/tmp', 'tabla-nb.png'), bufPng);
@@ -149,7 +158,7 @@ const server = http.createServer((req, res) => {
     let ok = true, det = '';
     heads.forEach((h, c) => { const e = esperado.find(([n]) => n.toLowerCase() === h.toLowerCase()); if (!e) return; const id = Number(e[1]); const want = /\bRSI\b/i.test(e[0]) ? 0.9 + iP * 0.01 : 30 + (id % 7) + iP; const got = Number(vals[c].replace(',', '.')); if (!(Math.abs(got - want) < 0.006)) { ok = false; det += `${h}: ${vals[c]} ≠ ${want}; `; } });
     check(`${testName}: Personal Best = valores de la sesión con mejor RSI`, heads.length >= 5 && ok, det);
-    check(`${testName}: nombres de variables en minúscula y rótulo del PB`, heads.every((h) => h === h.toLowerCase()) && (await texts('fieldset.modes label')).some((x) => /Personal Best \(sesión con mejor RSI/.test(x)), heads.join('|'));
+    check(`${testName}: nombres de variables en minúscula y rótulo del PB`, heads.every((h) => h === h.toLowerCase()) && (await texts('fieldset.modes label')).some((x) => /Personal Best \(best RSI session/.test(x)), heads.join('|'));
   }
   await go(`#jugador-${P}?t=${t.cmj}&b=fuerza`, 'table.pano');
   const orden = await page.evaluate(() => [...document.querySelectorAll('.evo > *')].map((e) => e.className || e.tagName).slice(0, 4));
@@ -190,6 +199,23 @@ const server = http.createServer((req, res) => {
   // ---- Todos los jugadores, Squat Jump (PB por JH) y Personal Best sin tabla
   await go(`#test-${t.cmj}?v=`, 'table', 1500);
   check('vista de todos los jugadores de un test carga con 12 filas de datos', (await page.locator('main table tbody tr').count()) >= 12);
+  // Borrado masivo de las sesiones de un test (para volver a importar): solo se activa con el nombre exacto y respeta el filtro de fecha.
+  {
+    const antes = await page.evaluate(async (tid) => { const db = await new Promise((ok) => { const r = indexedDB.open('dashboard-rendimiento'); r.onsuccess = () => ok(r.result); }); const todas = await new Promise((ok) => { const rq = db.transaction('sessions').objectStore('sessions').getAll(); rq.onsuccess = () => ok(rq.result); }); return { test: todas.filter((x) => x.testId === tid).length, otras: todas.filter((x) => x.testId !== tid).length, fecha: todas.filter((x) => x.testId === tid && x.date === '2026-10-01').length }; }, t.khold);
+    await go(`#test-${t.khold}?v=`, '.notas', 1500);
+    const det = page.locator('details.notas', { hasText: 'Borrar sesiones de este test' }).first();
+    await det.locator('summary').click();
+    const bt = det.locator('button.danger');
+    check('borrado masivo: el botón está bloqueado hasta escribir el nombre del test', await bt.isDisabled());
+    await det.locator('select').selectOption({ index: 1 });
+    await det.locator('input[type=text]').fill('run-specific knee iso-hold 20 S ');
+    check('borrado masivo: con el nombre exacto se activa', !(await bt.isDisabled()));
+    await bt.click();
+    await page.waitForTimeout(1200);
+    const desp = await page.evaluate(async (tid) => { const db = await new Promise((ok) => { const r = indexedDB.open('dashboard-rendimiento'); r.onsuccess = () => ok(r.result); }); const todas = await new Promise((ok) => { const rq = db.transaction('sessions').objectStore('sessions').getAll(); rq.onsuccess = () => ok(rq.result); }); return { test: todas.filter((x) => x.testId === tid).length, otras: todas.filter((x) => x.testId !== tid).length }; }, t.khold);
+    check('borrado masivo: borra solo la fecha elegida de ese test y no toca los demás', desp.test === antes.test - antes.fecha && desp.otras === antes.otras, JSON.stringify({ antes, desp }));
+  }
+
   await go(`#jugador-${P}?t=${t.sj}&b=fuerza&pn=pb`, '.evo');
   check('Squat Jump: ahora también tiene tabla de columnas (todos los tests) y su gráfico longitudinal', (await page.locator('section.panorama').count()) === 1 && (await page.locator('h4.sec-titulo').count()) > 0);
 
@@ -201,7 +227,7 @@ const server = http.createServer((req, res) => {
     await new Promise((ok) => { const tx = db.transaction('tests', 'readwrite'); const st = tx.objectStore('tests'); st.get(id).onsuccess = (e) => { const row = e.target.result; row.name = 'Hop test renombrado'; st.put(row); }; tx.oncomplete = ok; });
   }, t.hop);
   await go(`#jugador-${P}?t=${t.hop}&b=fuerza&pn=pb`, 'table.pano');
-  check('test renombrado: conserva la tabla de columnas y el PB de la mejor sesión', (await page.locator('section.panorama').count()) === 1 && (await texts('fieldset.modes label')).some((x) => /Personal Best \(sesión con mejor RSI/.test(x)));
+  check('test renombrado: conserva la tabla de columnas y el PB de la mejor sesión', (await page.locator('section.panorama').count()) === 1 && (await texts('fieldset.modes label')).some((x) => /Personal Best \(best RSI session/.test(x)));
   await go(`#catalogo-test-${t.hop}`, 'form.fields');
   const casilla = page.locator('label', { hasText: /Normative Benchmarking: mostrar todas las variables/ }).locator('input');
   await casilla.uncheck(); await page.locator('form.fields', { has: casilla }).locator('button[type=submit]').click(); await page.waitForTimeout(700);
