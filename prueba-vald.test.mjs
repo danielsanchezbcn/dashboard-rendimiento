@@ -119,4 +119,28 @@ check('SJ: carga adicional > 0 y LSJ omitidos', rs.ok && rs.groups[0].rows.lengt
   const again = await I.seedInitialCatalog(dbm);
   check('catálogo ya alineado: la migración no cambia nada (idempotente)', (again.unidadesAlineadas ?? 0) === 0);
 }
+// Dos filas del mismo jugador y día que hoy se fusionan en una sesión, pero que en su momento se guardaron por separado (ventana de 60 min de antes):
+// el valor fusionado no coincide con ninguna de las dos y sale un conflicto. Debe explicarse: en qué cambia y que ese día ya hay 2 sesiones.
+{
+  const dbm = D.createDb('v-fusion'); await D.initDb(dbm); await I.seedInitialCatalog(dbm);
+  const catm = await C.listCatalog(dbm);
+  const cab = ['Name', 'ExternalId', 'Test Type', 'Date', 'Time', 'BW [KG]', 'Reps (L)', 'Reps (R)', 'Tags', 'Peak Vertical Force [N] ', 'Peak Vertical Force [N] (L)', 'Peak Vertical Force [N] (R)', 'Peak Vertical Force [N] (Asym)(%)', 'Force at 100ms [N] ', 'Force at 100ms [N] (L)', 'Force at 100ms [N] (R)', 'Force at 100ms [N] (Asym)(%)', 'RFD - 100ms [N/s] ', 'RFD - 100ms [N/s] (L)', 'RFD - 100ms [N/s] (R)', 'RFD - 100ms [N/s] (Asym)(%)'];
+  const fila = (hora, pfl, pfr) => ['Jugador Fusion', '', 'SLSEICR', '07/01/2024', hora, '3', '2', '2', '', String(pfl + pfr), String(pfl), String(pfr), '5 R', '500', '490', '510', '4 R', '1000', '990', '1010', '2 R'];
+  const fich = { name: 'f.csv', hash: 'hf', size: 1 };
+  const meter = async (grid, resol) => { const v = V.parseValdGrid(grid, catm); const pp = await V.planValdImport(dbm, v, resol); await V.commitValdImport(dbm, { file: fich, vald: v, plans: pp.plans }); return pp.plan.counts; };
+  await meter([cab, fila('12:42 PM', 1000, 1100)], { 'Jugador Fusion': { action: 'new', jerseyName: 'Jugador Fusion' } });
+  const pidF = (await dbm.players.toArray())[0].id;
+  const linkF = { 'Jugador Fusion': { action: 'link', playerId: pidF } };
+  await meter([cab, fila('3:10 PM', 1200, 1300)], linkF);
+  check('fusión: de partida hay dos sesiones guardadas ese día', (await dbm.sessions.count()) === 2);
+  const vf = V.parseValdGrid([cab, fila('12:42 PM', 1000, 1100), fila('3:10 PM', 1200, 1300)], catm);
+  const pf = await V.planValdImport(dbm, vf, linkF);
+  const cf = pf.plan.sessions.find((x) => x.status === 'conflicto');
+  check('fusión: el fichero completo da un conflicto, no una sesión nueva', pf.plan.counts.conflictos === 1 && pf.plan.counts.nuevas === 0, JSON.stringify(pf.plan.counts));
+  check('fusión: el conflicto dice que ese día ya hay 2 sesiones y que el fichero trae 2 filas', cf.sesionesEseDia === 2 && cf.filasFichero === 2 && cf.dif.length >= 1 && cf.dif.every((d) => d.guardado !== d.fichero), JSON.stringify({ d: cf.sesionesEseDia, f: cf.filasFichero, dif: cf.dif }));
+  const rr = await V.commitValdImport(dbm, { file: fich, vald: vf, plans: pf.plans, choices: { [`${vf.groups[0].testId}~${cf.key.split('~').slice(1).join('~')}`]: 'reemplazar' } });
+  const ses = await dbm.sessions.toArray();
+  check('fusión: «reemplazar» deja la sesión fusionada y no crea otra', rr.counts.conflictosReemplazados === 1 && ses.length === 2 && ses.some((x) => x.time === '12:42' && x.values[catm.variables.find((v) => v.name === 'Peak Force' && v.testId === ses[0].testId).id].L === 1100));
+}
+
 process.exit(failed ? 1 : 0);

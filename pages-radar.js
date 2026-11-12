@@ -8,7 +8,7 @@ import { getSetting, setSetting, clearSetting } from './db.js';
 import { listCatalog } from './catalogo.js';
 import { listPositions, positionOnDate } from './posiciones.js';
 import { MIN_N_DEFAULT } from './percentiles.js';
-import { buildRadar, profileFromSetting, RADAR_MIN_AXES, RADAR_MAX_AXES, RADAR_REFS, radarRefsFromSetting } from './radar.js';
+import { buildRadar, profileFromSetting, profileForTest, RADAR_MIN_AXES, RADAR_MAX_AXES, RADAR_REFS, radarRefsFromSetting } from './radar.js';
 import { downloadBlob } from './io.js';
 import { playerLabel, baseName } from './jugadores.js';
 import { Copiable } from './copiar.js';
@@ -64,7 +64,7 @@ export function RadarSvg({ profile, radar, playerName, shown = ['p50', 'premier5
     ${radar.axes.map((a, i) => {
       const c = Math.cos(ang(i)); const s = Math.sin(ang(i));
       const top = s < -0.9; const bottom = s > 0.9;
-      const lines = wrap(a.label); const wid = Math.max(...lines.map((l) => l.length)) * 13;
+      const lines = wrap(a.invertido ? `${a.label} ↓` : a.label); const wid = Math.max(...lines.map((l) => l.length)) * 13;
       // el rótulo se separa del vértice de La Liga y de la línea más alejada del jugador/referencias en ese eje (que no toque el polígono)
       const ext = unit * Math.max(1, ...draw.map((k) => a.ratios[k] ?? 0)); const RR = Math.max(RREF, ext + 16);
       const vtxX = CX + c * RR; const vtxY = CY + s * RR;
@@ -137,17 +137,20 @@ export function RadarPanel({ player, testName }) {
   const svgRef = useRef(null);
   const { data } = useLoad(async () => {
     const cat = await listCatalog(db);
-    const profile = profileFromSetting(await getSetting(db, 'radarConfig'));
+    // En la ficha de un test se usa el perfil de ESE test (el guardado por el usuario si es suyo, y si no el de fábrica: CMJ, Hop Test y Drop Jump 30/45).
+    const cfg = await getSetting(db, 'radarConfig');
+    const profile = testName ? profileForTest(testName, cfg) : profileFromSetting(cfg);
+    if (!profile) return { sinPerfil: true };
     const test = cat.tests.find((t) => t.name === profile.test && !t.archived);
     const pickable = cat.tests.filter((t) => !t.archived && eligible(cat.variables, t.id).length >= RADAR_MIN_AXES);
     const refsSaved = radarRefsFromSetting(await getSetting(db, 'radarRefs'));
     if (!test) return { test: null, profile, pickable, variables: cat.variables, refsSaved };
     const [sessions, players, records, positions, minN] = await Promise.all([db.sessions.where('testId').equals(test.id).toArray(), db.players.toArray(), db.playerPositions.toArray(), listPositions(db), getSetting(db, 'percentileMinN')]);
     return { test, profile, pickable, refsSaved, variables: cat.variables, sessions, players, records, positions, minN: Number.isInteger(minN) && minN >= 1 ? minN : MIN_N_DEFAULT };
-  }, [db, version, player.id, tick]);
-  if (!data) return null;
+  }, [db, version, player.id, testName, tick]);
+  if (!data || data.sinPerfil) return null;
   const profile = data.profile;
-  if (testName && data.test && data.test.name !== testName) return null; // el radar solo aparece al mirar su test (CMJ por defecto)
+  if (testName && data.test && data.test.name !== testName) return null; // el radar solo aparece al mirar su test
   if (testName && !data.test) return null;
   if (!data.test) return html`<${Card} titulo="Perfil radial" id="radar"><p class="muted">El test elegido para el radar («${profile.test}») ya no existe o está archivado.</p>
     <button type="button" class="secondary" onClick=${async () => { await clearSetting(db, 'radarConfig'); setTick((t) => t + 1); }}>Volver al perfil por defecto</button><//>`;
@@ -176,10 +179,10 @@ export function RadarPanel({ player, testName }) {
       : html`<p class="muted">No hay datos suficientes para dibujar el radar: hacen falta al menos 3 variables con dato del jugador y P50 suficiente de La Liga.</p>`}
     ${radar.axes.length && draw.length ? html`<div class="table-wrap"><table><caption>Valores originales y normalización (cada referencia ÷ P50 de La Liga, todas las posiciones)</caption>
       <thead><tr><th>Variable</th><th class="num">P50 La Liga (N)</th>${draw.filter((k) => k !== 'p50').map((k) => html`<th key=${k} class="num">${refLabel(k, posName, radar.dates)}</th>`)}</tr></thead>
-      <tbody>${radar.axes.map((a) => html`<tr key=${a.variable.id}><th scope="row">${a.label}<small class="cell-date">${dn(a.variable.name)}</small></th>
+      <tbody>${radar.axes.map((a) => html`<tr key=${a.variable.id}><th scope="row">${a.label}${a.invertido ? ' ↓' : ''}<small class="cell-date">${dn(a.variable.name)}</small></th>
         <td class="num">${nf(a.laLiga.p50, digits(a.laLiga.p50))} ${a.unit} (${a.laLiga.n})</td>
         ${draw.filter((k) => k !== 'p50').map((k) => html`<td key=${k} class="num">${nf(a.refs[k], digits(a.refs[k]))} ${a.unit} <span class="muted">· ${nf(a.ratios[k] * 100, 0)} %</span></td>`)}</tr>`)}</tbody></table></div>` : null}
     ${radar.omitted.length ? html`<p class="muted">Variables que no entran en el radar: ${radar.omitted.map((o) => `${o.label} (${o.reason})`).join(' · ')}</p>` : null}
-    <details class="notas"><summary>Cómo se lee el radar</summary><p class="muted">Cada eje es el valor dividido por la mediana (P50) de «La Liga» de esa variable (todas las posiciones), así que el polígono amarillo continuo (La Liga = 100 %) es regular. Las demás referencias son su valor ÷ ese P50: P75 y P50/P75 por posición de La Liga (amarillo), P50 y P75 de la Premier League in-season (lila; solo si la Premier publica esa referencia para todos los ejes) y las medidas del jugador (blanco: Personal Average y Personal Best; gris: primera y última medida). Los valores que se rotulan en los ejes son los de la primera medida del jugador activada en este orden: Personal Average, última, Personal Best, primera. La P50/P75 de La Liga excluyen al propio jugador y a los sintéticos; mínimo de jugadores el de Ajustes. Solo entran variables de un valor con «más alto es mejor».</p></details>
+    <details class="notas"><summary>Cómo se lee el radar</summary><p class="muted"><strong>↓</strong> marca las variables en las que es mejor un valor más bajo (por ejemplo el tiempo de contacto): su eje se dibuja invertido (P50 ÷ valor) para que, como en el resto, hacia fuera siempre sea mejor.</p><p class="muted">Cada eje es el valor dividido por la mediana (P50) de «La Liga» de esa variable (todas las posiciones), así que el polígono amarillo continuo (La Liga = 100 %) es regular. Las demás referencias son su valor ÷ ese P50: P75 y P50/P75 por posición de La Liga (amarillo), P50 y P75 de la Premier League in-season (lila; solo si la Premier publica esa referencia para todos los ejes) y las medidas del jugador (blanco: Personal Average y Personal Best; gris: primera y última medida). Los valores que se rotulan en los ejes son los de la primera medida del jugador activada en este orden: Personal Average, última, Personal Best, primera. La P50/P75 de La Liga excluyen al propio jugador y a los sintéticos; mínimo de jugadores el de Ajustes. Solo entran variables de un valor con «más alto es mejor».</p></details>
   <//>`;
 }

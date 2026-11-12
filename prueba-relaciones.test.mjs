@@ -71,4 +71,14 @@ check('cuadrante EUR: punto propio x = SJ PB, y = CMJ PA; 11 de fondo', close(cq
 const cq2 = R.componentQuadrants({ loc, sessions, anthropometry: anth, players, playerId: 6, minN: 30 });
 check('muestra insuficiente: sin cortes', cq2.dsi.cutX === null && cq2.eur.cutY === null);
 check('posición: igual al corte cuenta como por encima; sin corte → null', R.quadrantSide({ x: 1, y: 2 }, 1, 3).xHigh === true && R.quadrantSide({ x: 1, y: 2 }, 1, 3).yHigh === false && R.quadrantSide({ x: 1, y: 2 }, null, 3) === null);
+// Jugadores sin masa utilizable (12/11/2026): ni medición de peso ni peso de referencia
+{
+  const pls = [{ id: 1, active: true, jerseyName: 'Con peso' }, { id: 2, active: true, jerseyName: 'Con referencia', referenceWeight: { value: 77, unit: 'kg' } }, { id: 3, active: true, jerseyName: 'Sin nada' }, { id: 4, active: false, jerseyName: 'Inactivo' }, { id: 5, active: true, jerseyName: 'Unidad rara', referenceWeight: { value: 77, unit: 'piedras' } }];
+  const ant = [{ id: 1, playerId: 1, date: '2026-01-10', bodyMass: { value: 70, unit: 'kg' } }];
+  const faltan = R.playersWithoutMass(pls, ant);
+  check('sin masa: ni medición ni peso de referencia, solo jugadores activos', faltan.map((p) => p.id).join(',') === '3,5', faltan.map((p) => p.id).join(','));
+  check('sin masa: se puede limitar a los que tienen datos del test', R.playersWithoutMass(pls, ant, [1, 3]).map((p) => p.id).join(',') === '3');
+  check('sin masa: con todos los pesos puestos, la lista queda vacía', R.playersWithoutMass([pls[0], pls[1]], ant).length === 0);
+}
+
 process.exit(failed ? 1 : 0);

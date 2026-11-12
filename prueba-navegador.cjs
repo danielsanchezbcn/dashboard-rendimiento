@@ -197,6 +197,7 @@ const server = http.createServer((req, res) => {
   check('pestañas de bloque en mayúscula', (await page.locator('[role=tablist] .tab').first().evaluate((e) => getComputedStyle(e).textTransform)) === 'uppercase');
 
   // ---- Todos los jugadores, Squat Jump (PB por JH) y Personal Best sin tabla
+  check('el enlace «ver todos los jugadores» está en la cabecera del test, no debajo de la tabla', await page.evaluate(() => { const a = document.querySelector('.test-sticky a.sticky-link'); return !!a && /todos los jugadores/i.test(a.innerText) && a.getAttribute('href').startsWith('#test-'); }));
   await go(`#test-${t.cmj}?v=`, 'table', 1500);
   check('vista de todos los jugadores de un test carga con 12 filas de datos', (await page.locator('main table tbody tr').count()) >= 12);
   // Borrado masivo de las sesiones de un test (para volver a importar): solo se activa con el nombre exacto y respeta el filtro de fecha.

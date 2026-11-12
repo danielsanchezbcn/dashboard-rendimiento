@@ -5,9 +5,15 @@ import { downloadBlob } from './io.js';
 
 const PROPS = ['fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'font-size', 'font-weight', 'font-family', 'text-anchor', 'opacity', 'fill-opacity', 'stroke-opacity', 'dominant-baseline'];
 
+// Fondo de la imagen: negro puro en tema oscuro y blanco en claro. Se toma el tono de la página solo para saber si es oscura o clara; así, al pegar la
+// imagen en una diapositiva negra, no se ve el recuadro del dashboard (12/11/2026).
 function fondoDe(el) {
-  for (let n = el; n; n = n.parentElement) { const c = getComputedStyle(n).backgroundColor; if (c && c !== 'transparent' && !/rgba\(.*,\s*0\)$/.test(c)) return c; }
-  return '#ffffff';
+  let c = '#ffffff';
+  for (let n = el; n; n = n.parentElement) { const x = getComputedStyle(n).backgroundColor; if (x && x !== 'transparent' && !/rgba\(.*,\s*0\)$/.test(x)) { c = x; break; } }
+  const m = String(c).match(/\d+(\.\d+)?/g);
+  if (!m) return '#ffffff';
+  const [r, g, b] = m.map(Number);
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.5 ? '#000000' : '#ffffff';
 }
 
 function svgToCanvas(svg, bg) {

@@ -1,4 +1,4 @@
-import { buildRadar, RADAR_PROFILES } from './radar.js';
+import { profileForTest, buildRadar, RADAR_PROFILES } from './radar.js';
 let fail = 0; const check = (n, ok, d = '') => { console.log((ok ? 'OK   ' : 'FAIL ') + n + (ok ? '' : ' ' + d)); if (!ok) fail = 1; };
 const profile = RADAR_PROFILES[0];
 check('perfil: seis variables del CMJ en el orden de la imagen', profile.center === 'CMJ' && profile.axes.map((a) => a.label).join('|') === 'JH (imp-mom)|Peak Power/BM|CON Impulse 100ms|RSI mod|EDRFD/BM|ECC Peak Power/BM');
@@ -20,8 +20,20 @@ r = run({ basis: 'last' });
 check('última medida: valor de la sesión más reciente', Math.abs(r.axes[0].mine.value - 38 * (0.8 + 4 * 0.03 + 0.02)) < 1e-9);
 r = run({ minN: 13 });
 check('muestra insuficiente → eje omitido con motivo; sin 3 ejes no se dibuja', r.axes.length === 0 && !r.drawable && /insuficiente/.test(r.omitted[0].reason));
-r = buildRadar({ profile, test, variables: variables.map((v, i) => (i === 3 ? { ...v, direction: 'lower' } : v)), sessions, players, histories: {}, playerId: 4, basis: 'pa', minN: 10 });
-check('variable «más bajo es mejor» omitida', r.axes.length === 5 && /más alto/.test(r.omitted[0].reason));
+// «Más bajo es mejor» (p. ej. el tiempo de contacto): el eje entra, pero invertido (P50 ÷ valor), para que hacia fuera siga siendo mejor.
+const rInv = buildRadar({ profile, test, variables: variables.map((v, i) => (i === 3 ? { ...v, direction: 'lower' } : v)), sessions, players, histories: {}, playerId: 4, basis: 'pa', minN: 10, multi: true });
+const rNorm = buildRadar({ profile, test, variables, sessions, players, histories: {}, playerId: 4, basis: 'pa', minN: 10, multi: true });
+check('variable «más bajo es mejor»: entra en el radar marcada como invertida', rInv.axes.length === 6 && rInv.axes[3].invertido === true && rInv.axes.filter((a) => a.invertido).length === 1);
+check('eje invertido: el cociente es P50 ÷ valor (al revés que el normal)', Math.abs(rInv.axes[3].ratioPlayer - 1 / rNorm.axes[3].ratioPlayer) < 1e-9 && Math.abs(rInv.axes[3].ratioPlayer * rNorm.axes[3].ratioPlayer - 1) < 1e-9);
+// El Personal Best no se compara: en «más bajo es mejor» el mejor valor es el más bajo, así que es otra sesión (y eso es lo correcto).
+check('eje invertido: también se invierten las referencias dibujadas', Math.abs(rInv.axes[3].ratios.p50 - 1) < 1e-9 && Object.entries(rInv.axes[3].ratios).every(([k, v]) => k === 'pb' || v === null || Math.abs(v - 1 / rNorm.axes[3].ratios[k]) < 1e-9));
+check('eje invertido: el Personal Best es el valor más bajo, no el más alto', rInv.axes[3].refs.pb < rNorm.axes[3].refs.pb);
+r = buildRadar({ profile, test, variables: variables.map((v, i) => (i === 3 ? { ...v, direction: null } : v)), sessions, players, histories: {}, playerId: 4, basis: 'pa', minN: 10 });
+check('variable sin dirección: se omite, porque el cociente no se puede orientar', r.axes.length === 5 && /no dice si es mejor/.test(r.omitted[0].reason));
+// Perfiles de fábrica por test (12/11/2026): Hop Test y Drop Jump 30/45 con RSI, altura y tiempo de contacto
+check('perfil por test: Hop Test y Drop Jump traen RSI, Jump Height y Contact Time', ['Double-Leg Hop Test', 'DL Drop Jump 30 cm', 'DL Drop Jump 45 cm'].every((t) => { const pf = profileForTest(t); return pf && pf.axes.map((a) => a.label).join(',') === 'RSI,Jump Height,Contact Time'; }));
+check('perfil por test: un test sin perfil no muestra radar', profileForTest('Supine Isometric Ankle Inversion') === null);
+check('perfil por test: el guardado por el usuario manda en SU test y no en los demás', profileForTest('CMJ', { test: 'CMJ', variables: ['RSI MOD', 'JH (imp-mom)', 'DEPTH'] }).axes.length === 3 && profileForTest('DL Drop Jump 30 cm', { test: 'CMJ', variables: ['RSI MOD', 'JH (imp-mom)', 'DEPTH'] }).axes.length === 3);
 r = run({ sessions: sessions.filter((s) => !(s.playerId === 4)) });
 check('jugador sin sesiones: todo omitido', r.axes.length === 0 && r.omitted.length === 6);
 r = buildRadar({ profile, test, variables: variables.slice(0, 4), sessions, players, histories: {}, playerId: 4, basis: 'pa', minN: 10 });

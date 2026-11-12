@@ -270,8 +270,10 @@ export function buildRows(grid, mapping, variables) {
       if (n.value < rango[0] || n.value > rango[1]) { err(`${colName(i)}: ${nombre} ${n.value} ${unidad} fuera del rango admitido (${rango[0]}–${rango[1]} ${unidad}); revisa la unidad.`); continue; }
       row.body[key] = n.value;
     }
-    if (!row.issues.length && Object.keys(row.values).length === 0 && Object.keys(row.body).length === 0) err('La fila no tiene ningún valor (las celdas vacías no se interpretan como 0).');
-    row.ok = row.issues.every((x) => x.level !== 'error');
+    // Fila con jugador pero sin ningún dato: es lo normal en las plantillas donde solo se mide a unos pocos (el Excel trae a toda la plantilla).
+    // No es un error: se cuenta aparte y se ignora, para que el resumen no se llene de errores.
+    if (!row.issues.length && Object.keys(row.values).length === 0 && Object.keys(row.body).length === 0) row.sinDatos = true;
+    row.ok = !row.sinDatos && row.issues.every((x) => x.level !== 'error');
     rows.push(row);
   }
   return { rows, stats };
@@ -355,15 +357,28 @@ export function esAmpliacion(a, b) {
   return ka.every((k) => k in b && Object.keys(a[k]).length === Object.keys(b[k]).length && Object.keys(a[k]).every((sd) => sd in b[k] && sameNum(a[k][sd], b[k][sd])));
 }
 
+// Diferencias entre los valores guardados y los del fichero, variable a variable y lado a lado (ids del catálogo; los nombres los pone la interfaz).
+export function diferencias(guardados, fichero) {
+  const out = [];
+  for (const id of [...new Set([...Object.keys(guardados), ...Object.keys(fichero)])].sort()) {
+    for (const sd of [...new Set([...Object.keys(guardados[id] ?? {}), ...Object.keys(fichero[id] ?? {})])].sort()) {
+      const a = guardados[id]?.[sd], b = fichero[id]?.[sd];
+      if (!sameNum(a, b)) out.push({ variableId: Number(id), side: sd, guardado: a ?? null, fichero: b ?? null });
+    }
+  }
+  return out;
+}
+
 // Huella de los valores de una sesión (mismas variables, lados y números). Sirve para reconocer la MISMA medición subida con otra fecha.
 export const valuesKey = (values) => JSON.stringify(Object.keys(values).sort().map((k) => [k, Object.keys(values[k]).sort().map((sd) => [sd, values[k][sd]])]));
 
 // resolutions: { [playerText]: { action: 'link', playerId } | { action: 'new', jerseyName } | { action: 'skip' } }
 export async function planImport(db, { rows, testId, protocolId = null, resolutions }) {
-  const plan = { sessions: [], pending: [], rowErrors: [], body: [], counts: { nuevas: 0, duplicadas: 0, ampliadas: 0, repetidas: 0, conflictos: 0, conflictosFichero: 0, pendientes: 0, filasConError: 0, pesosNuevos: 0, pesosCambiados: 0, pesosIguales: 0, alturasNuevas: 0, alturasIguales: 0, piernasNuevas: 0, piernasIguales: 0 } };
+  const plan = { sessions: [], pending: [], rowErrors: [], body: [], counts: { nuevas: 0, duplicadas: 0, ampliadas: 0, repetidas: 0, conflictos: 0, conflictosFichero: 0, pendientes: 0, sinDatos: 0, filasConError: 0, pesosNuevos: 0, pesosCambiados: 0, pesosIguales: 0, alturasNuevas: 0, alturasIguales: 0, piernasNuevas: 0, piernasIguales: 0 } };
   const groups = new Map();
   const bodyByRef = new Map(); // ref → { weight (la de la fecha más reciente), heights: Map(fecha|valor) }
   for (const r of rows) {
+    if (r.sinDatos) { plan.counts.sinDatos = (plan.counts.sinDatos ?? 0) + 1; continue; }
     if (!r.ok) { plan.counts.filasConError++; for (const i of r.issues) plan.rowErrors.push({ row: r.rowNumber, level: i.level, text: i.text }); continue; }
     const res = resolutions[r.playerText];
     if (!res || res.action === 'skip') { plan.counts.pendientes++; plan.pending.push({ row: r.rowNumber, name: r.playerText }); continue; }
@@ -382,6 +397,7 @@ export async function planImport(db, { rows, testId, protocolId = null, resoluti
     g.rows.push(r);
     groups.set(key, g);
   }
+  const sesionesRef = new Map(); // ref → sesiones ya guardadas de ESE jugador para este test y protocolo
   const vistos = new Map(); // ref → Map(huella de valores → fecha) : sesiones ya guardadas + las que ya trae este mismo fichero
   for (const g of [...groups.values()].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))) {
     const first = g.rows[0];
@@ -394,12 +410,20 @@ export async function planImport(db, { rows, testId, protocolId = null, resoluti
     }
     const dupRows = g.rows.length - 1;
     if (g.res.action === 'link') {
-      const existing = (await db.sessions.where('playerId').equals(g.res.playerId).toArray()).filter((s) => s.testId === testId && s.date === g.date && (s.time ?? '') === g.time && (s.protocolId ?? null) === (protocolId ?? null));
+      if (!sesionesRef.has(g.ref)) sesionesRef.set(g.ref, (await db.sessions.where('playerId').equals(g.res.playerId).toArray()).filter((s) => s.testId === testId && (s.protocolId ?? null) === (protocolId ?? null)));
+      const delJugador = sesionesRef.get(g.ref);
+      const existing = delJugador.filter((s) => s.date === g.date && (s.time ?? '') === g.time);
       const same = existing.find((s) => sameValues(s.values, first.values));
       if (same) { plan.counts.duplicadas++; plan.sessions.push({ ...base, status: 'duplicada', existingId: same.id, dupRows }); continue; }
       const ampl = existing.length === 1 && esAmpliacion(existing[0].values, first.values) ? existing[0] : null;
       if (ampl) { plan.counts.ampliadas++; plan.sessions.push({ ...base, status: 'ampliable', existingId: ampl.id, dupRows }); continue; }
-      if (existing.length) { plan.counts.conflictos++; plan.sessions.push({ ...base, status: 'conflicto', existingId: existing[0].id, dupRows }); continue; }
+      if (existing.length) {
+        plan.counts.conflictos++;
+        // Qué cambia exactamente (para poder decidir sin abrir la base) y cuántas sesiones hay ya ese día: si el fichero fusiona varias filas del
+        // mismo día y antes se guardaron por separado, el valor fusionado no coincide con ninguna y aparece este conflicto.
+        plan.sessions.push({ ...base, status: 'conflicto', existingId: existing[0].id, dif: diferencias(existing[0].values ?? {}, first.values), sesionesEseDia: delJugador.filter((s) => s.date === g.date).length, filasFichero: Math.max(g.rows.length, first.mergedRows?.length ?? 0), dupRows });
+        continue;
+      }
     }
     // Misma medición con OTRA fecha: valores idénticos a una sesión ya guardada del mismo jugador, test y protocolo (o a otra fila anterior de este
     // mismo fichero). Suele ser el mismo Excel resubido con la fecha de hoy, así que por defecto NO se importa; se puede forzar fila a fila.

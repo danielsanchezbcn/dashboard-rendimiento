@@ -145,7 +145,7 @@ td a small, td a .cell-date { text-decoration: none; }
 .badge { display: inline-block; border: 1px solid var(--line); border-radius: .4rem; padding: .15rem .6rem; font-weight: 600; }
 
 /* Gráficos con el aspecto de los informes del usuario (fondo oscuro) y «copiar imagen» */
-.chart-box.doc, .doc-panel { background: #040612; color: #fff; border-radius: .5rem; padding: .5rem; }
+.chart-box.doc, .doc-panel { background: #000; color: #fff; border-radius: .5rem; padding: .5rem; }
 
 .copiable { position: relative; cursor: pointer; outline-offset: 2px; }
 .copiable:focus-visible { outline: 2px solid var(--accent); }
@@ -161,7 +161,7 @@ td a small, td a .cell-date { text-decoration: none; }
 
 /* Importación de imágenes de antropometría */
 .img-prev img { max-width: 100%; max-height: 420px; border-radius: .4rem; border: 1px solid var(--line, #444); }
-.img-filas .img-fila { display: block; width: 420px; max-width: 45vw; border-radius: .3rem; background: #040612; }
+.img-filas .img-fila { display: block; width: 420px; max-width: 45vw; border-radius: .3rem; background: #000; }
 .img-filas td { vertical-align: middle; }
 .img-filas td.avisos { min-width: 14rem; }
 
@@ -528,3 +528,8 @@ table.pano.norm .badge { white-space: normal; font-size: .68rem; padding: .05rem
 table.asim thead th:nth-child(1) { width: 22%; } table.asim thead th:nth-child(2) { width: 30%; } table.asim thead th:nth-child(3) { width: 13%; } table.asim thead th:nth-child(4) { width: 20%; } table.asim thead th:nth-child(5) { width: 15%; }
 table.asim thead th:nth-child(n+3), table.asim td.num { text-align: center; }
 table.asim td.asim-fecha { white-space: normal; }
+/* Enlace «Ver todos los jugadores en este test» dentro de la cabecera fija del test. */
+.test-sticky { flex-wrap: wrap; }
+.test-sticky .sticky-link { margin-left: auto; font-size: .85rem; padding: .25rem .6rem; }
+/* Resumen de importación: columna con las diferencias de un conflicto. */
+td.dif { font-size: .9rem; line-height: 1.35; }

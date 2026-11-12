@@ -12,7 +12,7 @@ import { audit } from './db.js';
 import { SW_FACTOR_DEFAULT, testUsage, PERFILES_POR_DEFECTO, pbCriterionOf, sinAsimetriaPorDefecto } from './catalogo.js';
 import { ISO_PAIRS, RM12_TESTS, RM_EST_FACTOR_DEFAULT, pairFactor } from './isohold.js';
 
-export const CATALOG_SEED_VERSION = 11;
+export const CATALOG_SEED_VERSION = 12;
 
 const BLOCKS = [
   { key: 'fuerza', name: 'Manifestaciones de la fuerza' },
@@ -339,13 +339,16 @@ async function ensureDerived(db, ts, counts) {
 // tobillo: relativo al peso corporal (BW). Idempotente: crea solo lo que falte, por nombre.
 export const GROIN_TESTS = ['Hip Adduction 0° (Long Lever)', 'Hip Abduction 0° (Long Lever)', 'Hip Adduction 45° (Short Lever)'];
 export const ANKLE_TESTS = ['Supine Isometric Ankle Inversion', 'Supine Isometric Ankle Eversion'];
+// 12/11/2026: el test de extensión de rodilla sentado 90°/90° se quedó sin variables en el catálogo inicial. Lleva las mismas que los iso del tobillo
+// (Peak Force por lado en N y su relativa al peso corporal), que es lo que recoge el Excel del usuario (columnas LEFT y RIGHT).
+export const KNEE_ISO_TESTS = ['Seated Isometric 90°/90° Knee Extension Test'];
 async function ensureGroinAnkle(db, ts, counts) {
   const lc = (x) => String(x ?? '').trim().toLowerCase();
   const tests = await db.tests.toArray();
   const man = (await db.manifestations.toArray()).find((m) => lc(m.name) === lc(MAXISO))?.id ?? null;
   let order = (await db.variables.orderBy('order').last())?.order ?? 0;
   const bump = () => { counts.variablesAnadidas = (counts.variablesAnadidas ?? 0) + 1; counts.variables = (counts.variables ?? 0) + (counts.tests !== undefined ? 1 : 0); };
-  for (const [names, single] of [[GROIN_TESTS, true], [ANKLE_TESTS, false]]) {
+  for (const [names, single] of [[GROIN_TESTS, true], [ANKLE_TESTS, false], [KNEE_ISO_TESTS, false]]) {
     for (const name of names) {
       const t = tests.find((x) => lc(x.name) === lc(name));
       if (!t) continue;

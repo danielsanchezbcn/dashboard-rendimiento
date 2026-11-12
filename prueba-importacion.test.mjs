@@ -71,7 +71,7 @@ check('coma decimal 380,5 y reps 4', R[1].values[vPF.id].L === 380.5 && R[1].rep
 check('celda vacía no se guarda como 0', !('RFD' in R[1]) && R[1].values[vRFD.id] === undefined);
 check('fila sin fecha → error', !R[3].ok && R[3].issues.some((i) => /fecha/i.test(i.text)));
 check('valor no numérico → error con encabezado', !R[4].ok && R[4].issues.some((i) => /abc/.test(i.text) && /Peak Force Izq/.test(i.text)), JSON.stringify(R[4].issues));
-check('fila sin ningún valor → error', !R[5].ok && R[5].issues.some((i) => /ningún valor/.test(i.text)));
+check('fila con jugador pero sin ningún valor: se ignora sin contarla como error (12/11/2026)', !R[5].ok && R[5].sinDatos === true && !R[5].issues.length);
 // sin columna de reps → 1 supuesta
 {
   const noReps = { headerRow, cols: sug.map((c) => (c.role === 'reps' ? { role: 'ignorar' } : c)) };
@@ -100,8 +100,8 @@ const resolutions = {
 };
 let plan = await M.planImport(db, { rows: R, testId: test.id, resolutions });
 check('plan: 4 nuevas, duplicada dentro del fichero fusionada, 1 conflicto del fichero',
-  plan.counts.nuevas === 4 && plan.counts.conflictosFichero === 1 && plan.counts.filasConError === 3 && plan.counts.pendientes === 0 && plan.counts.duplicadas === 0, JSON.stringify(plan.counts));
-// C tiene fila sin ningún valor → ya cuenta como error, no como pendiente
+  plan.counts.nuevas === 4 && plan.counts.conflictosFichero === 1 && plan.counts.filasConError === 2 && plan.counts.sinDatos === 1 && plan.counts.pendientes === 0 && plan.counts.duplicadas === 0, JSON.stringify(plan.counts));
+// C tiene una fila sin ningún valor: ni error ni pendiente, se ignora
 const file = { name: 'fixture.xlsx', hash: grid.hash, size: grid.size };
 const before = { sessions: await db.sessions.count(), players: await db.players.count() };
 const res = await M.commitImport(db, { file, sheetName: grid.sheets[0].name, testId: test.id, mapping, parsed, plan, rememberAlias: { 'Jugador desconocido': true } });
@@ -139,6 +139,8 @@ check('informe CSV: neutraliza fórmulas en nombres y ficheros (=, +, -, @)', !/
   const rN = await M.commitImport(db, { file, sheetName: 'x', testId: test.id, mapping, parsed: p3, plan: plan3, conflictChoices: { [key]: 'nueva' } });
   const sa = await db.sessions.where('playerId').equals(A).toArray();
   check('conflicto «guardar como nueva» conserva la original', rN.counts.conflictosGuardadosComoNuevas === 1 && sa.length === 2 && sa.some((s) => s.values[vPF.id].L === 410));
+  check('el conflicto dice en qué variable y lado cambia', (() => { const c = plan3.sessions.find((x) => x.status === 'conflicto'); return c.dif.length === 1 && c.dif[0].variableId === vPF.id && c.dif[0].side === 'L' && c.dif[0].fichero === 999 && c.dif[0].guardado === 410 && c.sesionesEseDia === 1; })(), JSON.stringify(plan3.sessions.find((x) => x.status === 'conflicto')?.dif));
+
   // «reemplazar»: la misma medición corregida en el Excel sustituye los valores de la sesión guardada, sin crear otra ni cambiar su fecha
   {
     const antes = (await db.sessions.where('playerId').equals(A).toArray()).sort((x, y) => x.id - y.id)[0];
@@ -231,5 +233,5 @@ check('detectHeaderRow toma la primera fila de datos como encabezado (y looksLik
 const vHold = [{ id: 1, name: 'Carga externa (kg)', kind: 'raw', sides: 'single', archived: false }];
 const rH = M.buildRows(hold, { headerRow: 1, noHeader: true, fixedDate: '2026-11-08', cols: [{ role: 'jugador' }, { role: 'ignorar' }, { role: 'valor', variableId: 1, side: 'S' }] }, vHold);
 check('sin encabezados: Sergi Puig entra con 12,5 y la carga 0 de Stuani es un valor válido', rH.rows.length === 5 && rH.rows[0].playerText === 'SERGI PUIG' && rH.rows[0].values[1].S === 12.5 && rH.rows[3].values[1].S === 0 && rH.rows[3].ok);
-check('sin encabezados: filas con carga válida = 3, sin carga o sin jugador = no válidas', rH.rows.filter((r) => r.ok).length === 3 && rH.rows.filter((r) => !r.ok).length === 2 && rH.rows[2].issues.some((x) => /ningún valor/.test(x.text)), JSON.stringify(rH.rows.map((r) => r.ok)));
+check('sin encabezados: filas con carga válida = 3, sin carga o sin jugador = no válidas', rH.rows.filter((r) => r.ok).length === 3 && rH.rows.filter((r) => !r.ok).length === 2 && rH.rows[2].sinDatos === true, JSON.stringify(rH.rows.map((r) => r.ok)));
 process.exit(failed ? 1 : 0);

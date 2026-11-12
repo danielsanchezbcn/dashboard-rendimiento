@@ -19,6 +19,26 @@ export const RADAR_PROFILES = [{
   ],
 }];
 
+// Radares de salto reactivo pedidos por el usuario (12/11/2026): RSI, altura de salto y tiempo de contacto. El tiempo de contacto es «más bajo es mejor»,
+// así que su eje se dibuja invertido (P50 ÷ valor) para que, como en el resto, hacia fuera siempre sea mejor.
+RADAR_PROFILES.push(
+  { id: 'hop-reactive', title: 'REACTIVE STRENGTH', center: 'Hop Test', test: 'Double-Leg Hop Test', axes: [
+    { variable: 'MEAN RSI (FLIGHT TIME / CONTACT TIME)', label: 'RSI' },
+    { variable: 'MEAN JUMP HEIGHT (Flight Time) (cm)', label: 'Jump Height' },
+    { variable: 'MEAN CONTACT TIME', label: 'Contact Time' }] },
+  ...[30, 45].map((cm) => ({ id: `dj${cm}-reactive`, title: 'REACTIVE STRENGTH', center: `Drop Jump ${cm} cm`, test: `DL Drop Jump ${cm} cm`, axes: [
+    { variable: 'RSI (FLIGHT TIME / CONTACT TIME)', label: 'RSI' },
+    { variable: 'JUMP HEIGHT (Flight Time - cm)', label: 'Jump Height' },
+    { variable: 'CONTACT TIME', label: 'Contact Time' }] })),
+);
+// Perfil que corresponde a un test: el guardado por el usuario si es de ese test, y si no el de fábrica. Sin perfil, el test no muestra radar.
+export const profileForTest = (testName, cfg) => {
+  const saved = cfg && typeof cfg.test === 'string' && Array.isArray(cfg.variables) && cfg.variables.length >= RADAR_MIN_AXES ? makeProfile(cfg.test, cfg.variables) : null;
+  if (saved && lc(saved.test) === lc(testName)) return saved;
+  return RADAR_PROFILES.find((p) => lc(p.test) === lc(testName)) ?? null;
+};
+export const RADAR_TESTS = () => RADAR_PROFILES.map((p) => p.test);
+
 export const RADAR_MIN_AXES = 3, RADAR_MAX_AXES = 8;
 // Perfil a partir de la elección del usuario (test + variables, en el orden elegido). Con el CMJ y las seis variables de la imagen se conserva el título original.
 export function makeProfile(testName, variableNames) {
@@ -58,7 +78,8 @@ export function buildRadar({ profile, test, variables, sessions, players, histor
     const variable = variables.find((v) => v.testId === test.id && !v.archived && lc(v.name) === lc(a.variable));
     if (!variable) { omitted.push({ label: a.label, reason: 'La variable no existe en el catálogo.' }); continue; }
     if (variable.sides === 'LR') { omitted.push({ label: a.label, reason: 'Variable por lado: el radar usa variables de un solo valor.' }); continue; }
-    if (variable.direction !== 'higher') { omitted.push({ label: a.label, reason: 'Solo se dibujan variables con «más alto es mejor» (el cociente con La Liga no sirve en las demás).' }); continue; }
+    if (variable.direction !== 'higher' && variable.direction !== 'lower') { omitted.push({ label: a.label, reason: 'La variable no dice si es mejor más alto o más bajo: sin eso el cociente con La Liga no se puede orientar.' }); continue; }
+    const inv = variable.direction === 'lower'; // «más bajo es mejor»: el eje se invierte (P50 ÷ valor) para que hacia fuera siga siendo mejor
     const mine = playerValue(sessions.filter((s) => s.testId === test.id && s.playerId === playerId), variable, 'S', { basis, positionId: null, histories, playerId });
     if (!mine) { omitted.push({ label: a.label, reason: 'El jugador no tiene sesiones válidas de esta variable.' }); continue; }
     const entries = buildReference({ sessions, variable, side: 'S', players, histories, basis: basis === 'last' || basis === 'first' ? 'pa' : basis, positionId: multi ? null : positionId });
@@ -66,7 +87,8 @@ export function buildRadar({ profile, test, variables, sessions, players, histor
     if (!ev.sufficient || !(ev.p50 > 0)) { omitted.push({ label: a.label, reason: `Sin P50 de La Liga: muestra insuficiente (N = ${ev.n}, mínimo ${ev.minN}).` }); continue; }
     const pr = findPremier(test, variable);
     const premierP50 = pr && !pr.signed && Number.isFinite(pr.cuts[2]) ? pr.cuts[2] : null;
-    const axis = { variable, label: a.label, unit: variable.unit ?? '', mine, laLiga: { p50: ev.p50, n: ev.n }, premier: premierP50, ratioPlayer: mine.value / ev.p50, ratioPremier: premierP50 === null ? null : premierP50 / ev.p50 };
+    const coc = (v) => (v === null || v === undefined || !Number.isFinite(v) ? null : inv ? (v > 0 ? ev.p50 / v : null) : v / ev.p50);
+    const axis = { variable, label: a.label, unit: variable.unit ?? '', invertido: inv, mine, laLiga: { p50: ev.p50, n: ev.n }, premier: premierP50, ratioPlayer: coc(mine.value), ratioPremier: coc(premierP50) };
     if (multi) {
       // Valores absolutos de cada referencia (null = no disponible) y sus cocientes sobre el P50 de La Liga.
       const others = entries.filter((e) => e.playerId !== playerId).map((e) => e.value);
@@ -77,7 +99,7 @@ export function buildRadar({ profile, test, variables, sessions, players, histor
       const refs = { p50: ev.p50, p75: q(others, 0.75), p50pos: q(posVals, 0.5), p75pos: q(posVals, 0.75), premier50: premierP50, premier75: pr && !pr.signed && Number.isFinite(pr.cuts[3]) ? pr.cuts[3] : null, first: own('first'), pa: own('pa'), pb: own('pb'), last: own('last') };
       axis.refs = refs;
       axis.dates = { first: ownDate('first'), last: ownDate('last') };
-      axis.ratios = Object.fromEntries(Object.entries(refs).map(([k, v]) => [k, v === null || v === undefined ? null : v / ev.p50]));
+      axis.ratios = Object.fromEntries(Object.entries(refs).map(([k, v]) => [k, coc(v)]));
     }
     axes.push(axis);
   }

@@ -15,7 +15,7 @@ import { buildCsv } from './exportar.js';
 import { expandRelative, isViewable, isRelative, relFactor, hasData, orderVars, defaultVar, prefiereRsi } from './relativos.js';
 import { pairContext, isIsoDerived } from './isohold.js';
 import { PREMIER_SEASON, findPremier, estimateRelative, placeAgainstPremier } from './premier.js';
-import { withReferenceWeights } from './relaciones.js';
+import { withReferenceWeights, playersWithoutMass } from './relaciones.js';
 import { downloadBlob } from './io.js';
 import { AsimTexto, asimClase } from './asim-ui.js';
 import { playerLabel } from './jugadores.js';
@@ -61,6 +61,15 @@ function EscalaG4({ groups, sides, unit, originId, hrefFor }) {
     <p class="muted">Sin referencias externas (percentiles y «La Liga» llegan en la fase 5c). Cada marcador abre el jugador en este test.</p></section>`;
 }
 
+// Quién falta en un percentil relativo al peso: con los nombres, no solo el número (12/11/2026). Solo se nombra a quien tiene datos de ESTE test.
+export function SinPeso({ variable, players, anthropometry, sessions, test }) {
+  if (!isRelative(variable) && !isIsoDerived(variable)) return null;
+  const conDatos = [...new Set(sessions.filter((s) => s.testId === test.id && s.status !== 'excluded').map((s) => s.playerId))];
+  const faltan = playersWithoutMass(players, anthropometry, conDatos);
+  if (!faltan.length) return null;
+  return html`<p class="status warn">${faltan.length === 1 ? 'Este jugador tiene datos del test pero no entra en los percentiles relativos al peso, porque no tiene ni medición de peso ni peso de referencia' : `${faltan.length} jugadores tienen datos del test pero no entran en los percentiles relativos al peso, porque no tienen ni medición de peso ni peso de referencia`}: ${faltan.map((p) => playerLabel(p)).join(' · ')}. Se arregla en la ficha de cada jugador (Datos antropométricos o peso de referencia).</p>`;
+}
+
 export function NotaRelativa({ variable, omitted = {}, catalog }) {
   if (isIsoDerived(variable)) {
     const n = omitted[variable.id] ?? 0;
@@ -83,12 +92,12 @@ export function VistaTest({ id, query = {} }) {
     if (!test) return { missing: true };
     const [catalog, raw, players, records, positions, mn, anthropometry] = await Promise.all([listCatalog(db), db.sessions.where('testId').equals(id).toArray(), db.players.toArray(), db.playerPositions.toArray(), listPositions(db), getSetting(db, 'percentileMinN'), db.anthropometry.toArray()]);
     const { sessions, omitted } = expandRelative(catalog.variables, id, raw, withReferenceWeights(anthropometry, players), await pairContext(db, catalog.tests, test));
-    return { test, catalog, sessions, omitted, players, records, positions, minN: Number.isInteger(mn) && mn >= 1 ? mn : MIN_N_DEFAULT };
+    return { test, catalog, sessions, omitted, players, records, positions, anthropometry, minN: Number.isInteger(mn) && mn >= 1 ? mn : MIN_N_DEFAULT };
   }, [db, id, version]);
   if (error) return html`<p class="status fail">${error}</p>`;
   if (!data) return html`<p>Cargando…</p>`;
   if (data.missing) return html`<p>El test no existe. <a href="#fuerza">Volver</a></p>`;
-  const { test, catalog, sessions, omitted, players, records, positions, minN } = data;
+  const { test, catalog, sessions, omitted, players, records, positions, anthropometry, minN } = data;
   const path = `test-${id}`;
   const set = (patch) => replaceQuery(path, { ...query, ...patch });
   const vars = orderVars(catalog.variables.filter((v) => v.testId === id && isViewable(v) && hasData(v, sessions)));
@@ -161,6 +170,7 @@ export function VistaTest({ id, query = {} }) {
       <label>Ordenar por <select value=${sort} onChange=${(e) => set({ s: e.target.value })}><option value="player">Jugador</option><option value="value">Valor (el mejor primero)</option><option value="date">Fecha (la más reciente primero)</option></select></label>
     </div>
     <${NotaRelativa} variable=${variable} omitted=${omitted} catalog=${catalog} />
+    <${SinPeso} variable=${variable} players=${players} anthropometry=${anthropometry} sessions=${sessions} test=${test} />
     <label class="check"><input type="checkbox" checked=${query.ex === '1'} onChange=${(e) => set({ ex: e.target.checked ? '1' : undefined })} /> Mostrar también las sesiones excluidas (solo informativas: no entran en ningún cálculo)</label>
     <fieldset class="modes"><legend>Valor mostrado</legend>${MODES.map(([k, n]) => html`<label class="check" key=${k}><input type="radio" name="modo" checked=${mode === k} onChange=${() => set({ m: k })} /> ${n}</label>`)}</fieldset>
     ${mode === 'pa' ? html`<${Desplegable} titulo="Qué es el Personal Average"><p class="muted">Personal Average: media de las sesiones válidas ponderada por repeticiones.</p><//>` : null}

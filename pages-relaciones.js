@@ -89,30 +89,32 @@ function RelacionTestCarga({ player, isDsi }) {
   if (isDsi) {
     const sides = [['L', 'Izquierda', r.dsiL, r.kneeL], ['R', 'Derecha', r.dsiR, r.kneeR]];
     return html`<section class="refs"><h4>DSI (Dynamic Strength Index) y orientación de fuerza</h4>
-      <details class="notas"><summary>Cómo se calcula y cómo se interpreta</summary>
-        <p class="muted">SL CMJ «CONCENTRIC PEAK FORCE / BM» (N/kg ÷ ${nf(G, 5)}, en múltiplos del peso) ÷ Knee Iso-Push Peak Force relativo al peso corporal (BW, con la masa medida más cercana a cada sesión o, si no hay ninguna, el peso de referencia). Usa toda la historia del jugador (Personal Average de cada término). Sin unidad; orientativo. El percentil compara cada pierna con las dos piernas de todos los jugadores (un único P50 para ambas); el color indica la posición en La Liga, no «mejor/peor».</p>
-        <p class="muted">Orientación según el percentil del DSI: 0–40 Ballistic strength training orientation · 40–60 Concurrent strength training · 60–100 Maximal strength training orientation. Los cortes son los del usuario, no umbrales de la bibliografía. En la banda 0–40 se avisa si el percentil de Knee Iso-Push Peak Force (BW) de ese lado está por debajo de 40, porque la orientación puede variar.</p></details>
       <div class="table-wrap"><table><thead><tr><th scope="col">Lado</th><th scope="col" class="num">DSI</th><th scope="col">Percentil</th><th scope="col">Orientación de fuerza</th></tr></thead><tbody>
         ${sides.map(([k, nm, ev, kev]) => { const d = m.dsi[k]; const det = d.defined ? `SL ${nf(d.slBW)} BW (${d.slSessions} ses.) ÷ Knee ${nf(d.kneeBW)} BW (${d.kneeSessions} ses.)${d.omittedKnee ? ` · ${d.omittedKnee} sesión(es) de Knee sin masa previa, omitidas` : ''}` : d.reason;
           return html`<tr key=${k}><th scope="row">${nm}</th><td class="num" title=${det}>${d.defined ? nf(d.value) : html`<span class="muted" title=${det}>—</span>`}</td><td><${Chip} ev=${ev} detail=${det} /></td><td><${Orient} o=${d.defined ? strengthOrientation('dsi', ev, [{ label: nm.toLowerCase(), ev: kev }]) : null} /></td></tr>`; })}
       </tbody></table></div>
       <${Cuadrante} titulo="DSI quadrant: isometric vs dynamic force" xLabel="Knee Iso-Push Peak Force (BW)" yLabel="SL CMJ Peak Force (BW)" bg=${q.dsi.bg} cutX=${q.dsi.cutX} cutY=${q.dsi.cutY} n=${q.dsi.n} minN=${data.minN} nombre="cuadrante-DSI" playerLabel=${playerLabel(player)}
         mine=${q.mine.dsi.map((p) => ({ x: p.x, y: p.y, label: p.side === 'L' ? 'Izquierda' : 'Derecha', short: p.side }))} />
+    
+      <details class="notas"><summary>Cómo se calcula y cómo se interpreta</summary>
+        <p class="muted">SL CMJ «CONCENTRIC PEAK FORCE / BM» (N/kg ÷ ${nf(G, 5)}, en múltiplos del peso) ÷ Knee Iso-Push Peak Force relativo al peso corporal (BW, con la masa medida más cercana a cada sesión o, si no hay ninguna, el peso de referencia). Usa toda la historia del jugador (Personal Average de cada término). Sin unidad; orientativo. El percentil compara cada pierna con las dos piernas de todos los jugadores (un único P50 para ambas); el color indica la posición en La Liga, no «mejor/peor».</p>
+        <p class="muted">Orientación según el percentil del DSI: 0–40 Ballistic strength training orientation · 40–60 Concurrent strength training · 60–100 Maximal strength training orientation. Los cortes son los del usuario, no umbrales de la bibliografía. En la banda 0–40 se avisa si el percentil de Knee Iso-Push Peak Force (BW) de ese lado está por debajo de 40, porque la orientación puede variar.</p></details>
     </section>`;
   }
   const e = m.eur;
   const det = e.defined ? `CMJ ${nf(e.cmjPA)} cm (Personal Average) ÷ SJ ${nf(e.sjPB)} cm (Personal Best)` : e.reason;
   return html`<section class="refs"><h4>EUR (Eccentric Utilization Ratio) y orientación de fuerza</h4>
-    <details class="notas"><summary>Cómo se calcula y cómo se interpreta</summary>
-      <p class="muted">CMJ Jump Height (JH imp-mom), Personal Average ÷ Squat Jump Jump Height (JH imp-mom), Personal Best. Dividir una media entre un mejor valor sesga el cociente a la baja y no es comparable con los valores de la bibliografía. El color del percentil indica la posición en La Liga, no «mejor/peor».</p>
-      <p class="muted">Orientación según el percentil del EUR: 0–40 Plyometric strength training orientation · 40–60 Concurrent strength training · 60–100 Maximal strength training orientation. Los cortes son los del usuario, no umbrales de la bibliografía. En la banda 60–100 se avisa si el percentil de Knee Iso-Push Peak Force (BW) de alguna pierna está por debajo de 40, porque la orientación puede variar.</p></details>
     <div class="table-wrap"><table><thead><tr><th scope="col" class="num">EUR</th><th scope="col">Percentil</th><th scope="col">Orientación de fuerza</th></tr></thead><tbody>
       <tr><td class="num" title=${det}>${e.defined ? nf(e.value) : html`<span class="muted" title=${det}>—</span>`}</td><td><${Chip} ev=${r.eur} detail=${det} /></td>
         <td><${Orient} o=${e.defined ? strengthOrientation('eur', r.eur, [{ label: 'izquierda', ev: r.kneeL }, { label: 'derecha', ev: r.kneeR }]) : null} /></td></tr>
     </tbody></table></div>
     <${Cuadrante} titulo="EUR quadrant: Squat Jump vs CMJ" xLabel="Squat Jump JH imp-mom, Personal Best (cm)" yLabel="CMJ JH imp-mom, Personal Average (cm)" bg=${q.eur.bg} cutX=${q.eur.cutX} cutY=${q.eur.cutY} n=${q.eur.n} minN=${data.minN} nombre="cuadrante-EUR" playerLabel=${playerLabel(player)}
       mine=${q.mine.eur ? [{ x: q.mine.eur.x, y: q.mine.eur.y, label: playerLabel(player), short: '' }] : []} />
-  </section>`;
+  
+    <details class="notas"><summary>Cómo se calcula y cómo se interpreta</summary>
+      <p class="muted">CMJ Jump Height (JH imp-mom), Personal Average ÷ Squat Jump Jump Height (JH imp-mom), Personal Best. Dividir una media entre un mejor valor sesga el cociente a la baja y no es comparable con los valores de la bibliografía. El color del percentil indica la posición en La Liga, no «mejor/peor».</p>
+      <p class="muted">Orientación según el percentil del EUR: 0–40 Plyometric strength training orientation · 40–60 Concurrent strength training · 60–100 Maximal strength training orientation. Los cortes son los del usuario, no umbrales de la bibliografía. En la banda 60–100 se avisa si el percentil de Knee Iso-Push Peak Force (BW) de alguna pierna está por debajo de 40, porque la orientación puede variar.</p></details>
+    </section>`;
 }
 
 // Ratios del Excel del usuario (9/11/2026): Personal Best ÷ Personal Best. Tobillo (inversión÷eversión, izquierda, derecha y asimetría) en las pantallas de inversión y eversión;
@@ -133,21 +135,23 @@ function RatioTestCarga({ player, isAnkle }) {
   if (isAnkle) {
     const rows = [['L', 'Izquierda', m.ankle.L, r.ankleL], ['R', 'Derecha', m.ankle.R, r.ankleR]];
     return html`<section class="refs"><h4>Ratio inversión : eversión (tobillo)</h4>
-      <details class="notas"><summary>Cómo se calcula</summary><p class="muted">Peak Force Personal Best de Supine Isometric Ankle Inversion ÷ Peak Force Personal Best de Supine Isometric Ankle Eversion, por lado (como en tu Excel, que usa el valor máximo). La asimetría es la del ratio izquierdo frente al derecho (positiva si domina la derecha, D25). El color indica la posición en La Liga (las dos piernas juntas), no «mejor/peor».</p></details>
       <div class="table-wrap"><table><thead><tr><th scope="col">Lado</th><th scope="col" class="num">Ratio</th><th scope="col">La Liga</th></tr></thead><tbody>
         ${rows.map(([k, nm, x, ev]) => html`<tr key=${k}><th scope="row">${nm}</th><td class="num" title=${det(x)}>${x.defined ? nf(x.value) : html`<span class="muted" title=${det(x)}>—</span>`}</td><td><${Chip} ev=${ev} detail=${det(x)} /></td></tr>`)}
         <tr><th scope="row">Asimetría</th><td class="num">${m.ankleAsym === null ? '—' : html`<${AsimTexto} pct=${m.ankleAsym} d=${1} />`}</td><td class="muted">—</td></tr>
       </tbody></table></div>
+    
+      <details class="notas"><summary>Cómo se calcula</summary><p class="muted">Peak Force Personal Best de Supine Isometric Ankle Inversion ÷ Peak Force Personal Best de Supine Isometric Ankle Eversion, por lado (como en tu Excel, que usa el valor máximo). La asimetría es la del ratio izquierdo frente al derecho (positiva si domina la derecha, D25). El color indica la posición en La Liga (las dos piernas juntas), no «mejor/peor».</p></details>
     </section>`;
   }
   const x = m.hip;
   return html`<section class="refs"><h4>Ratio aducción : abducción (cadera, palanca larga)</h4>
-    <details class="notas"><summary>Cómo se calcula</summary><p class="muted">Peak Force Personal Best de Hip Adduction 0° (Long Lever) ÷ Peak Force Personal Best de Hip Abduction 0° (Long Lever), en N (como en tu Excel, que usa el valor máximo). Valor único. El color indica la posición en La Liga, no «mejor/peor».</p></details>
     <div class="table-wrap"><table><thead><tr><th scope="col" class="num">Ratio</th><th scope="col">La Liga</th></tr></thead><tbody>
       <tr><td class="num" title=${det(x)}>${x.defined ? nf(x.value) : html`<span class="muted" title=${det(x)}>—</span>`}</td><td><${Chip} ev=${r.hip} detail=${det(x)} /></td></tr>
     </tbody></table></div>
     ${x.defined ? null : html`<p class="muted">${x.reason}</p>`}
-  </section>`;
+  
+    <details class="notas"><summary>Cómo se calcula</summary><p class="muted">Peak Force Personal Best de Hip Adduction 0° (Long Lever) ÷ Peak Force Personal Best de Hip Abduction 0° (Long Lever), en N (como en tu Excel, que usa el valor máximo). Valor único. El color indica la posición en La Liga, no «mejor/peor».</p></details>
+    </section>`;
 }
 
 // ORZ solo en las pantallas de DL Drop Jump 30 cm y 45 cm (9/11/2026).
@@ -161,8 +165,9 @@ function OrzCarga({ player }) {
   if (!data) return null;
   const o = r.mine.orz;
   return html`<section class="refs"><h4>Optimal Reactive Zone (ORZ)</h4>
-    <details class="notas"><summary>Cómo se calcula</summary><p class="muted">Altura del Drop Jump (30 o 45 cm) con mayor RSI (FLIGHT TIME / CONTACT TIME), Personal Average, con toda la historia del jugador. Hace falta al menos una sesión válida en cada altura. Empate exacto: sin ORZ.</p></details>
     ${o.hidden ? html`<p class="muted">Sin datos de ambas alturas: no se muestra la ORZ (hace falta al menos una sesión válida de 30 cm y otra de 45 cm).</p>` : o.defined
       ? html`<p class="fv-conclusion orz-conclusion" role="status"><span class="fv-conclusion-rot">Conclusión ORZ</span><strong>${o.height} cm</strong> <span class="muted">RSI Personal Average: 30 cm ${nf(o.pa30)} · 45 cm ${nf(o.pa45)}</span></p>` : html`<p>${o.reason} (30 cm ${nf(o.pa30)} · 45 cm ${nf(o.pa45)})</p>`}
-  </section>`;
+  
+    <details class="notas"><summary>Cómo se calcula</summary><p class="muted">Altura del Drop Jump (30 o 45 cm) con mayor RSI (FLIGHT TIME / CONTACT TIME), Personal Average, con toda la historia del jugador. Hace falta al menos una sesión válida en cada altura. Empate exacto: sin ORZ.</p></details>
+    </section>`;
 }

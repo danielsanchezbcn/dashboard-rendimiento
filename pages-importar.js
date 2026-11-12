@@ -355,7 +355,11 @@ function PasoAtletas({ atl, back, done }) {
 
 const STATUS_TEXT = { nueva: 'Nueva', duplicada: 'Ya existe idéntica (se omite)', ampliable: 'Ya existe: se completa con variables nuevas', conflicto: 'Ya existe con valores distintos', 'conflicto-fichero': 'Filas contradictorias en el fichero' };
 
-function PasoResumen({ plan, choices, setChoices, repeChoices = {}, setRepeChoices = () => {}, missing = [], delIds = {}, setDelIds, cat, back, save, busy, msg }) {
+function PasoResumen({ plan, choices, setChoices, repeChoices = {}, setRepeChoices = () => {}, missing = [], delIds = {}, setDelIds, cat, variables = [], back, save, busy, msg }) {
+  const nVar = (id) => dn(cat?.variables?.find((v) => v.id === id)?.name ?? variables.find((v) => v.id === id)?.name ?? `variable ${id}`);
+  const nfv = (x) => (x === null || x === undefined ? '—' : String(x).replace('.', ','));
+  const ladoTxt = (sd) => (sd === 'L' ? ' (I)' : sd === 'R' ? ' (D)' : '');
+  const explicaConflicto = (s) => html`${(s.dif ?? []).slice(0, 3).map((d) => html`<div key=${d.variableId + d.side}>${nVar(d.variableId)}${ladoTxt(d.side)}: <strong>${nfv(d.guardado)}</strong> → ${nfv(d.fichero)}</div>`)}${(s.dif ?? []).length > 3 ? html`<div class="muted">y ${s.dif.length - 3} variable(s) más</div>` : null}${s.sesionesEseDia > 1 && s.filasFichero > 1 ? html`<div class="muted">Ese día hay ${s.sesionesEseDia} sesiones guardadas y el fichero trae ${s.filasFichero} filas que se fusionan en una: por eso no coinciden. Elige «Reemplazar» y marca abajo la otra sesión de ese día para borrarla.</div>` : null}`;
   const c = plan.counts;
   const conflicts = plan.sessions.filter((s) => s.status === 'conflicto');
   const inFile = plan.sessions.filter((s) => s.status === 'conflicto-fichero');
@@ -371,6 +375,7 @@ function PasoResumen({ plan, choices, setChoices, repeChoices = {}, setRepeChoic
       <li><strong>${c.conflictosFichero}</strong> grupos de filas contradictorias dentro del fichero: no se importan.</li>
       ${c.repetidas ? html`<li><strong>${c.repetidas}</strong> con valores idénticos a los de otra fecha ya guardada: se toman por la misma medición y <strong>no se importan</strong> (puedes forzarlas abajo).</li>` : null}
       <li><strong>${c.pendientes}</strong> filas de jugadores sin resolver: no se importan.</li>
+      ${c.sinDatos ? html`<li><strong>${c.sinDatos}</strong> filas con jugador pero sin ningún valor (celdas vacías): se ignoran, no son un error.</li>` : null}
       <li><strong>${c.filasConError}</strong> filas con errores: no se importan.</li>
       <li><strong>${newPlayers}</strong> jugadores nuevos se crearán.</li>
       ${(c.pesosNuevos || c.pesosCambiados || c.pesosIguales) ? html`<li>Peso de referencia: <strong>${c.pesosNuevos}</strong> nuevos · <strong class=${c.pesosCambiados ? 'warn-text' : ''}>${c.pesosCambiados}</strong> sustituyen al anterior · ${c.pesosIguales} iguales (sin cambios).</li>` : null}
@@ -378,8 +383,8 @@ function PasoResumen({ plan, choices, setChoices, repeChoices = {}, setRepeChoic
       ${(c.alturasNuevas || c.alturasIguales) ? html`<li>Altura: <strong>${c.alturasNuevas}</strong> mediciones nuevas (con la fecha de la fila) · ${c.alturasIguales} ya existían.</li>` : null}
     </ul>
     ${conflicts.length ? html`<div class="table-wrap"><table><caption>Conflictos con sesiones ya guardadas</caption>
-      <thead><tr><th scope="col">Jugador</th><th scope="col">Fecha</th><th scope="col">Qué hacer</th></tr></thead>
-      <tbody>${conflicts.map((s) => html`<tr key=${s.key}><td>${s.playerText}</td><td>${fmtDay(s.date)} ${s.time}</td><td><select aria-label=${'Conflicto de ' + s.playerText + ' ' + s.date} value=${choices[s.key] ?? 'omitir'} onChange=${(e) => setChoices((x) => ({ ...x, [s.key]: e.target.value }))}><option value="omitir">Omitir (conservar la sesión existente)</option><option value="nueva">Guardar como sesión nueva (otra sesión ese día)</option><option value="reemplazar">Reemplazar los valores guardados (misma medición corregida)</option></select></td></tr>`)}</tbody></table></div>` : null}
+      <thead><tr><th scope="col">Jugador</th><th scope="col">Fecha</th><th scope="col">En qué cambia (guardado → fichero)</th><th scope="col">Qué hacer</th></tr></thead>
+      <tbody>${conflicts.map((s) => html`<tr key=${s.key}><td>${s.playerText}</td><td>${fmtDay(s.date)} ${s.time}</td><td class="dif">${explicaConflicto(s)}</td><td><select aria-label=${'Conflicto de ' + s.playerText + ' ' + s.date} value=${choices[s.key] ?? 'omitir'} onChange=${(e) => setChoices((x) => ({ ...x, [s.key]: e.target.value }))}><option value="omitir">Omitir (conservar la sesión existente)</option><option value="nueva">Guardar como sesión nueva (otra sesión ese día)</option><option value="reemplazar">Reemplazar los valores guardados (misma medición corregida)</option></select></td></tr>`)}</tbody></table></div>` : null}
     ${repes.length ? html`<div class="table-wrap"><table><caption>Mediciones repetidas con otra fecha (${repes.length})</caption>
       <thead><tr><th scope="col">Jugador</th><th scope="col">Fecha del fichero</th><th scope="col">Ya guardada el</th><th scope="col">Qué hacer</th></tr></thead>
       <tbody>${repes.map((s) => html`<tr key=${s.key}><td>${s.playerText}</td><td>${fmtDay(s.date)} ${s.time}</td><td>${fmtDay(s.existingDate)}</td><td><select aria-label=${'Medición repetida de ' + s.playerText + ' ' + s.date} value=${repeChoices[s.key] ?? 'omitir'} onChange=${(e) => setRepeChoices((x) => ({ ...x, [s.key]: e.target.value }))}><option value="omitir">No importar (es la misma medición)</option><option value="nueva">Guardar igualmente (se repitió el resultado)</option></select></td></tr>`)}</tbody></table>

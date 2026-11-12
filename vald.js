@@ -278,7 +278,7 @@ export function parseValdGrid(grid, catalog) {
 // ---- Plan y guardado por grupos (un lote por test; las claves de conflicto llevan el test delante para no chocar)
 export async function planValdImport(db, vald, resolutions) {
   const plans = [];
-  const plan = { sessions: [], pending: [], rowErrors: [], counts: { nuevas: 0, duplicadas: 0, ampliadas: 0, repetidas: 0, conflictos: 0, conflictosFichero: 0, pendientes: 0, filasConError: 0 } };
+  const plan = { sessions: [], pending: [], rowErrors: [], counts: { nuevas: 0, duplicadas: 0, ampliadas: 0, repetidas: 0, conflictos: 0, conflictosFichero: 0, pendientes: 0, sinDatos: 0, filasConError: 0 } };
   for (const g of vald.groups) {
     const gp = await planImport(db, { rows: g.rows, testId: g.testId, resolutions });
     plans.push({ group: g, plan: gp });

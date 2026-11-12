@@ -1,7 +1,7 @@
 // colores.js — paleta de los informes del usuario (Physical Profile en PDF, fondo oscuro). Medida sobre las páginas del PDF
 // (modo de los píxeles planos; el PDF está en JPEG, así que puede haber ±1-2 unidades por canal).
 export const PAL = {
-  fondo: '#040612',      // fondo de las diapositivas
+  fondo: '#000000',      // fondo de los gráficos: negro puro, para que al pegarlos en una diapositiva negra no se vea el recuadro (12/11/2026; antes #040612, medido del PDF)
   texto: '#FFFFFF',
   izq: '#31B3FE',        // lado izquierdo (azul VALD)
   der: '#FC912F',        // lado derecho (naranja VALD)

@@ -2,6 +2,7 @@ import { html, useState } from './libs.js';
 import { useApp } from './context.js';
 import { Card, Msg, Sintetico, useLoad, useRunner } from './componentes.js';
 import { fmtDay, todayIso, isIsoDay } from './fechas.js';
+import { playersWithoutMass } from './relaciones.js';
 import { normalizeName, playerLabel, baseName, SOURCES, createPlayer, updatePlayer, setPlayerActive, addAlias, removeAlias, duplicateNameWarning, mergePlayers, deletePlayerWithData, playerDataCounts } from './jugadores.js';
 import { listPositions, playerHistory, positionOnDate, setMainPosition, clearMainPosition, addSecondaryPosition, deleteHistoryRecord } from './posiciones.js';
 import { METRICS, playerAnthropometry, addAnthropometry, updateAnthropometry, deleteAnthropometry, setReferenceWeight, clearReferenceWeight } from './antropometria.js';
@@ -24,8 +25,8 @@ export function Jugadores() {
   const [posId, setPosId] = useState('');
   const { msg, run, busy } = useRunner();
   const { data, error } = useLoad(async () => {
-    const [players, aliases, positions, history, synth] = await Promise.all([db.players.toArray(), db.playerAliases.toArray(), listPositions(db), db.playerPositions.toArray(), countSynthetic(db)]);
-    return { players, aliases, positions, history, synth };
+    const [players, aliases, positions, history, synth, anthropometry] = await Promise.all([db.players.toArray(), db.playerAliases.toArray(), listPositions(db), db.playerPositions.toArray(), countSynthetic(db), db.anthropometry.toArray()]);
+    return { players, aliases, positions, history, synth, anthropometry };
   }, [db, version]);
   if (error) return html`<p class="status fail">${error}</p>`;
   if (!data) return html`<p>Cargando…</p>`;
@@ -51,6 +52,7 @@ export function Jugadores() {
   return html`
     <h2 class="page-title">Jugadores</h2>
     ${totalOf(data.synth) > 0 ? html`<div class="banner info" role="status">Hay datos sintéticos de demostración (${totalOf(data.synth)} registros), marcados como <${Sintetico} />. Se eliminan todos juntos desde <a href="#configuracion">Configuración</a>.</div>` : null}
+    ${(() => { const sinPeso = playersWithoutMass(data.players, data.anthropometry); return sinPeso.length ? html`<p class="status warn">${sinPeso.length === 1 ? 'Un jugador activo no tiene ni medición de peso ni peso de referencia' : `${sinPeso.length} jugadores activos no tienen ni medición de peso ni peso de referencia`}, así que no se les calculan los valores ni los percentiles relativos al peso corporal (BW, SW, N·m/kg): ${sinPeso.map((p) => html`<a key=${p.id} href=${`#jugador-${p.id}`}>${playerLabel(p)}</a>`).flatMap((x, i) => (i ? [' · ', x] : [x]))}.</p>` : null; })()}
     <${Card} titulo=${`Lista (${rows.length})`}>
       <div class="fields">
         <label>Buscar por nombre o alias <input type="search" value=${q} onInput=${(e) => setQ(e.target.value)} /></label>

@@ -57,6 +57,14 @@ export function withReferenceWeights(anthropometry, players) {
   return anthropometry.concat(players.filter((p) => p.referenceWeight && toKg(p.referenceWeight) !== null).map((p) => ({ playerId: p.id, date: null, bodyMass: p.referenceWeight, reference: true })));
 }
 
+// Jugadores sin ninguna masa utilizable: ni medición de peso ni peso de referencia. Sus valores relativos al peso corporal (BW, SW, N·m/kg) no se pueden
+// calcular, así que no aparecen en esos percentiles. Con `soloConDatos` se limitan a los que sí tienen sesiones del test que se esté mirando.
+export function playersWithoutMass(players, anthropometry, soloConDatos = null) {
+  const conMasa = new Set(withReferenceWeights(anthropometry ?? [], players ?? []).filter((r) => toKg(r.bodyMass) !== null).map((r) => r.playerId));
+  const ids = soloConDatos === null ? null : new Set(soloConDatos);
+  return (players ?? []).filter((p) => p.active !== false && !conMasa.has(p.id) && (ids === null || ids.has(p.id)));
+}
+
 // Puntos de un test relativizados al peso propio (múltiplos de BW): fuerza (N) ÷ (masa × g).
 export function relativeBWPoints(points, anthropometry) {
   const out = [], omitted = [];

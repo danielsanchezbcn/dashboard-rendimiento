@@ -349,7 +349,6 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const selSide = sides.includes(cmpV.side) ? cmpV.side : sides[0];
   const selIds = [cmpV.a, cmpV.b].filter((x) => x != null).map((id) => selSide + ':' + id);
   const key = [player.id, test.id, variable.id, proto, from, to, sessions.map((s) => s.id + s.status).join(), sides.map((sd) => (tg[sd] ? tg[sd].origin + tg[sd].value : '-')).join()].join('|');
-  const allUrl = buildHash(`test-${test.id}`, { ...KEEP(q), v: variable.id, m: q.m ?? 'pa', j: player.id });
   const cmj = test.name === 'CMJ', relArriba = ['squat jump', 'sl cmj'].includes(String(test.name ?? '').trim().toLowerCase()); // Squat Jump (EUR) y SL CMJ (DSI): su cuadrante va arriba del todo // CMJ y Perímetros: cuadro con todas las variables arriba del todo; en CMJ, justo debajo el radar y el cuadrante EUR
   const radarEl = html`<${RadarPanel} key=${'radar' + test.id + player.id} player=${player} testName=${test.name} />`;
   const relEl = html`<${RelacionTest} key=${'rel' + test.id + player.id} player=${player} test=${test} />`;
@@ -358,8 +357,7 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
     ${relArriba ? relEl : null}
     <${NormativeBenchmarking} key=${'nb' + test.id + player.id} player=${player} test=${test} catalog=${catalog} sessions=${sessions} refData=${refData} q=${q} setQ=${setQ} selectedId=${variable.id} abs=${abs} />
     ${cmj ? html`${radarEl}${relEl}` : null}
-    <p id="detalle-variable"><a class="button" href=${allUrl}>Ver todos los jugadores en este test</a></p>
-    <div class="filters">
+    <div id="detalle-variable" class="filters">
       <label>Variable <select value=${variable.id} onChange=${(e) => setQ({ v: e.target.value })}>${vars.map((v) => html`<option key=${v.id} value=${v.id}>${dn(v.name)}${v.unit && !v.name.includes(`(${v.unit})`) ? ` (${v.unit})` : ''}${v.sides === 'LR' ? ' · I/D' : ''}</option>`)}</select></label>
       ${protocols.length ? html`<label>Protocolo <select value=${proto} onChange=${(e) => setQ({ p: e.target.value })}><option value="all">Todos</option><option value="none">Sin protocolo</option>${protocols.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label>` : null}
       <label>Desde <input type="date" value=${from} onInput=${(e) => setQ({ from: e.target.value })} /></label>
@@ -454,7 +452,7 @@ export function ResultadosJugador({ player, query = {}, edicion = null, antrop =
   const rank = (t) => { const z = (zName(t) ?? '').toLowerCase(); return z.startsWith('ankle') ? 0 : z.startsWith('knee') ? 1 : z.startsWith('hip') ? 2 : z.startsWith('groin') ? 3 : 4; }; // Ankle, Knee, Hip, Groin; sin zona al final
   const ordered = (g) => tests.filter((t) => mName(t) === g).map((t, i) => [t, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([t]) => t);
   const cuerpoTest = () => !test ? html`<p class="muted">Elige un test de la lista.</p>` : html`
-      <div class="test-sticky"><span class="muted">${playerLabel(player)} ·</span> <h3>${dn(test.name)}</h3></div>
+      <div class="test-sticky"><span class="muted">${playerLabel(player)} ·</span> <h3>${dn(test.name)}</h3>${hasSessions(test) ? html`<a class="button sticky-link" href=${buildHash(`test-${test.id}`, { ...KEEP(query), m: query.m ?? 'pa', j: player.id })}>Ver todos los jugadores en este test</a>` : null}</div>
       ${hasSessions(test) ? html`<${PanelTest} key=${test.id} player=${player} test=${test} catalog=${catalog} sessions=${sessions.filter((s) => s.testId === test.id)} omitted=${omitted} reload=${reload} q=${query} setQ=${setQ} targets=${targets} positions=${positions} positionId=${positionId} />` : vbtTest(test) ? null : html`<p class="muted">Este jugador aún no tiene sesiones de este test.</p>`}
       ${loadTest(test) ? html`<${AltaManualCarga} key=${'am' + test.id} player=${player} catalog=${catalog} reload=${reload} fixedTest=${test} />` : null}
       ${vbtTest(test) ? (typeof fv === 'function' ? fv(test) : fv) : null}
