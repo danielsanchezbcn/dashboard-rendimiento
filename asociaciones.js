@@ -8,10 +8,10 @@ import { positionOnDate } from './posiciones.js';
 import { pearsonResult, spearmanResult, rmcorr } from './estadistica.js';
 import { playerLabel } from './jugadores.js';
 
-export const SIDE_LABEL = { L: 'Izquierda', R: 'Derecha', S: '' };
+export const SIDE_LABEL = { L: 'Izquierda', R: 'Derecha', M: 'Media de las dos piernas', S: '' };
 export const keyOf = (v, side) => `${v.testId}.${v.id}.${side}`;
 export function parseKey(key) {
-  const m = /^(\d+)\.(\d+)\.([LRS])$/.exec(String(key ?? ''));
+  const m = /^(\d+)\.(\d+)\.([LRMS])$/.exec(String(key ?? ''));
   return m ? { testId: Number(m[1]), variableId: Number(m[2]), side: m[3] } : null;
 }
 
@@ -21,7 +21,7 @@ export function variableOptions(catalog, sessions) {
   for (const t of catalog.tests.filter((x) => !x.archived)) {
     const ss = sessions.filter((s) => s.testId === t.id);
     for (const v of catalog.variables.filter((x) => x.testId === t.id && isViewable(x) && hasData(x, ss))) {
-      const sides = v.sides === 'LR' ? ['L', 'R'] : ['S'];
+      const sides = v.sides === 'LR' ? ['L', 'R', 'M'] : ['S'];
       for (const side of sides) out.push({ key: keyOf(v, side), test: t, variable: v, side, unit: v.unit ?? '', label: `${t.name} · ${v.name}${v.unit ? ` (${v.unit})` : ''}${SIDE_LABEL[side] ? ` · ${SIDE_LABEL[side]}` : ''}` });
     }
   }
@@ -33,7 +33,14 @@ function population({ players, histories, posQ, includeSynthetic }) {
   return Object.values(players).filter((p) => (includeSynthetic || !p.synthetic) && (posQ === 'all' || (posQ === 'none' ? posOf(p.id) === null : posOf(p.id) === Number(posQ))));
 }
 
-const pointsOf = (sessions, playerId, o, from, to) => buildSeries(sessions.filter((s) => s.playerId === playerId && s.testId === o.test.id), o.variable.id, o.side, { from: from || null, to: to || null }).valid;
+// Lado «M» (media de las dos piernas, 12/11/2026): media de izquierda y derecha DE LA MISMA SESIÓN. Si una sesión solo tiene un lado, no se usa:
+// la media de una sola pierna no es la media de las dos.
+const pointsOf = (sessions, playerId, o, from, to) => {
+  const ss = sessions.filter((s) => s.playerId === playerId && s.testId === o.test.id), f = { from: from || null, to: to || null };
+  if (o.side !== 'M') return buildSeries(ss, o.variable.id, o.side, f).valid;
+  const izq = buildSeries(ss, o.variable.id, 'L', f).valid, der = new Map(buildSeries(ss, o.variable.id, 'R', f).valid.map((p) => [p.sessionId, p]));
+  return izq.map((p) => { const r = der.get(p.sessionId); return r ? { ...p, value: (p.value + r.value) / 2, reps: Math.min(p.reps ?? 1, r.reps ?? 1) } : null; }).filter(Boolean);
+};
 
 export function crossSectional({ sessions, players, histories, x, y, from, to, posQ = 'all', includeSynthetic = false, minN = 10 }) {
   const obs = [];

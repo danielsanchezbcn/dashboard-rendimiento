@@ -16,9 +16,9 @@ for (let p = 1; p <= 12; p++) {
 players[13] = { id: 13, jerseyName: 'Sintético', synthetic: 1 }; sessions.push(S(sid++, 13, 1, '2026-01-10', { 11: { L: 1, R: 1 } }), S(sid++, 13, 3, '2026-01-10', { 31: { S: 1 } }));
 sessions.push(S(sid++, 1, 1, '2026-04-10', { 11: { L: 9999, R: 9999 } }, 'excluded'), S(sid++, 1, 3, '2026-04-10', { 31: { S: 9999 } }, 'excluded'));
 const opts = A.variableOptions(catalog, sessions);
-check('opciones: lados por separado, sin asimetría derivada ni tests archivados', opts.map((o) => o.key).join() === '1.11.L,1.11.R,3.31.S', opts.map((o) => o.key).join());
+check('opciones: izquierda, derecha y media de las dos, sin asimetría derivada ni tests archivados', opts.map((o) => o.key).join() === '1.11.L,1.11.R,1.11.M,3.31.S', opts.map((o) => o.key).join());
 check('parseKey', JSON.stringify(A.parseKey('1.11.L')) === '{"testId":1,"variableId":11,"side":"L"}' && A.parseKey('x') === null);
-const [xL, , yS] = opts;
+const [xL, , xM, yS] = opts;
 const c = A.crossSectional({ sessions, players, histories: {}, x: xL, y: yS });
 check('transversal: una observación por jugador real (12), sin sintético ni sesiones excluidas', c.n === 12 && c.sufficient && !c.hasSynthetic && c.obs.every((o) => o.x < 1000 && o.y < 100));
 check('transversal: entre jugadores, más fuerza ↔ menos salto (ρ = −1)', Math.abs(c.spearman.r + 1) < 1e-9 && c.pearson.defined);
@@ -28,4 +28,15 @@ check('muestra mínima: con minN = 20 no se calcula en transversal', A.crossSect
 check('periodo: solo febrero → intra-jugador sin pares suficientes por jugador', A.withinPlayer({ sessions, players, histories: {}, x: xL, y: yS, from: '2026-02-01', to: '2026-02-28' }).n === 0);
 check('posición: filtro y «sin posición»', A.crossSectional({ sessions, players, histories: { 1: [{ role: 'principal', positionId: 7 }] }, x: xL, y: yS, posQ: '7' }).n === 1 && A.crossSectional({ sessions, players, histories: { 1: [{ role: 'principal', positionId: 7 }] }, x: xL, y: yS, posQ: 'none' }).n === 11);
 check('sintéticos solo si se piden, y se marcan', A.crossSectional({ sessions, players, histories: {}, x: xL, y: yS, includeSynthetic: true }).hasSynthetic === true);
+// Lado «media de las dos piernas» (12/11/2026)
+{
+  check('opción «media»: etiqueta y clave propias', xM.side === 'M' && /Media de las dos piernas/.test(xM.label) && A.parseKey(xM.key).side === 'M');
+  const cM = A.crossSectional({ sessions, players, histories: {}, x: xM, y: yS });
+  const cL = A.crossSectional({ sessions, players, histories: {}, x: xL, y: yS });
+  const cR = A.crossSectional({ sessions, players, histories: {}, x: opts[1], y: yS });
+  check('media de las dos piernas: un valor por jugador, igual a la media de izquierda y derecha', cM.n === cL.n && cM.obs.every((o, i) => Math.abs(o.x - (cL.obs[i].x + cR.obs[i].x) / 2) < 1e-9));
+  const soloIzq = sessions.map((s2) => ({ ...s2, values: Object.fromEntries(Object.entries(s2.values).map(([k, v]) => [k, v.R === undefined ? v : { L: v.L }])) }));
+  check('sesiones con una sola pierna no entran en la media', A.crossSectional({ sessions: soloIzq, players, histories: {}, x: xM, y: yS }).n === 0);
+}
+
 process.exit(failed ? 1 : 0);

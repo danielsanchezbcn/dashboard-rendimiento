@@ -29,8 +29,8 @@ function Dispersion({ res, xo, yo }) {
   const xt = niceTicks(Math.min(...xs), Math.max(...xs)), yt = niceTicks(Math.min(...ys), Math.max(...ys));
   const X = (v) => L + ((v - xt[0]) / (xt.at(-1) - xt[0])) * (W - L - R), Y = (v) => H - B - ((v - yt[0]) / (yt.at(-1) - yt[0])) * (H - B - T);
   const lines = res.mode === 'within' ? [...Map.groupBy(res.obs, (o) => o.id).values()].map((g) => g.sort((a, b) => a.x - b.x)) : [];
-  const xl = `${dn(xo.test.name)} · ${dn(xo.variable.name)}${xo.unit ? ` (${xo.unit})` : ''}${xo.side !== 'S' ? ` · ${xo.side === 'L' ? 'Izq.' : 'Der.'}` : ''}`;
-  const yl = `${dn(yo.test.name)} · ${dn(yo.variable.name)}${yo.unit ? ` (${yo.unit})` : ''}${yo.side !== 'S' ? ` · ${yo.side === 'L' ? 'Izq.' : 'Der.'}` : ''}`;
+  const xl = `${dn(xo.test.name)} · ${dn(xo.variable.name)}${xo.unit ? ` (${xo.unit})` : ''}${xo.side !== 'S' ? ` · ${xo.side === 'L' ? 'Izq.' : xo.side === 'R' ? 'Der.' : 'Media'}` : ''}`;
+  const yl = `${dn(yo.test.name)} · ${dn(yo.variable.name)}${yo.unit ? ` (${yo.unit})` : ''}${yo.side !== 'S' ? ` · ${yo.side === 'L' ? 'Izq.' : yo.side === 'R' ? 'Der.' : 'Media'}` : ''}`;
   return html`<${Copiable} nombre="dispersion"><svg class="scatter" viewBox=${`0 0 ${W} ${H}`} width="100%" role="img" aria-label=${`Dispersión: ${xl} (horizontal) frente a ${yl} (vertical), ${res.n} observaciones`}>
     ${xt.map((t) => html`<g key=${'x' + t}><line x1=${X(t)} x2=${X(t)} y1=${T} y2=${H - B} class="gridline" /><text x=${X(t)} y=${H - B + 16} text-anchor="middle">${nf(t, 1)}</text></g>`)}
     ${yt.map((t) => html`<g key=${'y' + t}><line x1=${L} x2=${W - R} y1=${Y(t)} y2=${Y(t)} class="gridline" /><text x=${L - 6} y=${Y(t) + 4} text-anchor="end">${nf(t, 1)}</text></g>`)}

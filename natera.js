@@ -8,6 +8,8 @@ export const NATERA = [
   { test: 'Run-Specific Knee Iso-Push', unit: 'BW', normal: 3.75, good: 4.2, excellent: 4.5 },
   { test: 'Run-Specific Hip Iso-Push', unit: 'SW', normal: 2.0, good: 2.2, excellent: 2.5 },
 ];
+// Colores de las tres marcas de Natera en los gráficos: los mismos de sus bandas (amarillo, verde suave, verde).
+export const NATERA_HEX = { normal: '#ecc94b', good: '#9ae6b4', excellent: '#2f855a' };
 export const NATERA_CLASSES = { below: { text: 'Por debajo de Normal', band: 'rojo' }, normal: { text: 'Normal', band: 'amarillo' }, good: { text: 'Good', band: 'verde-suave' }, excellent: { text: 'Excellent', band: 'verde' } };
 
 // Solo variables relativas «Peak Force relativo (BW|SW)» de los tres tests y con la unidad correcta.

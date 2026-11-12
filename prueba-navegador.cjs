@@ -85,6 +85,38 @@ const server = http.createServer((req, res) => {
   check('Perfil asignado a este test: se muestra y el test deja de estar «sin datos aún»', (await page.locator('.status.warn').count()) === 0 && !/sin datos aún/.test(await itemBsq.innerText()));
   await page.evaluate(async () => { const db = await new Promise((ok) => { const r = indexedDB.open('dashboard-rendimiento'); r.onsuccess = () => ok(r.result); }); await new Promise((ok) => { const tx = db.transaction('fvProfiles', 'readwrite'); tx.objectStore('fvProfiles').clear(); tx.oncomplete = ok; }); });
 
+  // ---- Tabla de comparación entre jugadores: columna de Natera, todo centrado y sin desplazamiento horizontal
+  {
+    const vSW = Object.entries(ids.vars).find(([, v]) => v.testId === t.hip && /relativo \(SW\)/i.test(v.name));
+    await go(`#test-${t.hip}?v=${vSW[0]}`, 'table.tabla-comp', 1500);
+    if (CAP) await page.locator('.tabla-wrap-comp').first().screenshot({ path: path.join(CAP, 'tabla-comp.png') });
+    const tc = await page.evaluate(() => { const w = document.querySelector('.tabla-wrap-comp'); const tb = w.querySelector('table.tabla-comp'); const al = (e) => getComputedStyle(e).textAlign; return { grupos: [...tb.querySelectorAll('thead tr:first-child th')].map((x) => x.innerText.trim()), desborda: w.scrollWidth > w.clientWidth + 1, pagina: document.documentElement.scrollWidth > window.innerWidth + 1, centrado: [...tb.querySelectorAll('thead th:not([scope="row"])')].every((x) => al(x) === 'center') && [...tb.querySelectorAll('tbody td')].every((x) => al(x) === 'center'), nat: [...tb.querySelectorAll('tbody tr:first-child td')].map((x) => x.innerText.trim()).slice(-2) }; });
+    check('tabla de todos los jugadores: columna de Natera además de los percentiles', tc.grupos.some((x) => /natera/i.test(x)), tc.grupos.join('|'));
+    check('tabla de todos los jugadores: Natera clasifica cada pierna', tc.nat.every((x) => /Normal|Good|Excellent|—/.test(x)), JSON.stringify(tc.nat));
+    check('tabla de todos los jugadores: todo centrado bajo su título', tc.centrado);
+    check('tabla de todos los jugadores: cabe a lo ancho, sin desplazamiento horizontal', !tc.desborda && !tc.pagina, JSON.stringify(tc));
+  }
+
+  // ---- Déficits: todo lo que está en percentil de La Liga igual o por debajo del umbral
+  const PBAJO = ids.players[0]; // el jugador con los valores más bajos de la siembra: es el que tiene déficits
+  await go(`#jugador-${PBAJO}?b=deficits`, 'table.deficits, .status.fail, p.muted', 2500);
+  const def = await page.evaluate(() => { const t = document.querySelector('table.deficits'); return { n: t ? t.querySelectorAll('tbody tr').length : 0, pct: t ? [...t.querySelectorAll('tbody tr td:first-child .band')].map((x) => Number(x.innerText)) : [], cab: t ? [...t.querySelectorAll('thead th')].map((x) => x.innerText) : [] }; });
+  check('Déficits: tabla con percentil, test, variable, lado, valor y fecha', def.cab.join('|').toLowerCase() === 'percentil la liga|test|variable|lado|valor|fecha', def.cab.join('|'));
+  check('Déficits: todas las filas están en el umbral o por debajo, de menor a mayor', def.n > 0 && def.pct.length === def.n && def.pct.every((x) => x <= 35) && def.pct.every((x, i) => i === 0 || x >= def.pct[i - 1]), JSON.stringify(def.pct));
+  await page.locator('input[type=number]').first().fill('10');
+  await page.waitForTimeout(600);
+  const def10 = await page.evaluate(() => [...document.querySelectorAll('table.deficits tbody tr td:first-child .band')].map((x) => Number(x.innerText)));
+  check('Déficits: al bajar el umbral a 10 solo quedan los percentiles ≤ 10', def10.every((x) => x <= 10) && def10.length <= def.n, JSON.stringify(def10));
+  // El percentil que sale aquí debe ser EL MISMO que muestra Normative Benchmarking de ese test (una sola función de cálculo)
+  const primera = await page.evaluate(() => { const r = document.querySelector('table.deficits tbody tr'); return r ? { pct: Number(r.querySelector('.band').innerText), href: r.querySelector('a').getAttribute('href'), lado: r.children[3].innerText.trim(), variable: r.children[2].innerText.trim() } : null; });
+  await page.locator('input[type=number]').first().fill('35');
+  await page.waitForTimeout(400);
+  if (primera) {
+    await go(primera.href, 'table.pano', 1500);
+    const enNb = await page.evaluate((v) => { const tb = document.querySelector('table.pano.norm'); const hs = [...tb.querySelectorAll('thead tr:first-child th')]; let k = 0; const idx = hs.map((h) => { const o = { n: (h.querySelector('.pano-nm')?.innerText ?? '').trim(), i: k, span: h.colSpan }; k += h.colSpan; return o; }).find((o) => o.n === v.variable); if (!idx) return null; const fila = [...tb.querySelectorAll('tbody tr')].find((r) => /La Liga percentile\)$/.test(r.querySelector('th').innerText.trim())); const tds = [...fila.querySelectorAll('td')]; const off = v.lado === 'Derecha' ? 1 : 0; return Number(tds[idx.i + (idx.span > 1 ? off : 0)].innerText.trim()); }, primera);
+    check('Déficits: el percentil coincide con el de Normative Benchmarking de ese test', enNb === primera.pct, JSON.stringify({ deficits: primera, nb: enNb }));
+  }
+
   // ---- Menú y pestañas
   await go('#inicio', '.tabs-nav');
   check('menú: 5 entradas', (await texts('nav.nav a')).join('|') === 'Inicio|Jugadores|Relaciones entre variables|Catálogo de tests|Importar', (await texts('nav.nav a')).join('|'));

@@ -15,10 +15,12 @@ import { positionOnDate } from './posiciones.js';
 import { withReferenceWeights } from './relaciones.js';
 import { isAsymVariable, asymText, esGrados } from './catalogo.js';
 import { AsimTexto } from './asim-ui.js';
+import { Deficits } from './pages-deficits.js';
 import { PanelAsimetrias } from './pages-asimetrias.js';
 import { setTarget, deleteTarget, resolveTarget, distanceToTarget } from './targets.js';
 import { buildSeries, personalAverage, personalBestFor, currentResult, asymmetrySeries, setSessionExcluded, deleteSessionPermanently, correctSession } from './evolucion.js';
 import { playerLabel, nameMatchesPlayer } from './jugadores.js';
+import { findNatera, NATERA_HEX } from './natera.js';
 import { PAL, colorLado } from './colores.js';
 import { buildReference } from './percentiles.js';
 import { consecutiveDiffs, changeTest } from './cambio.js';
@@ -332,11 +334,14 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const abs = srcVar ? (() => { const ser = Object.fromEntries(sides.map((sd) => [sd, buildSeries(sessions, srcVar.id, sd, f)])); return { variable: srcVar, stats: Object.fromEntries(sides.map((sd) => [sd, { pa: personalAverage(ser[sd].valid), pb: personalBestFor(sessions, srcVar, sd, f) }])), current: Object.fromEntries(sides.map((sd) => [sd, currentResult(ser[sd].valid)])) }; })() : null;
   const ctx = refData ? refContext({ refData, test, variable, sides, filters: f, playerId: player.id, positionId, srcVar }) : null;
   const posNombre = positions.find((p) => p.id === positionId)?.name;
+  // Referencias de Natera (solo Peak Force relativo de los Run-Specific Iso-Push): tres marcas opcionales, con los colores de sus bandas.
+  const nat = findNatera(test, variable);
+  const NAT_OPTS = nat ? [['natNormal', 'Natera Normal', [4, 4], 2, NATERA_HEX.normal, nat.normal], ['natGood', 'Natera Good', [4, 4], 2, NATERA_HEX.good, nat.good], ['natExcellent', 'Natera Excellent', [4, 4], 2, NATERA_HEX.excellent, nat.excellent]] : [];
   const REF_OPTS = [['p50', 'P50 La Liga', 'p50', [], 2], ['p50pos', `P50 La Liga (${posNombre ?? 'position'})`, 'p50pos', [8, 4], 2], ['p75', 'P75 La Liga', 'p75', [2, 3], 2], ['p75pos', `P75 La Liga (${posNombre ?? 'position'})`, 'p75pos', [10, 3, 2, 3], 2], ['premier50', 'P50 Premier League', 'premier50', [], 1.5], ['premier75', 'P75 Premier League', 'premier75', [8, 3], 1.5]];
   // Por defecto: P50 La Liga y P50 Premier League. «none» = ninguna marcada.
   const chosen = q.rl === undefined ? ['p50', 'premier50'] : String(q.rl).split(',').filter((x) => x && x !== 'none');
   const paOpts = sides.map((sd) => ['pa' + sd, variable.sides === 'LR' ? `Personal Average (${sd})` : 'Personal Average', [6, 4], 2, variable.sides === 'LR' ? colorLado(sd) : PAL.texto, stats[sd].pa.defined ? stats[sd].pa.value : null]);
-  const opts = [...REF_OPTS.map(([k, label, , dash, w]) => [k, label, dash, w, k.startsWith('premier') ? PAL.premier : PAL.laLiga, ctx?.lines[k] ?? null]), ...paOpts];
+  const opts = [...REF_OPTS.map(([k, label, , dash, w]) => [k, label, dash, w, k.startsWith('premier') ? PAL.premier : PAL.laLiga, ctx?.lines[k] ?? null]), ...NAT_OPTS, ...paOpts];
   const refLines = opts.filter(([k, , , , , v]) => chosen.includes(k) && v != null).map(([k, label, dash, w, color, v]) => ({ k, label, value: v, dash, w, color }));
   const all = sides.flatMap((sd) => [...series[sd].valid, ...series[sd].excluded].map((p) => p.value).concat(tg[sd] ? [tg[sd].value] : [])).concat(refLines.map((r) => r.value));
   const pad = all.length ? (Math.max(...all) - Math.min(...all)) * 0.1 || Math.abs(Math.max(...all)) * 0.1 || 1 : 1;
@@ -412,7 +417,7 @@ function AltaManualCarga({ player, catalog, reload, fixedTest = null }) {
     </form><${Msg} msg=${msg} /><//>`;
 }
 
-const BLOQUES = [['edicion', 'Edición'], ['fuerza', 'Manifestaciones de la fuerza'], ['perimetros', 'Datos antropométricos'], ['nme', 'NME'], ['asimetrias', 'Asimetrías']];
+const BLOQUES = [['edicion', 'Edición'], ['fuerza', 'Manifestaciones de la fuerza'], ['perimetros', 'Datos antropométricos'], ['nme', 'NME'], ['asimetrias', 'Asimetrías'], ['deficits', 'Déficits']];
 
 // Edición y Datos antropométricos llegan ya hechos desde la ficha (`edicion`, `antrop`); el perfil carga-velocidad (`fv`) solo se muestra en los tests de perfil F–V.
 export function ResultadosJugador({ player, query = {}, edicion = null, antrop = null, fv = null }) {
@@ -463,6 +468,6 @@ export function ResultadosJugador({ player, query = {}, edicion = null, antrop =
   return html`<${Card} titulo="Resultados por bloque">
     ${test ? html`<${Migas} items=${[{ label: 'Jugadores', href: '#jugadores' }, { label: playerLabel(player) }, { label: dn(test.name) }]} />` : null}
     <div role="tablist" aria-label="Bloques" class="tabs">${BLOQUES.map(([k, n]) => html`<button type="button" role="tab" key=${k} aria-selected=${block === k} class=${block === k ? 'tab on' : 'tab'} onClick=${() => setQ({ b: k, t: undefined, v: undefined })}>${n}${k === 'edicion' || k === 'asimetrias' ? '' : html` <span class="muted">(${allOf(k).filter(hasSessions).length})</span>`}</button>`)}</div>
-    ${block === 'edicion' ? edicion : block === 'asimetrias' ? html`<${PanelAsimetrias} catalog=${catalog} sessions=${sessions} q=${query} setQ=${setQ} />` : block === 'perimetros' ? html`${listaTests()}${antrop}` : listaTests()}
+    ${block === 'edicion' ? edicion : block === 'deficits' ? html`<${Deficits} player=${player} positionId=${positionId} />` : block === 'asimetrias' ? html`<${PanelAsimetrias} catalog=${catalog} sessions=${sessions} q=${query} setQ=${setQ} />` : block === 'perimetros' ? html`${listaTests()}${antrop}` : listaTests()}
   <//>`;
 }

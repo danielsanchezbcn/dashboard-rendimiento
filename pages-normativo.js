@@ -61,6 +61,42 @@ const ORDEN_ISO = (v) => {
 };
 export const ordenIsoHold = (vars) => (vars.some(isIsoDerived) ? vars.map((v, i) => [v, i]).sort((a, b) => ORDEN_ISO(a[0]) - ORDEN_ISO(b[0]) || a[1] - b[1]).map(([v]) => v) : vars);
 
+// Valor, percentiles, Premier, Natera y asimetría de cada variable de un test para un jugador. ÚNICA fuente: la usan el cuadro Normative Benchmarking y el
+// bloque de Déficits, para que un mismo dato no pueda salir distinto en dos sitios (el error «68 frente a 60/68» de 9m nació justo de tener dos cálculos).
+export function columnasNormativas({ player, test, catalog, sessions, refData, vars, base, f, positionId }) {
+  const { minN } = refData;
+  const from = f.from ?? null, to = f.to ?? null;
+  const playersById = Object.fromEntries(refData.players.map((p) => [p.id, p]));
+  const histories = {}; for (const r of refData.records) (histories[r.playerId] ??= []).push(r);
+  // Asimetría absoluta de cada jugador con ambos lados (misma base): cada medida se compara solo consigo misma.
+  const asymEntries = (v) => {
+    const side = (sd) => new Map(buildReference({ sessions: refData.sessions, variable: v, side: sd, players: playersById, histories, basis: base === 'last' ? 'pa' : base, positionId, from, to, protocolId: f.protocolId }).map((e) => [e.playerId, e.value]));
+    const L = side('L'), R = side('R');
+    return [...L].filter(([id]) => R.has(id)).map(([playerId, l]) => ({ playerId, value: Math.abs(asymmetryPct(l, R.get(playerId))) })).filter((e) => Number.isFinite(e.value));
+  };
+  return vars.map((v) => {
+    const sides = v.sides === 'LR' ? ['L', 'R'] : ['S'];
+    const srcVar = isRelative(v) ? catalog.variables.find((x) => x.id === v.formula.operands[0]) ?? null : null;
+    const ctx = refContext({ refData, test, variable: v, sides, filters: f, playerId: player.id, positionId, srcVar });
+    const nat = findNatera(test, v);
+    const lado = {};
+    for (const sd of sides) {
+      const x = valorBase(sessions, v, sd, base, f);
+      const act = valorBase(sessions, v, sd, 'last', f);
+      const prev = valorPrevio(sessions, v, sd, f);
+      // «Actual» se compara con la sesión previa; con Personal Average / Personal Best, el resultado de la última sesión se compara con ese valor.
+      const vari = act ? variacionPct(act.value, base === 'last' ? prev?.value : x?.value) : null;
+      const pbReason = base === 'pb' && !x && act ? personalBestFor(sessions, v, sd, f).reason ?? null : null;
+      lado[sd] = { x, act, prev, vari, pbReason, ev: x ? ctx.evalValor(x.value, base, positionId) : null, pl: x && ctx.plRef ? placeAgainstPremier(ctx.plRef, x.value) : null, nat: nat && x ? classifyNatera(nat, x.value) : null };
+    }
+    const L = lado.L?.x, R = lado.R?.x;
+    const asim = L && R ? asimetriaLR(v, L.value, R.value) : null;
+    const evAsim = Number.isFinite(asim) && !esGrados(v) ? evaluate(asymEntries(v), { playerId: player.id, value: Math.abs(asim), direction: 'lower', minN }) : null;
+    return { v, sides, span: sides.length, lado, asim, evAsim, ctx, nat, hayPl: !!ctx.plRef, est: !!ctx.plRef?.estimated, asy: isAsymVariable(v) };
+  });
+}
+
+
 export function NormativeBenchmarking({ player, test, catalog, sessions, refData, q, setQ, selectedId, abs = null }) {
   const refTabla = useRef(null);
   const [ancho, setAncho] = useState(typeof window === 'undefined' ? 1440 : window.innerWidth);
@@ -81,34 +117,7 @@ export function NormativeBenchmarking({ player, test, catalog, sessions, refData
   const puedePB = (v) => !!v.pbCriterion || v.direction === 'higher' || v.direction === 'lower';
   const bases = vars.some(puedePB) ? BASES : BASES.filter(([k]) => k !== 'pb'); // sin criterio ni dirección en ninguna variable no hay «mejor»: sin Personal Best
   const base = bases.some(([k]) => k === q.pn) ? q.pn : 'pa';
-  const playersById = Object.fromEntries(refData.players.map((p) => [p.id, p]));
-  const histories = {}; for (const r of refData.records) (histories[r.playerId] ??= []).push(r);
-  // Asimetría absoluta de cada jugador con ambos lados (misma base): cada medida se compara solo consigo misma.
-  const asymEntries = (v) => {
-    const side = (sd) => new Map(buildReference({ sessions: refData.sessions, variable: v, side: sd, players: playersById, histories, basis: base === 'last' ? 'pa' : base, positionId, from, to, protocolId: f.protocolId }).map((e) => [e.playerId, e.value]));
-    const L = side('L'), R = side('R');
-    return [...L].filter(([id]) => R.has(id)).map(([playerId, l]) => ({ playerId, value: Math.abs(asymmetryPct(l, R.get(playerId))) })).filter((e) => Number.isFinite(e.value));
-  };
-  const cols = vars.map((v) => {
-    const sides = v.sides === 'LR' ? ['L', 'R'] : ['S'];
-    const srcVar = isRelative(v) ? catalog.variables.find((x) => x.id === v.formula.operands[0]) ?? null : null;
-    const ctx = refContext({ refData, test, variable: v, sides, filters: f, playerId: player.id, positionId, srcVar });
-    const nat = findNatera(test, v);
-    const lado = {};
-    for (const sd of sides) {
-      const x = valorBase(sessions, v, sd, base, f);
-      const act = valorBase(sessions, v, sd, 'last', f);
-      const prev = valorPrevio(sessions, v, sd, f);
-      // «Actual» se compara con la sesión previa; con Personal Average / Personal Best, el resultado de la última sesión se compara con ese valor.
-      const vari = act ? variacionPct(act.value, base === 'last' ? prev?.value : x?.value) : null;
-      const pbReason = base === 'pb' && !x && act ? personalBestFor(sessions, v, sd, f).reason ?? null : null;
-      lado[sd] = { x, act, prev, vari, pbReason, ev: x ? ctx.evalValor(x.value, base, positionId) : null, pl: x && ctx.plRef ? placeAgainstPremier(ctx.plRef, x.value) : null, nat: nat && x ? classifyNatera(nat, x.value) : null };
-    }
-    const L = lado.L?.x, R = lado.R?.x;
-    const asim = L && R ? asimetriaLR(v, L.value, R.value) : null;
-    const evAsim = Number.isFinite(asim) && !esGrados(v) ? evaluate(asymEntries(v), { playerId: player.id, value: Math.abs(asim), direction: 'lower', minN }) : null;
-    return { v, sides, span: sides.length, lado, asim, evAsim, ctx, nat, hayPl: !!ctx.plRef, est: !!ctx.plRef?.estimated, asy: isAsymVariable(v) };
-  });
+  const cols = columnasNormativas({ player, test, catalog, sessions, refData, vars, base, f, positionId });
   const tienePl = cols.some((c) => c.hayPl), tieneNat = cols.some((c) => c.nat), tieneLR = cols.some((c) => c.sides.length === 2);
   const tieneEvAsim = cols.some((c) => c.evAsim);
   const fechas = (k) => cols.flatMap((c) => Object.values(c.lado).map((l) => l.x?.[k]).filter(Boolean));
