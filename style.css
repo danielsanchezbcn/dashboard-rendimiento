@@ -537,3 +537,13 @@ td.dif { font-size: .9rem; line-height: 1.35; }
 .tabla-comp th, .tabla-comp td, .tabla-comp th.num, .tabla-comp td.num { text-align: center; padding: .25rem .3rem; font-size: .82rem; }
 .tabla-comp th[scope="row"] { text-align: left; min-width: 6.5rem; }
 .tabla-comp .badge, .tabla-comp .band { font-size: .75rem; padding: .05rem .3rem; }
+
+/* Filtros de referencias en cuatro filas (13/11/2026, pedido por el usuario): jugador · La Liga · Premier League · Natera.
+   Letra algo menor y sin saltos dentro de cada etiqueta, para que cada fila entre en una sola línea sin desplazamiento horizontal. */
+fieldset.modes.filas { display: block; }
+fieldset.modes.filas > .ref-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 0 .85rem; }
+fieldset.modes.filas > .ref-fila label.check { font-size: .78rem; white-space: nowrap; margin: .18rem 0; gap: .3rem; }
+/* Selector de variable bajo el título de un apartado: desde él, las flechas recorren las variables sin subir a «Normative Benchmarking». */
+.sel-variable { margin: 0 0 .5rem; }
+.sel-variable label { font-size: .82rem; flex-direction: row; align-items: center; gap: .4rem; display: flex; }
+.sel-variable select { max-width: 32rem; }

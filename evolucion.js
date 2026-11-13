@@ -127,6 +127,22 @@ export function asymmetrySeries(sessions, variableId, { from = null, to = null, 
   return out.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time) || a.sessionId - b.sessionId);
 }
 
+// Serie de una variable de asimetría que YA viene calculada (VALD: «12 R» / «5.9 L», guardada como un valor con signo, derecha positiva).
+// No hay dos lados que combinar: el valor de la sesión ES la asimetría. Misma forma que `asymmetrySeries` para que el gráfico sea el mismo (13/11/2026).
+export function asymmetryValueSeries(sessions, variableId, { from = null, to = null, protocolId = undefined } = {}) {
+  const out = [];
+  for (const s of sessions) {
+    if (s.status === 'excluded') continue;
+    if (protocolId !== undefined && (s.protocolId ?? null) !== protocolId) continue;
+    if (from && s.date < from) continue;
+    if (to && s.date > to) continue;
+    const v = valueOf(s, variableId, 'S');
+    if (v === null || !Number.isFinite(v)) continue;
+    out.push({ sessionId: s.id, date: s.date, time: s.time || '', left: null, right: null, pct: v, repsL: null, repsR: null });
+  }
+  return out.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time) || a.sessionId - b.sessionId);
+}
+
 // Exclusión reversible: no toca los valores. El motivo es opcional pero se guarda; el registro de auditoría no lleva valores.
 export async function setSessionExcluded(db, sessionId, excluded, reason = '') {
   const s = await db.sessions.get(sessionId);

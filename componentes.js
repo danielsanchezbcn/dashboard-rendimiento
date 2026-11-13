@@ -41,3 +41,39 @@ export function useRunner() {
 
 // Texto explicativo desplegable (como «Notas y método de los percentiles»): los textos largos no se muestran enteros, se abren a demanda.
 export const Desplegable = ({ titulo, children }) => html`<details class="notas"><summary>${titulo}</summary>${children}</details>`;
+
+// Filtros de referencias en cuatro filas fijas (13/11/2026, pedido por el usuario): 1) medidas del jugador (Latest, PA, PB…), 2) La Liga,
+// 3) Premier League, 4) Natera. Solo agrupa y ordena: cada página sigue decidiendo sus etiquetas y qué filtro está disponible.
+const FILAS_FILTROS = [
+  ['last', 'pa', 'pb', 'first'],
+  ['p50', 'p50pos', 'p75', 'p75pos'],
+  ['premier50', 'premier75'],
+  ['natNormal', 'natGood', 'natExcellent'],
+];
+const ALIAS_FILTRO = { natN: 'natNormal', natG: 'natGood', natE: 'natExcellent' };
+// Clave de fila de un filtro: «paL»/«paR» son la misma medida (Personal Average) en dos lados, y «natN» es el nombre corto de «natNormal».
+export function claveFiltro(k) {
+  const s = String(k ?? '');
+  if (ALIAS_FILTRO[s]) return ALIAS_FILTRO[s];
+  const m = /^(pa|pb|last|first)([LRS])$/.exec(s);
+  return m ? m[1] : s;
+}
+// Reparte los filtros en sus filas y devuelve solo las filas con contenido. Entre claves de la misma fila mantiene el orden de la lista
+// original, así que los lados izquierdo y derecho de una misma medida quedan juntos. Una clave desconocida va a una última fila: nunca desaparece.
+export function agruparFiltros(items, keyOf = (x) => x.key) {
+  const pos = (k) => {
+    const c = claveFiltro(k);
+    for (let i = 0; i < FILAS_FILTROS.length; i++) { const j = FILAS_FILTROS[i].indexOf(c); if (j >= 0) return [i, j]; }
+    return [FILAS_FILTROS.length, 0];
+  };
+  const filas = Array.from({ length: FILAS_FILTROS.length + 1 }, () => []);
+  items.forEach((it, i) => { const [f, r] = pos(keyOf(it)); filas[f].push({ it, r, i }); });
+  return filas.map((f) => f.sort((a, b) => a.r - b.r || a.i - b.i).map((x) => x.it)).filter((f) => f.length);
+}
+
+// Selector de variable bajo el título de un apartado (13/11/2026, pedido por el usuario): con el foco puesto, las flechas recorren
+// las variables una tras otra sin tener que subir a «Normative Benchmarking». `vars` son objetos {id, label}.
+export const SelectorVariable = ({ vars, value, onChange, etiqueta = 'Variable', id = undefined }) => html`<div class="sel-variable">
+  <label>${etiqueta} <select id=${id} value=${String(value)} onChange=${(e) => onChange(e.target.value)}>
+    ${vars.map((v) => html`<option key=${v.id} value=${String(v.id)}>${v.label}</option>`)}
+  </select></label></div>`;

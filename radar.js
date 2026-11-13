@@ -97,7 +97,10 @@ export function buildRadar({ profile, test, variables, sessions, players, histor
       const posVals = positionId === null ? [] : buildReference({ sessions, variable, side: 'S', players, histories, basis: 'pa', positionId }).filter((e) => e.playerId !== playerId).map((e) => e.value);
       const ownDate = (b) => playerValue(sessions.filter((s) => s.testId === test.id && s.playerId === playerId), variable, 'S', { basis: b, positionId: null, histories, playerId })?.date ?? null;
       const own = (b) => playerValue(sessions.filter((s) => s.testId === test.id && s.playerId === playerId), variable, 'S', { basis: b, positionId: null, histories, playerId })?.value ?? null;
-      const refs = { p50: ev.p50, p75: q(others, 0.75), p50pos: q(posVals, 0.5), p75pos: q(posVals, 0.75), premier50: premierP50, premier75: pr && !pr.signed && Number.isFinite(pr.cuts[3]) ? pr.cuts[3] : null, first: own('first'), pa: own('pa'), pb: own('pb'), last: own('last') };
+      // En un eje invertido («más bajo es mejor») el percentil 75 del rendimiento es el cuantil 0,25 de los valores: así «P75 La Liga» significa
+      // siempre «mejor que el 75 % de los jugadores», en todos los ejes (13/11/2026).
+      const q75 = inv ? 0.25 : 0.75;
+      const refs = { p50: ev.p50, p75: q(others, q75), p50pos: q(posVals, 0.5), p75pos: q(posVals, q75), premier50: premierP50, premier75: pr && !pr.signed && Number.isFinite(pr.cuts[inv ? 1 : 3]) ? pr.cuts[inv ? 1 : 3] : null, first: own('first'), pa: own('pa'), pb: own('pb'), last: own('last') };
       axis.refs = refs;
       axis.dates = { first: ownDate('first'), last: ownDate('last') };
       axis.ratios = Object.fromEntries(Object.entries(refs).map(([k, v]) => [k, coc(v)]));

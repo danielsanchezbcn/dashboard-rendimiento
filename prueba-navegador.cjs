@@ -199,8 +199,70 @@ const server = http.createServer((req, res) => {
   const orden = await page.evaluate(() => [...document.querySelectorAll('.evo > *')].map((e) => e.className || e.tagName).slice(0, 4));
   check('CMJ: la tabla de columnas va arriba del todo', orden[0].includes('panorama'), orden.join(','));
   await page.waitForTimeout(800);
+  // Radar de Drop Jump 30 cm: tres ejes, título centrado pequeño y escala ajustada (13/11/2026)
+  await go(`#jugador-${P}?t=${t.dj}&b=fuerza`, '#radar svg.radar-svg', 2000);
+  if (CAP) await page.locator('#radar').first().screenshot({ path: path.join(CAP, 'radar-dj30.png') });
+  const rad = await page.evaluate(() => { const svg = document.querySelector('#radar svg.radar-svg'); const tx = [...svg.querySelectorAll('text')]; const poly = [...svg.querySelectorAll('polygon')]; const centro = tx.filter((x) => Number(x.getAttribute('x')) === 500 && Number(x.getAttribute('y')) > 120 && Number(x.getAttribute('y')) < 400); return { ejes: poly[0].getAttribute('points').trim().split(/\s+/).length, poligonos: poly.length, tamTitulo: Math.max(0, ...centro.map((x) => Number(x.getAttribute('font-size')) || 0)), pie: tx.find((x) => /Radius zoomed/.test(x.textContent))?.textContent ?? '', repetidos: poly.map((x) => x.getAttribute('points')).length - new Set(poly.map((x) => x.getAttribute('points'))).size }; });
+  check('radar Drop Jump: tres ejes', rad.ejes === 3, JSON.stringify(rad).slice(0, 220));
+  check('radar Drop Jump: el título del centro es pequeño (≤ 22 px)', rad.tamTitulo > 0 && rad.tamTitulo <= 22, String(rad.tamTitulo));
+  check('radar Drop Jump: el pie dice que el radio está ajustado y no empieza en cero', /^Radius zoomed to the data: \d+% to \d+% of the La Liga P50 \(does not start at zero\)/.test(rad.pie), rad.pie);
+  check('radar: ninguna línea se dibuja encima de otra idéntica', rad.repetidos === 0, JSON.stringify(rad).slice(0, 200));
+
   check('CMJ: el radar (perfil radial) aparece justo debajo de la tabla de columnas', (await page.locator('#radar').count()) === 1 && (await page.locator('#radar svg.radar-svg').count()) === 1, 'radar: ' + (await page.locator('#radar').count()) + ' svg: ' + (await page.locator('#radar svg.radar-svg').count()));
   await shot('cmj');
+
+  // ---- Radar: la tabla de valores originales es desplegable y empieza cerrada (13/11/2026, pedido por el usuario)
+  const despl = await page.evaluate(() => {
+    const d = [...document.querySelectorAll('#radar details')].find((x) => /Valores originales y normalización/.test(x.querySelector('summary')?.textContent ?? ''));
+    return d ? { abierto: d.open, tabla: d.querySelectorAll('table').length, visible: d.querySelector('table')?.checkVisibility?.({ contentVisibilityAuto: true, visibilityProperty: true }) ?? null } : null;
+  });
+  check('radar: «Valores originales y normalización» es un desplegable cerrado', !!despl && despl.abierto === false && despl.tabla === 1 && despl.visible === false && !(await page.locator('#radar details table').first().isVisible()), JSON.stringify(despl));
+
+  // ---- Filtros de referencias en cuatro filas y selector de variable bajo el título (13/11/2026, pedido por el usuario)
+  const filasDe = (legend) => page.evaluate((lg) => {
+    const fs = [...document.querySelectorAll('fieldset.modes.filas')].find((f) => new RegExp(lg, 'i').test(f.querySelector('legend')?.textContent ?? ''));
+    if (!fs) return null;
+    const hijos = [...fs.children].map((e) => e.tagName.toLowerCase() + '.' + (e.className || ''));
+    return { hijos, filas: [...fs.querySelectorAll(':scope > .ref-fila')].map((r) => [...r.querySelectorAll('label.check')].map((l) => l.innerText.trim())), tam: parseFloat(getComputedStyle(fs.querySelector('label.check')).fontSize) };
+  }, legend);
+  const fLong = await filasDe('Longitudinal Performance');
+  check('longitudinal: el selector de variable va justo bajo el título', !!fLong && fLong.hijos[0].startsWith('legend') && fLong.hijos[1] === 'div.sel-variable', JSON.stringify(fLong?.hijos));
+  check('longitudinal: fila 1 = medidas del jugador', !!fLong && fLong.filas[0].every((x) => /Personal Average|Personal Best|Latest|\d{2}\//.test(x)), JSON.stringify(fLong?.filas[0]));
+  check('longitudinal: fila 2 = La Liga (P50, P50 posicional, P75, P75 posicional)', !!fLong && fLong.filas[1].every((x) => /La Liga/.test(x)) && /^P50 La Liga$/.test(fLong.filas[1][0]) && /P75 La Liga/.test(fLong.filas[1][2]), JSON.stringify(fLong?.filas[1]));
+  check('longitudinal: fila 3 = Premier League', !!fLong && fLong.filas[2].every((x) => /Premier League/.test(x)) && fLong.filas.length === 3, JSON.stringify(fLong?.filas));
+  check('longitudinal: letra reducida para que la fila quepa en una línea', !!fLong && fLong.tam > 0 && fLong.tam <= 13, String(fLong?.tam));
+  if (CAP) { await page.locator('fieldset.modes.filas').first().screenshot({ path: path.join(CAP, 'filtros-filas.png') }); await page.locator('#radar').first().screenshot({ path: path.join(CAP, 'radar-cmj.png') }); }
+  const fEsc = await filasDe('Benchmark-Contextualized Positioning');
+  check('escala: selector bajo el título y fila 1 en orden Latest, PA, PB', !!fEsc && fEsc.hijos[1] === 'div.sel-variable' && fEsc.filas[0].length === 3 && /Personal Average/.test(fEsc.filas[0][1]) && /Personal Best/.test(fEsc.filas[0][2]), JSON.stringify(fEsc?.filas[0]));
+  check('escala: La Liga en la fila 2 y Premier en la 3', !!fEsc && fEsc.filas[1].every((x) => /La Liga/.test(x)) && fEsc.filas[2].every((x) => /Premier League/.test(x)), JSON.stringify(fEsc?.filas.slice(1)));
+  // El selector de debajo del título cambia la variable de TODA la página (el de arriba queda igual que él)
+  const selArriba = () => page.evaluate(() => { const l = [...document.querySelectorAll('#detalle-variable label')].find((x) => /^Variable/.test(x.textContent.trim())); return l.querySelector('select').value; });
+  const antesSel = await selArriba();
+  const opcion = await page.evaluate(() => { const s = document.querySelector('fieldset.modes.filas .sel-variable select'); const o = [...s.options].find((x) => x.value !== s.value); return o ? o.value : null; });
+  await page.selectOption('fieldset.modes.filas .sel-variable select', opcion); await page.waitForTimeout(700);
+  check('el selector bajo el título cambia la variable de toda la página', (await selArriba()) === opcion && opcion !== antesSel, `${antesSel} → ${opcion} / ${await selArriba()}`);
+
+  // ---- CMJ: las asimetrías del propio test, con su selector independiente (13/11/2026, pedido por el usuario)
+  await go(`#jugador-${P}?t=${t.cmj}&b=fuerza`, '.evo');
+  const asimUi = await page.evaluate(() => {
+    const sec = [...document.querySelectorAll('.evo section')].find((x) => /Interlimb Asymmetry Over Time/.test(x.querySelector('h4')?.textContent ?? ''));
+    if (!sec) return null;
+    const s = sec.querySelector('.sel-variable select');
+    return { opciones: s ? [...s.options].map((o) => o.text) : [], valor: s?.value ?? null, lienzos: sec.querySelectorAll('canvas').length, etiqueta: sec.querySelector('.sel-variable label')?.innerText.trim() ?? '' };
+  });
+  check('CMJ: la sección de asimetrías tiene su propio selector', !!asimUi && /^Asimetría de/.test(asimUi.etiqueta) && asimUi.lienzos === 1, JSON.stringify(asimUi).slice(0, 200));
+  check('CMJ: el selector incluye las 5 asimetrías ya calculadas por VALD', !!asimUi && asimUi.opciones.filter((o) => /ya calculada \(VALD\)/.test(o)).length === 5, JSON.stringify(asimUi?.opciones));
+  const valdOpt = await page.evaluate(() => { const s = [...document.querySelectorAll('.evo section .sel-variable select')].pop(); const o = [...s.options].find((x) => /ya calculada \(VALD\)/.test(x.text)); return o ? { v: o.value, t: o.text } : null; });
+  await page.selectOption('.evo section .sel-variable select >> nth=-1', valdOpt.v); await page.waitForTimeout(700);
+  const tras = await page.evaluate(() => {
+    const sec = [...document.querySelectorAll('.evo section')].find((x) => /Interlimb Asymmetry Over Time/.test(x.querySelector('h4')?.textContent ?? ''));
+    const arriba = [...document.querySelectorAll('#detalle-variable label')].find((x) => /^Variable/.test(x.textContent.trim())).querySelector('select').value;
+    return { sel: sec.querySelector('.sel-variable select').value, lienzos: sec.querySelectorAll('canvas').length, nota: sec.querySelector('details')?.textContent ?? '', arriba, url: location.hash };
+  });
+  check('CMJ: al elegir una asimetría de VALD se dibuja y lo dice la nota', tras.sel === valdOpt.v && tras.lienzos === 1 && /ya viene calculada en el fichero de VALD/.test(tras.nota), JSON.stringify(tras).slice(0, 220));
+  check('CMJ: el selector de asimetría es independiente del de la página', tras.arriba !== valdOpt.v && /[?&]va=/.test(tras.url), `variable de la página: ${tras.arriba}, asimetría: ${valdOpt.v}, ${tras.url}`);
+  if (CAP) await page.locator('.evo section').filter({ hasText: 'Interlimb Asymmetry Over Time' }).first().screenshot({ path: path.join(CAP, 'asimetria-cmj.png') });
+  await shot('cmj-asimetrias');
 
   // ---- Pestaña Asimetrías
   await go(`#jugador-${P}?b=asimetrias`, 'section.asimetrias table.asim');

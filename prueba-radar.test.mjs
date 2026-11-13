@@ -26,7 +26,10 @@ const rNorm = buildRadar({ profile, test, variables, sessions, players, historie
 check('variable «más bajo es mejor»: entra en el radar marcada como invertida', rInv.axes.length === 6 && rInv.axes[3].invertido === true && rInv.axes.filter((a) => a.invertido).length === 1);
 check('eje invertido: el cociente es P50 ÷ valor (al revés que el normal)', Math.abs(rInv.axes[3].ratioPlayer - 1 / rNorm.axes[3].ratioPlayer) < 1e-9 && Math.abs(rInv.axes[3].ratioPlayer * rNorm.axes[3].ratioPlayer - 1) < 1e-9);
 // El Personal Best no se compara: en «más bajo es mejor» el mejor valor es el más bajo, así que es otra sesión (y eso es lo correcto).
-check('eje invertido: también se invierten las referencias dibujadas', Math.abs(rInv.axes[3].ratios.p50 - 1) < 1e-9 && Object.entries(rInv.axes[3].ratios).every(([k, v]) => k === 'pb' || v === null || Math.abs(v - 1 / rNorm.axes[3].ratios[k]) < 1e-9));
+check('eje invertido: también se invierten las referencias dibujadas', Math.abs(rInv.axes[3].ratios.p50 - 1) < 1e-9 && Object.entries(rInv.axes[3].ratios).every(([k, v]) => ['pb', 'p75', 'p75pos', 'premier75'].includes(k) || v === null || Math.abs(v - 1 / rNorm.axes[3].ratios[k]) < 1e-9));
+// En «más bajo es mejor», el P75 de rendimiento es el cuantil 0,25 de los valores: debe quedar POR FUERA del P50, igual que en los ejes normales.
+check('eje invertido: «P75 La Liga» significa mejor que el 75 %, y se dibuja por fuera del P50', rInv.axes[3].ratios.p75 > 1 && rInv.axes[3].refs.p75 < rInv.axes[3].refs.p50, JSON.stringify({ r: rInv.axes[3].ratios.p75, p75: rInv.axes[3].refs.p75, p50: rInv.axes[3].refs.p50 }));
+check('eje normal: el P75 sigue siendo el cuantil 0,75 y queda por fuera', rNorm.axes[3].ratios.p75 > 1 && rNorm.axes[3].refs.p75 > rNorm.axes[3].refs.p50);
 check('eje invertido: el Personal Best es el valor más bajo, no el más alto', rInv.axes[3].refs.pb < rNorm.axes[3].refs.pb);
 r = buildRadar({ profile, test, variables: variables.map((v, i) => (i === 3 ? { ...v, direction: null } : v)), sessions, players, histories: {}, playerId: 4, basis: 'pa', minN: 10 });
 check('variable sin dirección: se omite, porque el cociente no se puede orientar', r.axes.length === 5 && /no dice si es mejor/.test(r.omitted[0].reason));

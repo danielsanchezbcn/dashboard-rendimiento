@@ -2,7 +2,7 @@
 import './fuentes.js';
 import { html, useRef, useEffect, Chart } from './libs.js';
 import { useApp } from './context.js';
-import { useLoad } from './componentes.js';
+import { useLoad, agruparFiltros, SelectorVariable } from './componentes.js';
 import { fmtDay } from './fechas.js';
 import { getSetting } from './db.js';
 import { expandRelative } from './relativos.js';
@@ -134,7 +134,7 @@ const BASES = [['last', 'Resultado actual'], ['pb', 'Personal Best'], ['pa', 'Pe
 
 // Escala «Benchmark-Contextualized Positioning» de la variable seleccionada. (El cuadro de percentiles es ahora «Normative Benchmarking», en pages-normativo.js.)
 // Con dos lados, la referencia de La Liga es UNA sola (los valores de ambos lados de todos los jugadores juntos), así que hay un único P50.
-export function PercentilesPanel({ player, test, variable, mine, q, setQ, filters, targets = {}, stats, current, refData, abs = null, posJugador = null }) {
+export function PercentilesPanel({ player, test, variable, mine, q, setQ, filters, targets = {}, stats, current, refData, abs = null, posJugador = null, vars = [] }) {
   if (!refData) return null;
   const { sessions: _s, positions, minN } = refData;
   const rp = q.rp ?? 'all';
@@ -177,9 +177,14 @@ export function PercentilesPanel({ player, test, variable, mine, q, setQ, filter
   const filas = [BASES[2], BASES[1], BASES[0]].filter(([b]) => chosenSm.includes(b) && !baseOff(b)).map(([b, n]) => { const rows = baseRows(b); return { base: b, etiqueta: b === 'pa' ? 'PA' : b === 'pb' ? 'PB' : etiquetaActual, base: b, rows, asym: sides.length === 2 && rows.length === 2 ? asymmetryPct(rows[0].value, rows[1].value) : null }; });
   const refsSel = REFS.filter(([k]) => chosenSm.includes(k) && !refOff(k)).map(([k, n, v, color, icon, txt, premier]) => ({ key: k, v, icon, color, txt, premier, dash: false, label: `${n}: ${nfv(v)} ${unit ?? ''}` }));
   const insuf = filas.some((f) => f.rows.some((r) => r.ev.n && !r.ev.sufficient));
-  const escala = html`<section class="refs"><fieldset class="modes"><legend class="sec-titulo">Benchmark-Contextualized Positioning</legend>
-      ${[BASES[2], BASES[1], BASES[0]].map(([b, n]) => html`<label class="check" key=${b} title=${baseOff(b) ? 'Sin sesiones válidas en el periodo.' : ''}><input type="checkbox" disabled=${baseOff(b)} checked=${!baseOff(b) && chosenSm.includes(b)} onChange=${(e) => toggleSm(b, e.target.checked)} /> ${b === 'last' ? etiquetaActual : n}</label>`)}
-      ${REFS.map(([k, n]) => html`<label class="check" key=${k} title=${refOff(k) ? (k.startsWith('premier') ? 'Esta variable no figura en las tablas de la Premier League.' : k.endsWith('pos') && posJugador == null ? 'El jugador no tiene posición principal.' : `Sin muestra suficiente (mínimo ${minN} jugadores).`) : ''}><input type="checkbox" disabled=${refOff(k)} checked=${!refOff(k) && chosenSm.includes(k)} onChange=${(e) => toggleSm(k, e.target.checked)} /> ${n}</label>`)}</fieldset>
+  // Filtros en cuatro filas (13/11/2026): medidas del jugador, La Liga, Premier League y Natera. El orden y el reparto los decide `agruparFiltros`, compartido con el radar y el gráfico longitudinal.
+  const filtros = [
+    ...BASES.map(([b, n]) => ({ key: b, label: b === 'last' ? etiquetaActual : n, off: baseOff(b), why: baseOff(b) ? 'Sin sesiones válidas en el periodo.' : '' })),
+    ...REFS.map(([k, n]) => ({ key: k, label: n, off: refOff(k), why: refOff(k) ? (k.startsWith('premier') ? 'Esta variable no figura en las tablas de la Premier League.' : k.endsWith('pos') && posJugador == null ? 'El jugador no tiene posición principal.' : `Sin muestra suficiente (mínimo ${minN} jugadores).`) : '' })),
+  ];
+  const escala = html`<section class="refs"><fieldset class="modes filas"><legend class="sec-titulo">Benchmark-Contextualized Positioning</legend>
+      ${vars.length > 1 ? html`<${SelectorVariable} vars=${vars} value=${variable.id} onChange=${(v) => setQ({ v })} />` : null}
+      ${agruparFiltros(filtros).map((fila, i) => html`<div class="ref-fila" key=${'f' + i}>${fila.map((o) => html`<label class="check" key=${o.key} title=${o.why}><input type="checkbox" disabled=${o.off} checked=${!o.off && chosenSm.includes(o.key)} onChange=${(e) => toggleSm(o.key, e.target.checked)} /> ${o.label}</label>`)}</div>`)}</fieldset>
     ${filas.length ? html`<${EscalaG4} filas=${filas} refs=${refsSel} unit=${unit} target=${sides.map((sd) => targets[sd]).filter(Boolean).filter((t, i, a) => a.findIndex((v) => v.value === t.value) === i)} />` : html`<p class="muted">Marca al menos un marcador del jugador (Resultado actual, Personal Best o Personal Average) para ver la escala.</p>`}
     ${insuf ? html`<p class="status warn">Muestra insuficiente para clasificar: no se dibuja la mediana ni se colorea (N inferior a ${minN}).</p>` : null}</section>`;
   return escala;
