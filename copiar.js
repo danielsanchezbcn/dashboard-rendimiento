@@ -104,17 +104,19 @@ export function domToBlob(el, titulo = '', escala = 2) {
 }
 
 // Botones «Copiar imagen» / «Descargar PNG» para un elemento HTML (p. ej. la tabla de Normative Benchmarking).
-export function BotonesImagen({ obtener, nombre = 'imagen', titulo = '' }) {
+export function BotonesImagen({ obtener, nombre = 'imagen', titulo = '', hacerBlob = null, rotulo = '' }) {
   const [msg, setMsg] = useState('');
   const arch = `${nombre}.png`.replace(/[^\w.-]+/g, '_');
+  // Con `hacerBlob` la imagen la genera quien llama (p. ej. el radar, que es un SVG y se dibuja con `chartToBlob`); si no, se pinta el HTML.
+  const img = () => (hacerBlob ? hacerBlob() : domToBlob(obtener(), titulo));
   const copiar = async () => {
     try {
       if (!window.ClipboardItem || !navigator.clipboard?.write) throw new Error('sin-portapapeles');
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': domToBlob(obtener(), titulo) })]); setMsg('Imagen copiada al portapapeles.');
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': img() })]); setMsg('Imagen copiada al portapapeles.');
     } catch (e) {
-      try { downloadBlob(await domToBlob(obtener(), titulo), arch); setMsg('Este navegador no permite copiar al portapapeles aquí: se ha descargado la imagen (PNG).'); } catch (e2) { setMsg(`No se pudo copiar la imagen: ${e2.message}`); }
+      try { downloadBlob(await img(), arch); setMsg('Este navegador no permite copiar al portapapeles aquí: se ha descargado la imagen (PNG).'); } catch (e2) { setMsg(`No se pudo copiar la imagen: ${e2.message}`); }
     }
   };
-  const bajar = async () => { try { downloadBlob(await domToBlob(obtener(), titulo), arch); setMsg('Imagen descargada (PNG).'); } catch (e) { setMsg(`The image could not be downloaded: ${e.message}`); } };
-  return html`<div class="img-botones"><button type="button" class="secondary" onClick=${copiar}>Copy image</button> <button type="button" class="secondary" onClick=${bajar}>Download PNG</button>${msg ? html` <span class="muted" role="status">${msg}</span>` : null}</div>`;
+  const bajar = async () => { try { downloadBlob(await img(), arch); setMsg('Imagen descargada (PNG).'); } catch (e) { setMsg(`The image could not be downloaded: ${e.message}`); } };
+  return html`<div class="img-botones">${rotulo ? html`<span class="muted">${rotulo}</span> ` : null}<button type="button" class="secondary" onClick=${copiar}>Copy image</button> <button type="button" class="secondary" onClick=${bajar}>Download PNG</button>${msg ? html` <span class="muted" role="status">${msg}</span>` : null}</div>`;
 }

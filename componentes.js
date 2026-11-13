@@ -73,7 +73,29 @@ export function agruparFiltros(items, keyOf = (x) => x.key) {
 
 // Selector de variable bajo el título de un apartado (13/11/2026, pedido por el usuario): con el foco puesto, las flechas recorren
 // las variables una tras otra sin tener que subir a «Normative Benchmarking». `vars` son objetos {id, label}.
-export const SelectorVariable = ({ vars, value, onChange, etiqueta = 'Variable', id = undefined }) => html`<div class="sel-variable">
-  <label>${etiqueta} <select id=${id} value=${String(value)} onChange=${(e) => onChange(e.target.value)}>
-    ${vars.map((v) => html`<option key=${v.id} value=${String(v.id)}>${v.label}</option>`)}
-  </select></label></div>`;
+// Al cambiar de variable cambia la altura de lo que hay encima (la escala tiene una fila o dos, la nota aparece o no…) y la página «saltaba»:
+// el gráfico quedaba cada vez en un sitio distinto de la pantalla. Se devuelve el selector al mismo punto en el que estaba, hasta que todo
+// termina de dibujarse; si mientras tanto el usuario mueve la pantalla a mano, se deja de corregir para no pelearse con él.
+export const SelectorVariable = ({ vars, value, onChange, etiqueta = 'Variable', id = undefined, ancla = 'variable' }) => {
+  // El apartado se localiza por su marca («data-ancla»), no por una referencia al nodo: al cambiar de variable se vuelve a crear, y una
+  // referencia al nodo viejo no sirve para medir dónde ha quedado el nuevo.
+  const nodo = () => (typeof document === 'undefined' ? null : document.querySelector(`[data-ancla="${ancla}"]`));
+  const cambia = (v) => {
+    const antes = nodo()?.getBoundingClientRect().top ?? null;
+    onChange(v);
+    if (antes === null || typeof window === 'undefined' || !window.requestAnimationFrame) return;
+    let vivo = true;
+    const parar = () => { vivo = false; };
+    const eventos = ['wheel', 'touchstart'];
+    eventos.forEach((e) => window.addEventListener(e, parar, { passive: true }));
+    const ajusta = () => { const el = vivo ? nodo() : null; if (!el) return; const d = el.getBoundingClientRect().top - antes; if (Math.abs(d) > 1) window.scrollBy(0, d); };
+    requestAnimationFrame(() => { ajusta(); requestAnimationFrame(ajusta); });
+    const t1 = setTimeout(ajusta, 120);
+    const t2 = setTimeout(() => { ajusta(); eventos.forEach((e) => window.removeEventListener(e, parar)); }, 400);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  };
+  return html`<div class="sel-variable" data-ancla=${ancla}>
+    <label>${etiqueta} <select id=${id} value=${String(value)} onChange=${(e) => cambia(e.target.value)}>
+      ${vars.map((v) => html`<option key=${v.id} value=${String(v.id)}>${v.label}</option>`)}
+    </select></label></div>`;
+};

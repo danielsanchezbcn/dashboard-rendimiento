@@ -4,6 +4,7 @@ import { Card, Msg, Sintetico, useLoad, useRunner } from './componentes.js';
 import { getSetting, setSetting, clearSetting } from './db.js';
 import { listPositions, createPosition, renamePosition, setPositionActive, movePosition, deletePosition, positionUsage } from './posiciones.js';
 import { loadSyntheticDemo, deleteSynthetic, countSynthetic, totalOf } from './sinteticos.js';
+import { CUALIDADES, UMBRALES_DEFAULT, pesosDe } from './composite.js';
 
 // ---------- Posiciones: lista definida por el usuario con orden configurable (D9) ----------
 
@@ -109,4 +110,52 @@ export function SinteticosCard() {
       <p class="muted">Si restauras una copia hecha mientras había datos sintéticos, volverán a aparecer. Si algún dato real depende de uno sintético (por ejemplo, un jugador real con una posición sintética), no se elimina nada hasta que lo reasignes.</p>
       <${Msg} msg=${msg} />
     <//>`;
+}
+
+// ---------- COMPOSITE PROFILE SCORE: pesos de cada cualidad y umbrales de las reglas (13/11/2026, especificación v0.3 §3.10) ----------
+
+export function CompositeCard() {
+  const { db, version, bump } = useApp();
+  const [borrador, setBorrador] = useState(null);
+  const { msg, setMsg } = useRunner();
+  const { data: cfg } = useLoad(async () => (await getSetting(db, 'compositeConfig')) ?? {}, [db, version]);
+  if (!cfg) return null;
+  const umbrales = { ...UMBRALES_DEFAULT, ...(cfg.umbrales ?? {}) };
+  const pesos = cfg.pesos ?? {};
+  const d = borrador ?? { pesos: Object.fromEntries(CUALIDADES.map((c) => [c.id, pesosDe(c, pesos).map((p) => String(Math.round(p * 1000) / 10))])), umbrales: Object.fromEntries(Object.entries(umbrales).map(([k, v]) => [k, String(v)])) };
+  const set = (patch) => setBorrador({ ...d, ...patch });
+  const setPeso = (id, i, val) => set({ pesos: { ...d.pesos, [id]: d.pesos[id].map((x, k) => (k === i ? val : x)) } });
+  const guardar = async (e) => {
+    e.preventDefault();
+    const out = { pesos: {}, umbrales: {} };
+    for (const c of CUALIDADES) {
+      const vals = d.pesos[c.id].map((x) => Number(String(x).replace(',', '.')));
+      if (vals.some((v) => !Number.isFinite(v) || v < 0)) return setMsg({ level: 'fail', text: `Los pesos de ${c.nombre} tienen que ser números de 0 en adelante.` });
+      if (!(vals.reduce((a, b) => a + b, 0) > 0)) return setMsg({ level: 'fail', text: `${c.nombre} no puede tener todos los pesos a cero.` });
+      out.pesos[c.id] = vals.map((v) => v / 100);
+    }
+    for (const k of Object.keys(UMBRALES_DEFAULT)) {
+      const v = Number(d.umbrales[k]);
+      if (!Number.isFinite(v) || v < 0 || v > 100) return setMsg({ level: 'fail', text: 'Los umbrales son percentiles entre 0 y 100.' });
+      out.umbrales[k] = v;
+    }
+    await setSetting(db, 'compositeConfig', out);
+    setBorrador(null); setMsg({ level: 'ok', text: 'Pesos y umbrales guardados.' }); bump();
+  };
+  const volver = async () => { await clearSetting(db, 'compositeConfig'); setBorrador(null); setMsg({ level: 'ok', text: 'Se han restaurado los pesos y umbrales del documento.' }); bump(); };
+  return html`<${Card} titulo="COMPOSITE PROFILE SCORE">
+    <p>Pesos de las variables de puntuación de cada cualidad (en %, sobre el total de la cualidad: si no suman 100 se reparten en proporción) y umbrales de las reglas de «No aplicable». Los valores de partida son los de la especificación.</p>
+    <form class="fields" onSubmit=${guardar}>
+      ${CUALIDADES.map((c) => html`<fieldset key=${c.id}><legend>${c.nombre}</legend>
+        ${c.scores.map((s, i) => html`<label key=${i}>${s.orz ? 'Drop Jump (ORZ) · ' : s.test + ' · '}${s.variable}${s.rel ? '/BM' : ''} <input type="number" min="0" max="100" step="0.1" value=${d.pesos[c.id][i]} onInput=${(e) => setPeso(c.id, i, e.target.value)} /></label>`)}
+      </fieldset>`)}
+      <fieldset><legend>Umbrales de las reglas (percentil)</legend>
+        <label>Jump height mínimo (p35) <input type="number" min="0" max="100" value=${d.umbrales.p35} onInput=${(e) => set({ umbrales: { ...d.umbrales, p35: e.target.value } })} /></label>
+        <label>Depth y contraction time mínimos (p10) <input type="number" min="0" max="100" value=${d.umbrales.p10} onInput=${(e) => set({ umbrales: { ...d.umbrales, p10: e.target.value } })} /></label>
+        <label>Knee Iso-Push máximo para el DSI (p65) <input type="number" min="0" max="100" value=${d.umbrales.p65} onInput=${(e) => set({ umbrales: { ...d.umbrales, p65: e.target.value } })} /></label>
+      </fieldset>
+      <div class="actions"><button type="submit">Guardar</button> <button type="button" class="secondary" onClick=${volver}>Volver a los valores del documento</button></div>
+    </form>
+    <${Msg} msg=${msg} />
+  <//>`;
 }

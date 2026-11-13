@@ -57,7 +57,7 @@ export function Deficits({ player, positionId = null }) {
   const { data, error } = useLoad(async () => {
     const catalog = await listCatalog(db);
     const [allSessions, players, records, positions, mn, anthropometry] = await Promise.all([
-      db.sessions.toArray(), db.players.toArray(), db.playerPositions.toArray(), listPositions(db), getSetting(db, 'minN'), db.anthropometry.toArray(),
+      db.sessions.toArray(), db.players.toArray(), db.playerPositions.toArray(), listPositions(db), getSetting(db, 'percentileMinN'), db.anthropometry.toArray(),
     ]);
     const minN = Number.isInteger(mn) && mn >= 1 ? mn : MIN_N_DEFAULT;
     const anth = withReferenceWeights(anthropometry, players);

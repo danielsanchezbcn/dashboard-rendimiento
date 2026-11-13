@@ -202,10 +202,44 @@ const server = http.createServer((req, res) => {
   // Radar de Drop Jump 30 cm: tres ejes, título centrado pequeño y escala ajustada (13/11/2026)
   await go(`#jugador-${P}?t=${t.dj}&b=fuerza`, '#radar svg.radar-svg', 2000);
   if (CAP) await page.locator('#radar').first().screenshot({ path: path.join(CAP, 'radar-dj30.png') });
-  const rad = await page.evaluate(() => { const svg = document.querySelector('#radar svg.radar-svg'); const tx = [...svg.querySelectorAll('text')]; const poly = [...svg.querySelectorAll('polygon')]; const centro = tx.filter((x) => Number(x.getAttribute('x')) === 500 && Number(x.getAttribute('y')) > 120 && Number(x.getAttribute('y')) < 400); return { ejes: poly[0].getAttribute('points').trim().split(/\s+/).length, poligonos: poly.length, tamTitulo: Math.max(0, ...centro.map((x) => Number(x.getAttribute('font-size')) || 0)), pie: tx.find((x) => /Radius zoomed/.test(x.textContent))?.textContent ?? '', repetidos: poly.map((x) => x.getAttribute('points')).length - new Set(poly.map((x) => x.getAttribute('points'))).size }; });
+  const leeRadar = () => page.evaluate(() => {
+    const svg = document.querySelector('#radar svg.radar-svg');
+    const tx = [...svg.querySelectorAll('text')]; const poly = [...svg.querySelectorAll('polygon')];
+    const pts = (p) => p.getAttribute('points').trim().split(/\s+/).map((q) => q.split(',').map(Number));
+    const dist = (p) => Math.hypot(p[0] - 500, p[1] - 260);
+    const centro = tx.filter((x) => Number(x.getAttribute('x')) === 500 && Number(x.getAttribute('y')) > 120 && Number(x.getAttribute('y')) < 400);
+    const anchoTitulo = Math.max(0, ...centro.map((x) => x.getBBox().width));
+    const radios = poly.flatMap((p) => pts(p).map(dist));
+    const rMin = Math.min(...radios); const rDisp = Math.max(...radios) - rMin;
+    const n = pts(poly[0]).length;
+    // ¿dónde cae cada rótulo de eje y dónde empieza la leyenda? (la leyenda son las líneas cortas horizontales de abajo)
+    const lineas = [...svg.querySelectorAll('g > line')].map((l) => Number(l.getAttribute('y1')));
+    const yLeyenda = lineas.length ? Math.min(...lineas) : null;
+    // rótulos de los ejes: nombre (21 px) y valor (20 px); la línea «Axis values» (18), la leyenda (19) y el pie (17) no cuentan
+    const rotulos = tx.filter((x) => !centro.includes(x) && [20, 21].includes(Number(x.getAttribute('font-size'))));
+    const yRotulos = Math.max(0, ...rotulos.map((x) => { const b = x.getBBox(); return b.y + b.height; }));
+    const yPie = tx.find((x) => /Radius zoomed|off scale/.test(x.textContent))?.getBBox().y ?? null;
+    return { ejes: n, poligonos: poly.length, tamTitulo: Math.max(0, ...centro.map((x) => Number(x.getAttribute('font-size')) || 0)), anchoTitulo, rMin, rDisp,
+      pie: tx.find((x) => /Radius zoomed/.test(x.textContent))?.textContent ?? '',
+      ejeValores: tx.find((x) => /^Axis values:/.test(x.textContent))?.textContent ?? '',
+      rP50: Math.min(...pts(poly.find((p) => p.getAttribute('stroke') === '#fec900') ?? poly[0]).map(dist)),
+      yLeyenda, yRotulos, yPie,
+      repetidos: poly.map((x) => x.getAttribute('points')).length - new Set(poly.map((x) => x.getAttribute('points'))).size };
+  });
+  const rad = await leeRadar();
   check('radar Drop Jump: tres ejes', rad.ejes === 3, JSON.stringify(rad).slice(0, 220));
-  check('radar Drop Jump: el título del centro es pequeño (≤ 22 px)', rad.tamTitulo > 0 && rad.tamTitulo <= 22, String(rad.tamTitulo));
-  check('radar Drop Jump: el pie dice que el radio está ajustado y no empieza en cero', /^Radius zoomed to the data: \d+% to \d+% of the La Liga P50 \(does not start at zero\)/.test(rad.pie), rad.pie);
+  check('radar Drop Jump: el título del centro cabe dentro del polígono más interior', rad.tamTitulo > 0 && rad.anchoTitulo / 2 <= rad.rMin * Math.cos(Math.PI / rad.ejes), `tam ${rad.tamTitulo}, ancho ${Math.round(rad.anchoTitulo)}, rMin ${Math.round(rad.rMin)}`);
+  // Por defecto el radio vuelve a ser proporcional al cociente y a empezar en cero (13/11/2026): el P50 de La Liga queda en el radio de referencia (130) y no hay pie de escala.
+  check('radar: por defecto el radio empieza en cero y el P50 de La Liga está en el radio de referencia', rad.pie === '' && Math.abs(rad.rP50 - 130) <= 1.5, `pie «${rad.pie}», r(P50) ${Math.round(rad.rP50)}`);
+  check('radar: el gráfico dice de qué serie son los números de los ejes', /^Axis values: (Personal Average|Personal Best|latest measurement|first measurement)/.test(rad.ejeValores), rad.ejeValores);
+  check('radar: ningún rótulo de eje pisa la leyenda', rad.yLeyenda !== null && rad.yRotulos > 0 && rad.yRotulos < rad.yLeyenda - 8, `rótulos hasta ${Math.round(rad.yRotulos)}, leyenda en ${rad.yLeyenda}`);
+  // La escala ampliada es una opción, apagada por defecto, para cuando todas las líneas se superponen
+  await page.locator('#radar .filters label.check input[type="checkbox"]').check(); await page.waitForTimeout(600);
+  const radZ = await leeRadar();
+  check('radar: al activar la escala ampliada el radio deja de empezar en cero y el pie lo dice', /^Radius zoomed to the data: \d+% to \d+% of the La Liga P50 \(does not start at zero\)/.test(radZ.pie) && radZ.rDisp > rad.rDisp * 2, `${radZ.pie} · separación entre polígonos ${Math.round(rad.rDisp)} → ${Math.round(radZ.rDisp)} px`);
+  check('radar ampliado: los rótulos siguen sin pisar la leyenda ni el pie', radZ.yRotulos < radZ.yLeyenda - 8 && radZ.yLeyenda < radZ.yPie, `rótulos ${Math.round(radZ.yRotulos)}, leyenda ${radZ.yLeyenda}, pie ${Math.round(radZ.yPie)}`);
+  await page.locator('#radar .filters label.check input[type="checkbox"]').uncheck(); await page.waitForTimeout(600);
+  check('radar: al desactivarla vuelve a la escala de siempre', (await leeRadar()).pie === '');
   check('radar: ninguna línea se dibuja encima de otra idéntica', rad.repetidos === 0, JSON.stringify(rad).slice(0, 200));
 
   check('CMJ: el radar (perfil radial) aparece justo debajo de la tabla de columnas', (await page.locator('#radar').count()) === 1 && (await page.locator('#radar svg.radar-svg').count()) === 1, 'radar: ' + (await page.locator('#radar').count()) + ' svg: ' + (await page.locator('#radar svg.radar-svg').count()));
@@ -213,10 +247,10 @@ const server = http.createServer((req, res) => {
 
   // ---- Radar: la tabla de valores originales es desplegable y empieza cerrada (13/11/2026, pedido por el usuario)
   const despl = await page.evaluate(() => {
-    const d = [...document.querySelectorAll('#radar details')].find((x) => /Valores originales y normalización/.test(x.querySelector('summary')?.textContent ?? ''));
+    const d = [...document.querySelectorAll('#radar details')].find((x) => /Original values and normalisation/.test(x.querySelector('summary')?.textContent ?? ''));
     return d ? { abierto: d.open, tabla: d.querySelectorAll('table').length, visible: d.querySelector('table')?.checkVisibility?.({ contentVisibilityAuto: true, visibilityProperty: true }) ?? null } : null;
   });
-  check('radar: «Valores originales y normalización» es un desplegable cerrado', !!despl && despl.abierto === false && despl.tabla === 1 && despl.visible === false && !(await page.locator('#radar details table').first().isVisible()), JSON.stringify(despl));
+  check('radar: «Original values and normalisation» es un desplegable cerrado', !!despl && despl.abierto === false && despl.tabla === 1 && despl.visible === false && !(await page.locator('#radar details table').first().isVisible()), JSON.stringify(despl));
 
   // ---- Filtros de referencias en cuatro filas y selector de variable bajo el título (13/11/2026, pedido por el usuario)
   const filasDe = (legend) => page.evaluate((lg) => {
@@ -239,8 +273,82 @@ const server = http.createServer((req, res) => {
   const selArriba = () => page.evaluate(() => { const l = [...document.querySelectorAll('#detalle-variable label')].find((x) => /^Variable/.test(x.textContent.trim())); return l.querySelector('select').value; });
   const antesSel = await selArriba();
   const opcion = await page.evaluate(() => { const s = document.querySelector('fieldset.modes.filas .sel-variable select'); const o = [...s.options].find((x) => x.value !== s.value); return o ? o.value : null; });
-  await page.selectOption('fieldset.modes.filas .sel-variable select', opcion); await page.waitForTimeout(700);
+  // se cambia disparando el evento (sin que Playwright desplace la pantalla por su cuenta), para poder medir si la página salta
+  await page.evaluate((v) => { const s = document.querySelector('fieldset.modes.filas .sel-variable select'); s.value = v; s.dispatchEvent(new Event('change', { bubbles: true })); }, opcion);
+  await page.waitForTimeout(800);
   check('el selector bajo el título cambia la variable de toda la página', (await selArriba()) === opcion && opcion !== antesSel, `${antesSel} → ${opcion} / ${await selArriba()}`);
+
+  // La pantalla no debe saltar al cambiar de variable (13/11/2026, pedido por el usuario). Solo prueba de verdad un cambio en el que lo de
+  // ARRIBA cambia de altura (`offsetTop` distinto): si el apartado se mueve dentro del documento y aun así se queda en el mismo punto de la
+  // pantalla, es que se ha corregido el desplazamiento. Se buscan esos casos en varios tests; si no aparece ninguno, la prueba falla.
+  const medir = () => page.evaluate(() => { const fs = [...document.querySelectorAll('fieldset.modes.filas')].find((f) => f.querySelector('.sel-variable select')); if (!fs) return null; let o = 0, e = fs; while (e) { o += e.offsetTop; e = e.offsetParent; } return { doc: o, pantalla: fs.getBoundingClientRect().top }; });
+  let anclados = 0, saltos = '';
+  for (const tk of ['cmj', 'hip', 'kpush']) {
+    await go(`#jugador-${P}?t=${t[tk]}&b=fuerza`, 'fieldset.modes.filas');
+    const ops = await page.evaluate(() => { const s = document.querySelector('fieldset.modes.filas .sel-variable select'); return s ? [...s.options].map((o) => o.value) : []; });
+    for (const o of ops) {
+      await page.evaluate(() => { const fs = [...document.querySelectorAll('fieldset.modes.filas')].find((f) => f.querySelector('.sel-variable select')); fs?.scrollIntoView({ block: 'center' }); });
+      await page.waitForTimeout(150);
+      const antes = await medir(); if (!antes) continue;
+      await page.evaluate((v) => { const s = [...document.querySelectorAll('fieldset.modes.filas')].find((f) => f.querySelector('.sel-variable select')).querySelector('.sel-variable select'); s.value = v; s.dispatchEvent(new Event('change', { bubbles: true })); }, o);
+      await page.waitForTimeout(800);
+      const despues = await medir(); if (!despues) continue;
+      if (Math.abs(despues.doc - antes.doc) <= 8) continue; // ese cambio no movía nada: no prueba nada
+      if (Math.abs(despues.pantalla - antes.pantalla) <= 6) anclados++; else saltos += `${tk}/${o}: ${Math.round(antes.pantalla)}→${Math.round(despues.pantalla)} (doc ${Math.round(antes.doc)}→${Math.round(despues.doc)}); `;
+    }
+  }
+  check('al cambiar de variable la pantalla no salta, aunque cambie la altura de lo que hay encima', anclados > 0 && saltos === '', `anclados: ${anclados}; saltos: ${saltos || 'ninguno'}`);
+
+  // ---- COMPOSITE PROFILE SCORE (13/11/2026, especificación v0.3)
+  await go(`#jugador-${P}?b=composite`, 'table.composite', 4000);
+  const cps = await page.evaluate(() => {
+    const filas = [...document.querySelectorAll('table.composite tbody tr')].map((tr) => [tr.querySelector('th').textContent.trim(), tr.querySelector('td').textContent.trim(), tr.querySelector('td .band')?.className ?? null]);
+    const svg = document.querySelector('#bloque-composite svg.radar-svg') ?? document.querySelector('svg.radar-svg');
+    const marcas = svg ? [...svg.querySelectorAll('text')].filter((t) => t.getAttribute('font-size') === '26').map((t) => t.textContent) : [];
+    const leyenda = svg ? [...svg.querySelectorAll('g > line')].length : 0;
+    const nLinea = [...document.querySelectorAll('p.muted')].map((p) => p.textContent).find((t) => /Percentiles sobre N/.test(t)) ?? '';
+    const desgloses = [...document.querySelectorAll('details')].map((d) => d.querySelector('summary')?.textContent.trim()).filter((t) => /·/.test(t ?? ''));
+    return { filas, marcas, leyenda, nLinea, desgloses, radar: !!svg, aria: svg?.getAttribute('aria-label') ?? '' };
+  });
+  if (CAP) { await page.locator('.card').filter({ hasText: 'COMPOSITE PROFILE SCORE' }).first().screenshot({ path: path.join(CAP, 'composite.png') }); await page.locator('svg.radar-svg').first().screenshot({ path: path.join(CAP, 'composite-radar.png') }); }
+  const NOMBRES = 'Isometric Strength,Dynamic Strength,Short GCT Reactive Strength,Deceleration,Reactivity,Propulsive,Explosive / Snappy';
+  check('COMPOSITE: las 7 cualidades, en el orden del documento', cps.filas.map((f) => f[0]).join() === NOMBRES, cps.filas.map((f) => f[0]).join());
+  check('COMPOSITE: cada puntuación es un entero con su color, «No aplicable» o «—»', cps.filas.every(([, v, cls]) => (/^\d+$/.test(v) && Number(v) >= 0 && Number(v) <= 100 && /band band-/.test(cls ?? '')) || v === 'No aplicable' || v === '—'), JSON.stringify(cps.filas));
+  check('COMPOSITE: al menos una de Propulsive y Explosive sale «No aplicable» (consecuencia de comparar sus percentiles)', ['Propulsive', 'Explosive / Snappy'].some((n) => cps.filas.find((f) => f[0] === n)?.[1] === 'No aplicable'), JSON.stringify(cps.filas.slice(5)));
+  check('COMPOSITE: el radar tiene los 7 ejes con su marca', cps.radar && cps.marcas.length === 7 && cps.marcas.every((m) => /^\d+$|^n\/a$|^—$/.test(m)), JSON.stringify(cps.marcas));
+  check('COMPOSITE: un eje sin puntuación se marca «n/a» o «—» y nunca como 0', cps.marcas.every((m, i) => (cps.filas[i][1] === 'No aplicable' ? m === 'n/a' : cps.filas[i][1] === '—' ? m === '—' : m === cps.filas[i][1])), `${JSON.stringify(cps.marcas)} vs ${JSON.stringify(cps.filas.map((f) => f[1]))}`);
+  check('COMPOSITE: línea de contexto con el N de la referencia', /^Percentiles sobre N = [\d–]+ jugadores de la base\.$/.test(cps.nLinea.trim()), cps.nLinea);
+  check('COMPOSITE: un desglose por cualidad', cps.desgloses.length === 7, JSON.stringify(cps.desgloses));
+  // El desglose: pesos, los dos lados del Knee Iso-Push, la altura del Drop Jump y lo que falta
+  const det = await page.evaluate(() => {
+    const ds = [...document.querySelectorAll('details')].filter((d) => /·/.test(d.querySelector('summary')?.textContent ?? ''));
+    ds.forEach((d) => { d.open = true; });
+    return ds.map((d) => ({ titulo: d.querySelector('summary').textContent.trim(), texto: d.textContent, filas: [...d.querySelectorAll('table.composite-det tbody tr')].map((tr) => [...tr.children].map((c) => c.textContent.trim())) }));
+  });
+  const dIso = det[0], dDin = det[1], dGct = det[2];
+  check('COMPOSITE: el desglose dice el peso de cada variable de puntuación', dDin.filas[0].at(-1) === 'peso 70 %' && dDin.filas[1].at(-1) === 'peso 15 %' && dDin.filas[2].at(-1) === 'peso 15 %', JSON.stringify(dDin.filas.map((f) => f.at(-1))));
+  check('COMPOSITE: el Knee Iso-Push muestra las dos piernas', dIso.filas[0][0].includes('izquierda') && dIso.filas[1][0].includes('derecha'), JSON.stringify(dIso.filas.slice(0, 2).map((f) => f[0])));
+  check('COMPOSITE: el DSI aparece por lado con su etiqueta de orientación', dIso.filas.filter((f) => /^DSI/.test(f[0])).length === 2 && /strength training/i.test(dIso.filas.find((f) => /^DSI/.test(f[0])).at(-1)), JSON.stringify(dIso.filas.filter((f) => /^DSI/.test(f[0]))));
+  check('COMPOSITE: el impulso se usa por kilo (N s/kg), no en N·s absolutos', dDin.filas.some((f) => /CON IMPULSE\/BM/.test(f[0]) && /N s\/kg/.test(f[1])), JSON.stringify(dDin.filas.map((f) => f.slice(0, 2))));
+  check('COMPOSITE: el Drop Jump dice de qué altura es cada dato', dGct.filas.filter((f) => /^(30|45) cm · /.test(f[0])).length >= 1, JSON.stringify(dGct.filas.map((f) => f[0])));
+  check('COMPOSITE: una variable de puntuación sin datos se marca y se reparte el peso', /calculado con 1 de 2|Calculado con 1 de 2/i.test(dGct.texto) && dGct.filas.some((f) => /sin dato con esta base/.test(f.at(-1))), dGct.titulo);
+  // Las referencias del radar se activan y desactivan
+  const lineasLeyenda = () => page.evaluate(() => [...document.querySelector('svg.radar-svg').querySelectorAll('g > line')].length);
+  const antesLeg = await lineasLeyenda();
+  await page.evaluate(() => [...document.querySelectorAll('fieldset.modes')].find((f) => /Referencia La Liga/.test(f.querySelector('legend').textContent)).querySelectorAll('input[type="checkbox"]')[2].click());
+  await page.waitForTimeout(500);
+  check('COMPOSITE: activar el P75 de La Liga añade su polígono al radar', (await lineasLeyenda()) === antesLeg + 1, `${antesLeg} → ${await lineasLeyenda()}`);
+  // El filtro de valor cambia tabla, radar y desglose a la vez
+  const fechasPA = det[1].filas[0][3];
+  await page.evaluate(() => [...document.querySelectorAll('fieldset.modes')].find((f) => /Valor/.test(f.querySelector('legend').textContent)).querySelectorAll('input[type="radio"]')[0].click());
+  await page.waitForTimeout(600);
+  const trasCps = await page.evaluate(() => {
+    const d = [...document.querySelectorAll('details')].filter((x) => /·/.test(x.querySelector('summary')?.textContent ?? ''))[1];
+    d.open = true;
+    return { fecha: d.querySelectorAll('table.composite-det tbody tr')[0].children[3].textContent.trim(), aria: document.querySelector('svg.radar-svg').getAttribute('aria-label'), base: [...document.querySelectorAll('fieldset.modes input[type="radio"]')].findIndex((r) => r.checked) };
+  });
+  check('COMPOSITE: al cambiar a Latest el desglose pasa a la fecha de la última sesión', trasCps.fecha !== fechasPA && !trasCps.fecha.includes('–') && fechasPA.includes('–'), `${fechasPA} → ${trasCps.fecha}`);
+  check('COMPOSITE: el radar sigue hablando de las mismas 7 cualidades', (trasCps.aria.match(/;/g) ?? []).length === 6, trasCps.aria.slice(0, 120));
 
   // ---- CMJ: las asimetrías del propio test, con su selector independiente (13/11/2026, pedido por el usuario)
   await go(`#jugador-${P}?t=${t.cmj}&b=fuerza`, '.evo');

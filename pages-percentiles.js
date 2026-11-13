@@ -183,7 +183,7 @@ export function PercentilesPanel({ player, test, variable, mine, q, setQ, filter
     ...REFS.map(([k, n]) => ({ key: k, label: n, off: refOff(k), why: refOff(k) ? (k.startsWith('premier') ? 'Esta variable no figura en las tablas de la Premier League.' : k.endsWith('pos') && posJugador == null ? 'El jugador no tiene posición principal.' : `Sin muestra suficiente (mínimo ${minN} jugadores).`) : '' })),
   ];
   const escala = html`<section class="refs"><fieldset class="modes filas"><legend class="sec-titulo">Benchmark-Contextualized Positioning</legend>
-      ${vars.length > 1 ? html`<${SelectorVariable} vars=${vars} value=${variable.id} onChange=${(v) => setQ({ v })} />` : null}
+      ${vars.length > 1 ? html`<${SelectorVariable} vars=${vars} value=${variable.id} onChange=${(v) => setQ({ v })} ancla="escala" />` : null}
       ${agruparFiltros(filtros).map((fila, i) => html`<div class="ref-fila" key=${'f' + i}>${fila.map((o) => html`<label class="check" key=${o.key} title=${o.why}><input type="checkbox" disabled=${o.off} checked=${!o.off && chosenSm.includes(o.key)} onChange=${(e) => toggleSm(o.key, e.target.checked)} /> ${o.label}</label>`)}</div>`)}</fieldset>
     ${filas.length ? html`<${EscalaG4} filas=${filas} refs=${refsSel} unit=${unit} target=${sides.map((sd) => targets[sd]).filter(Boolean).filter((t, i, a) => a.findIndex((v) => v.value === t.value) === i)} />` : html`<p class="muted">Marca al menos un marcador del jugador (Resultado actual, Personal Best o Personal Average) para ver la escala.</p>`}
     ${insuf ? html`<p class="status warn">Muestra insuficiente para clasificar: no se dibuja la mediana ni se colorea (N inferior a ${minN}).</p>` : null}</section>`;
