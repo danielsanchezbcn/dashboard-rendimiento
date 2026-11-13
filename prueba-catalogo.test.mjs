@@ -225,4 +225,8 @@ check('migración: alinea la unidad escrita a mano con la definitiva y lo deja e
 }
 
 console.log(failed ? `\n${failed} prueba(s) fallan` : '\nTodas las pruebas del catálogo pasan');
+// Exclusiones del bloque Déficits (12/11/2026): por defecto Torque y Force/RFD at 100 ms; se puede forzar a mano por variable.
+check('Déficits: Torque y Force/RFD at 100 ms quedan fuera por defecto; el resto entra', C.variableExcluidaDeDeficits({ name: 'Torque' }) && C.variableExcluidaDeDeficits({ name: 'Force at 100 ms' }) && C.variableExcluidaDeDeficits({ name: 'RFD at 100 ms' }) && !C.variableExcluidaDeDeficits({ name: 'Peak Force' }) && !C.variableExcluidaDeDeficits({ name: 'Peak Force relativo (BW)' }));
+check('Déficits: la marca del catálogo manda sobre el valor por defecto', C.variableExcluidaDeDeficits({ name: 'Torque', excluirDeficits: false }) === false && C.variableExcluidaDeDeficits({ name: 'Peak Force', excluirDeficits: true }) === true);
+
 process.exit(failed ? 1 : 0);

@@ -141,7 +141,12 @@ export function pbCriterionOf(test, variables) {
 // Normative Benchmarking (pages-normativo.js): por defecto muestra todas las variables del test en columnas; con `panelColumnas: false` (Catálogo) solo la variable seleccionada.
 export const usaPanelColumnas = (test) => (typeof test?.panelColumnas === 'boolean' ? test.panelColumnas : !!test);
 export const testExcluidoDeAsimetrias = (test) => (typeof test?.excluirAsimetrias === 'boolean' ? test.excluirAsimetrias : !!perfilDefecto(test)?.sinAsimetrias);
-export const sinAsimetriaPorDefecto = (name) => /\btorque\b/i.test(name) || /^(force|rfd) at 100\s*ms$/i.test(String(name).trim());
+// Variables auxiliares: por defecto no entran ni en Asimetrías ni en Déficits (12/11/2026). Torque del Nordic (sale de la fuerza máxima, no añade nada)
+// y Force at 100 ms / RFD at 100 ms en cualquier test (el usuario las deja fuera por ahora).
+export const variableAuxiliarPorDefecto = (name) => /\btorque\b/i.test(name) || /^(force|rfd) at 100\s*ms$/i.test(String(name).trim());
+export const sinAsimetriaPorDefecto = variableAuxiliarPorDefecto;
+// Déficits (pages-deficits.js): se puede excluir una variable a mano desde el Catálogo; por defecto quedan fuera las auxiliares de arriba.
+export const variableExcluidaDeDeficits = (v) => (typeof v?.excluirDeficits === 'boolean' ? v.excluirDeficits : variableAuxiliarPorDefecto(v?.name ?? ''));
 export const variableExcluidaDeAsimetrias = (v) => (typeof v?.excluirAsimetrias === 'boolean' ? v.excluirAsimetrias : sinAsimetriaPorDefecto(v?.name ?? ''));
 
 export async function listCatalog(db) {
@@ -393,6 +398,7 @@ export async function updateVariable(db, id, patch, reason = '') {
   const effective = next.formula !== undefined ? next.formula : cur.formula;
   if (effective?.op) next.unit = OPERATIONS[effective.op].unit;
   if (patch.excluirAsimetrias !== undefined) { if (typeof patch.excluirAsimetrias !== 'boolean') throw new Error('Opción no válida.'); next.excluirAsimetrias = patch.excluirAsimetrias; }
+  if (patch.excluirDeficits !== undefined) { if (typeof patch.excluirDeficits !== 'boolean') throw new Error('Opción no válida.'); next.excluirDeficits = patch.excluirDeficits; }
   await db.variables.update(id, { ...next, updatedAt: now() });
   await logChange(db, 'catalogo-variable-modificada', 'variable', id, cur, next, reason);
 }

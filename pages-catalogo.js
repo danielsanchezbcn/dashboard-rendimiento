@@ -255,6 +255,7 @@ function TestPerfil({ test, vars, data }) {
   const { msg, run, busy } = useRunner();
   const cand = C.candidatasCriterioPB(test, data.variables);
   const lr = vars.filter((v) => !v.archived && (v.sides === 'LR' || C.isAsymVariable(v)));
+  const visiblesDef = vars.filter((v) => !v.archived && !C.isAsymVariable(v));
   return html`<${Card} titulo="Comportamiento en el perfil del jugador">
     <form class="fields" onSubmit=${run(async () => { await C.updateTest(db, test.id, { pbCriterioVariableId: pb === '' ? null : Number(pb), panelColumnas: panel, excluirAsimetrias: sinAsim }); bump(); }, 'guardado.')}>
       <label>Personal Best <select value=${pb} onChange=${(e) => setPb(e.target.value)}><option value="">Clásico: el mejor valor de cada variable por separado</option>${cand.map((v) => html`<option key=${v.id} value=${v.id}>Mejor sesión según ${dn(v.name)}: todas las variables salen de esa misma sesión</option>`)}</select></label>
@@ -264,6 +265,9 @@ function TestPerfil({ test, vars, data }) {
     </form>
     ${lr.length ? html`<details class="notas"><summary>Variables que no se muestran en la pestaña Asimetrías (${lr.filter((v) => C.variableExcluidaDeAsimetrias(v)).length})</summary>
       <ul class="plain">${lr.map((v) => html`<li key=${v.id}><label class="check"><input type="checkbox" checked=${C.variableExcluidaDeAsimetrias(v)} disabled=${busy} onChange=${(e) => { const marcada = e.target.checked; return run(async () => { await C.updateVariable(db, v.id, { excluirAsimetrias: marcada }); bump(); }, 'guardado.')(); }} /> ${dn(v.name)}</label></li>`)}</ul></details>` : null}
+    ${visiblesDef.length ? html`<details class="notas"><summary>Variables que no se tienen en cuenta en Déficits (${visiblesDef.filter((v) => C.variableExcluidaDeDeficits(v)).length})</summary>
+      <p class="muted">Marca las que no quieras que aparezcan en el bloque «Déficits» del jugador. Por defecto quedan fuera Torque y Force/RFD at 100 ms. Además, cuando existe la versión relativa al peso con datos, la absoluta no se lista (eso no se configura aquí).</p>
+      <ul class="plain">${visiblesDef.map((v) => html`<li key=${'d' + v.id}><label class="check"><input type="checkbox" checked=${C.variableExcluidaDeDeficits(v)} disabled=${busy} onChange=${(e) => { const marcada = e.target.checked; return run(async () => { await C.updateVariable(db, v.id, { excluirDeficits: marcada }); bump(); }, 'guardado.')(); }} /> ${dn(v.name)}</label></li>`)}</ul></details>` : null}
     <${Msg} msg=${msg} />
   <//>`;
 }

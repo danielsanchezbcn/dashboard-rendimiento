@@ -8,10 +8,10 @@ import { useLoad, Card, Desplegable } from './componentes.js';
 import { listCatalog } from './catalogo.js';
 import { listPositions } from './posiciones.js';
 import { getSetting } from './db.js';
-import { expandRelative, orderVars, isViewable, hasData } from './relativos.js';
+import { expandRelative, orderVars, isViewable, hasData, isRelative } from './relativos.js';
 import { withReferenceWeights } from './relaciones.js';
 import { pairContext } from './isohold.js';
-import { isAsymVariable } from './catalogo.js';
+import { isAsymVariable, variableExcluidaDeDeficits } from './catalogo.js';
 import { columnasNormativas, ordenIsoHold } from './pages-normativo.js';
 import { Banda } from './pages-percentiles.js';
 import { MIN_N_DEFAULT } from './percentiles.js';
@@ -28,7 +28,11 @@ const LADO = { L: 'Izquierda', R: 'Derecha', S: '' };
 export function deficitsDeTest({ player, test, catalog, refData, base, positionId, umbral }) {
   const mias = refData.sessions.filter((s) => s.playerId === player.id);
   if (!mias.length) return [];
-  const vars = ordenIsoHold(orderVars(catalog.variables.filter((v) => v.testId === test.id && isViewable(v) && hasData(v, mias) && !isAsymVariable(v))));
+  const candidatas = catalog.variables.filter((v) => v.testId === test.id && isViewable(v) && hasData(v, mias) && !isAsymVariable(v) && !variableExcluidaDeDeficits(v));
+  // Si una variable tiene su versión relativa al peso con datos (Peak Force → Peak Force relativo, Max Force → Max Force relativo), se lista solo la
+  // relativa: es la que permite comparar entre jugadores, y las dos juntas serían el mismo déficit contado dos veces (12/11/2026).
+  const conRelativa = new Set(candidatas.filter((v) => isRelative(v)).map((v) => v.formula.operands[0]));
+  const vars = ordenIsoHold(orderVars(candidatas.filter((v) => !conRelativa.has(v.id))));
   if (!vars.length) return [];
   const cols = columnasNormativas({ player, test, catalog, sessions: mias, refData, vars, base, f: {}, positionId });
   const out = [];
@@ -95,7 +99,7 @@ export function Deficits({ player, positionId = null }) {
     <${Desplegable} titulo="Qué entra en esta lista y qué no">
       <p class="muted">Se recorre cada test con datos del jugador y cada una de sus variables visibles, con el valor de la base elegida (Personal Average, Personal Best o Actual) y el mismo percentil de La Liga que muestra el cuadro «Normative Benchmarking» de ese test: es la misma función de cálculo, no una copia.</p>
       <p class="muted">Se listan las variables por lado (cada pierna por separado) y, además, las asimetrías: en ellas un percentil bajo significa una asimetría grande comparada con la de los demás jugadores.</p>
-      <p class="muted">No entran: las variables sin dirección «mejor/peor» (ahí el percentil solo dice dónde cae en La Liga, no si es bueno o malo), las que no llegan al mínimo de ${minN} jugadores en la referencia, los valores que el jugador no tiene con esa base, y los tests archivados. La referencia nunca incluye al propio jugador ni datos sintéticos.</p>
+      <p class="muted">No entran: las variables sin dirección «mejor/peor» (ahí el percentil solo dice dónde cae en La Liga, no si es bueno o malo), las que no llegan al mínimo de ${minN} jugadores en la referencia, los valores que el jugador no tiene con esa base, y los tests archivados, las variables marcadas como excluidas en el Catálogo (por defecto Torque del Nordic y Force/RFD at 100 ms) y la medida absoluta cuando existe su relativa al peso con datos (se lista solo la relativa). La referencia nunca incluye al propio jugador ni datos sintéticos.</p>
     <//>
   <//>`;
 }

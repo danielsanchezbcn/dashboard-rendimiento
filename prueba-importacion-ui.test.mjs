@@ -96,7 +96,7 @@ check('paso 5: resumen con sesiones nuevas y grupo contradictorio', /3\s*sesione
 await click(btn(document, 'Guardar importación'), 600);
 check('paso 6: importación guardada y botón de informe', /Importación guardada/.test(text()) && !!btn(document, 'Descargar informe (CSV)'));
 captured = null;
-await click(btn(document, 'Descargar informe (CSV)'));
+await click(btn(document, 'Descargar informe (CSV)'), 600); // el informe se genera en segundo plano: sin margen, la comprobación llega antes que el fichero
 check('informe descargado sin valores de datos', captured && (await captured.text()).includes('Resumen') && !/410|398,5/.test(await captured.text()));
 check('historial muestra el lote', /demo\.csv/.test(card('Importaciones anteriores').textContent));
 // mismo fichero otra vez → aviso y reconocimiento

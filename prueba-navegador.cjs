@@ -106,6 +106,9 @@ const server = http.createServer((req, res) => {
   await page.locator('input[type=number]').first().fill('10');
   await page.waitForTimeout(600);
   const def10 = await page.evaluate(() => [...document.querySelectorAll('table.deficits tbody tr td:first-child .band')].map((x) => Number(x.innerText)));
+  const vars = await page.evaluate(() => [...document.querySelectorAll('table.deficits tbody tr')].map((r) => r.children[2].innerText.trim().toLowerCase()));
+  check('Déficits: fuera Torque, Force at 100 ms y RFD at 100 ms', !vars.some((v) => /torque|(force|rfd) at 100/.test(v)), JSON.stringify(vars.slice(0, 12)));
+  check('Déficits: con la relativa al peso presente, no se lista la absoluta', !(vars.includes('peak force') && vars.includes('peak force relativo (bw)')) && !(vars.includes('max force') && vars.includes('max force relativo (bw)')), JSON.stringify(vars.filter((v) => /force/.test(v))));
   check('Déficits: al bajar el umbral a 10 solo quedan los percentiles ≤ 10', def10.every((x) => x <= 10) && def10.length <= def.n, JSON.stringify(def10));
   // El percentil que sale aquí debe ser EL MISMO que muestra Normative Benchmarking de ese test (una sola función de cálculo)
   const primera = await page.evaluate(() => { const r = document.querySelector('table.deficits tbody tr'); return r ? { pct: Number(r.querySelector('.band').innerText), href: r.querySelector('a').getAttribute('href'), lado: r.children[3].innerText.trim(), variable: r.children[2].innerText.trim() } : null; });
