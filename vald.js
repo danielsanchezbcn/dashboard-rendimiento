@@ -14,6 +14,7 @@
 // Todo lo demás (jugadores, duplicados, conflictos, informe) lo hace importacion.js, igual que con el Excel propio.
 
 import { normalizeName } from './jugadores.js';
+import { mismoTest } from './nombres.js';
 import { parseDateCell, parseTimeCell, parseReps, parseNumber, planImport, commitImport, listBatches } from './importacion.js';
 
 export const VALD_SOURCE = 'VALD';
@@ -171,8 +172,12 @@ export function parseValdGrid(grid, catalog) {
   for (const [testName, items] of byTest) {
     const prof = VALD_PROFILES[testName];
     if ((prof.format ?? 'forcedecks') !== fmtKey) { problems.push(`${testName}: el perfil no corresponde a este formato de fichero.`); continue; }
-    const test = catalog.tests.find((t) => t.name === testName && !t.archived);
-    if (!test) { problems.push(`El test «${testName}» no existe en el catálogo (o está archivado).`); continue; }
+    const test = catalog.tests.find((t) => mismoTest(t.name, testName) && !t.archived);
+    if (!test) {
+      const arch = catalog.tests.find((t) => mismoTest(t.name, testName) && t.archived);
+      problems.push(arch ? `El test «${arch.name}» está archivado: desarchívalo en el Catálogo para poder importar estas filas.` : `El test «${testName}» no existe en el catálogo. Créalo con ese nombre, o renombra el que uses para esta prueba.`);
+      continue;
+    }
     const vars = catalog.variables.filter((v) => v.testId === test.id && v.kind === 'raw' && !v.archived);
     const sides = prof.mode === 'LR' ? ['L', 'R'] : ['S'];
     const repCols = prof.reps ? { L: col(prof.reps.L), R: col(prof.reps.R) } : prof.mode === 'LR' ? { L: col('Reps (L)'), R: col('Reps (R)') } : { S: col('Reps') };

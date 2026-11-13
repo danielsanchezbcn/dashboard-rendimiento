@@ -1,3 +1,4 @@
+import { mismoTest } from './nombres.js';
 // natera.js — fase 6e: clasificación bibliográfica del Run-Specific Iso-Push (Dr. Alex Natera), aportada por el usuario el 7/11/2026
 // (imagen «REFERENCIAS ISO PUSH»). Se aplica al Peak Force RELATIVO (Ankle y Knee en BW, Hip en SW). Intervalos continuos: cada clase empieza
 // en su límite inferior (la fuente publica rangos con huecos de redondeo, p. ej. 2,75–2,99 y 3,0–3,24). Por debajo de «Normal» la fuente no da etiqueta.
@@ -15,7 +16,7 @@ export const NATERA_CLASSES = { below: { text: 'Por debajo de Normal', band: 'ro
 // Solo variables relativas «Peak Force relativo (BW|SW)» de los tres tests y con la unidad correcta.
 export function findNatera(test, variable) {
   if (!test || !variable || !/^Peak Force relativo \((BW|SW)\)$/.test(variable.name)) return null;
-  const r = NATERA.find((n) => n.test === test.name);
+  const r = NATERA.find((n) => mismoTest(n.test, test.name));
   return r && variable.name === `Peak Force relativo (${r.unit})` ? r : null;
 }
 export function classifyNatera(ref, value) {

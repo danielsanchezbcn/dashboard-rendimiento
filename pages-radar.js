@@ -1,6 +1,7 @@
 // pages-radar.js — fase 5d (D16): perfil radial G3 en la ficha del jugador, con el aspecto del radar aportado por el usuario
 // (fondo negro, línea lila = jugador, amarilla = P50 de La Liga, blanca punteada = P50 de la Premier League). Descarga en PNG.
 import { html, useState, useRef } from './libs.js';
+import { mismoTest } from './nombres.js';
 import { useApp } from './context.js';
 import { Card, useLoad, Msg } from './componentes.js';
 import { fmtDay } from './fechas.js';
@@ -107,7 +108,7 @@ function RadarEditor({ cfg, tests, variables, onSaved, onCancel }) {
   const [testName, setTestName] = useState(cfg.test);
   const [sel, setSel] = useState(cfg.variables);
   const [msg, setMsg] = useState(null);
-  const test = tests.find((t) => t.name === testName);
+  const test = tests.find((t) => mismoTest(t.name, testName));
   const opts = test ? eligible(variables, test.id) : [];
   const toggle = (name) => setSel(sel.includes(name) ? sel.filter((n) => n !== name) : sel.length >= RADAR_MAX_AXES ? sel : [...sel, name]);
   const save = async () => {
@@ -141,7 +142,7 @@ export function RadarPanel({ player, testName }) {
     const cfg = await getSetting(db, 'radarConfig');
     const profile = testName ? profileForTest(testName, cfg) : profileFromSetting(cfg);
     if (!profile) return { sinPerfil: true };
-    const test = cat.tests.find((t) => t.name === profile.test && !t.archived);
+    const test = cat.tests.find((t) => mismoTest(t.name, profile.test) && !t.archived);
     const pickable = cat.tests.filter((t) => !t.archived && eligible(cat.variables, t.id).length >= RADAR_MIN_AXES);
     const refsSaved = radarRefsFromSetting(await getSetting(db, 'radarRefs'));
     if (!test) return { test: null, profile, pickable, variables: cat.variables, refsSaved };

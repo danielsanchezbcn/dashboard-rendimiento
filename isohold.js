@@ -2,6 +2,7 @@
 // Lógica pura, calculada al vuelo y sin guardar. Pareja Iso-Hold → Iso-Push confirmada por el usuario (D34 y 8/11/2026).
 // Masa: siempre la masa corporal medida más cercana (antes o después), o el peso de referencia del jugador (relaciones.js).
 import { G, massNearest } from './relaciones.js';
+import { normTestName, mismoTest } from './nombres.js';
 import { SW_FACTOR_DEFAULT } from './catalogo.js';
 import { repsOf } from './evolucion.js';
 import { audit } from './db.js';
@@ -17,7 +18,7 @@ export const ISO_PAIRS = {
 // el prefijo «Run-Specific», que algunos Iso-Hold llevan delante («Run-Specific Hip Iso-Hold 20 s» es el mismo test que «Hip Iso-Hold 20 s»; la migración
 // trata así el duplicado del Ankle). Estos nombres NO entran en ISO_PAIRS: esa lista también define qué tests crea el catálogo inicial, y un nombre sin
 // test dejaría variables huérfanas. Sin esto, un Iso-Hold renombrado se quedaba sin MVIC iso-push ni %PIMA (aviso del 11/11/2026).
-export const normIsoName = (name) => String(name ?? '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/^run-?specific /, '');
+export const normIsoName = normTestName;
 const PAIRS_LC = Object.fromEntries(Object.entries(ISO_PAIRS).map(([k, v]) => [normIsoName(k), v]));
 export const pairNameOf = (name) => PAIRS_LC[normIsoName(name)] ?? null;
 export const RM12_TESTS = ['Single-Leg Standing Calf Raise 12RM'];
@@ -60,7 +61,7 @@ export function isoHoldValues({ variables, test, sessions, ctx, anthropometry, t
   const ops = variables.filter((v) => v.testId === test.id && isIsoDerived(v) && v.formula.op !== 'RM_EST');
   if (!ops.length) return null;
   const pairName = pairNameOf(test.name);
-  const pairTest = ctx?.tests?.find((t) => lc(t.name) === lc(pairName));
+  const pairTest = ctx?.tests?.find((t) => mismoTest(t.name, pairName));
   const pairVars = pairTest ? variables.filter((v) => v.testId === pairTest.id) : [];
   const peak = pairVars.find((v) => v.kind === 'raw' && lc(v.name) === 'peak force');
   const { factor } = pairFactor(pairVars);
@@ -100,7 +101,7 @@ export function rmEstimate(v, session, anthropometry) {
 // Contexto para calcular las variables del Iso-Hold de un test: los tests del catálogo y las sesiones del Iso-Push emparejado (si el test es un Iso-Hold).
 export async function pairContext(db, tests, test) {
   const pairName = pairNameOf(test.name);
-  const pair = pairName ? tests.find((t) => lc(t.name) === lc(pairName)) : null;
+  const pair = pairName ? tests.find((t) => mismoTest(t.name, pairName)) : null;
   return { tests, allSessions: pair ? await db.sessions.where('testId').equals(pair.id).toArray() : [] };
 }
 

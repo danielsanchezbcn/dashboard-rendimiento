@@ -4,6 +4,7 @@
 // Solo variables con «más alto es mejor» (el cociente no tiene sentido en las de «más bajo es mejor»). Un eje sin dato del jugador, sin P50 suficiente de La Liga
 // o sin referencia se omite del radar y se lista aparte; la mediana de la Premier solo se dibuja si la tienen todos los ejes dibujados.
 import { playerValue, buildReference, evaluate, quantile } from './percentiles.js';
+import { mismoTest } from './nombres.js';
 import { findPremier } from './premier.js';
 
 // Perfil aportado por el usuario (8/11/2026): seis variables del CMJ. «EDRFD/BM» = ECC DECEL RFD (N/s/kg), que coincide con «Eccentric Deceleration RFD / BM (N/s/kg)» de la Premier.
@@ -34,8 +35,8 @@ RADAR_PROFILES.push(
 // Perfil que corresponde a un test: el guardado por el usuario si es de ese test, y si no el de fábrica. Sin perfil, el test no muestra radar.
 export const profileForTest = (testName, cfg) => {
   const saved = cfg && typeof cfg.test === 'string' && Array.isArray(cfg.variables) && cfg.variables.length >= RADAR_MIN_AXES ? makeProfile(cfg.test, cfg.variables) : null;
-  if (saved && lc(saved.test) === lc(testName)) return saved;
-  return RADAR_PROFILES.find((p) => lc(p.test) === lc(testName)) ?? null;
+  if (saved && mismoTest(saved.test, testName)) return saved;
+  return RADAR_PROFILES.find((p) => mismoTest(p.test, testName)) ?? null;
 };
 export const RADAR_TESTS = () => RADAR_PROFILES.map((p) => p.test);
 

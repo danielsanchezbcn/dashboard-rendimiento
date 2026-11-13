@@ -501,3 +501,9 @@ Estilo y biblioteca (D20) cerrados el 6 de noviembre de 2026. Ese mismo día se 
 - Fuera por defecto, en todos los tests: Torque (Nordic) y Force at 100 ms / RFD at 100 ms («por el momento», petición del usuario del 12/11/2026). Son las mismas que ya quedaban fuera de Asimetrías, así que el criterio pasa a una función común (`variableAuxiliarPorDefecto`).
 - Cada variable se puede marcar o desmarcar a mano desde el Catálogo («Variables que no se tienen en cuenta en Déficits»), igual que en Asimetrías (`excluirDeficits`).
 - Estabilidad de las pruebas: `prueba-importacion-ui` leía el CSV del informe antes de que terminara de generarse y fallaba de vez en cuando (igual que `prueba-vald-ui` el 11/11). Se le da el mismo margen de espera.
+
+## 123. Los nombres de test se comparan normalizados (9q)
+- Aviso del usuario (13/11/2026): el CSV de VALD del Single-Leg Seated Calf Raise no se podía importar, «el test no existe en el catálogo». En su base ese test se llama «SL Seated Calf Raise», y la búsqueda era por nombre exacto.
+- `normTestName` (en `nombres.js`) iguala al comparar: minúsculas, sin acentos, espacios colapsados, «Single-Leg»→SL, «Double-Leg»→DL y sin el prefijo «Run-Specific». `mismoTest(a, b)` compara dos nombres así. Solo afecta a las COMPARACIONES; el nombre guardado no se toca.
+- Se usa en: importación de VALD, pareja Iso-Hold → Iso-Push (sustituye a `normIsoName`), perfiles del radar (así «DL Hop Test» encuentra el suyo), definiciones de relaciones (DSI, EUR) y referencias de Natera. El catálogo inicial y sus migraciones siguen comparando por nombre exacto: ahí el nombre define qué se crea.
+- Los avisos de la importación distinguen ahora los tres casos: el test existe pero está ARCHIVADO (desarchívalo), no existe (créalo o renombra el tuyo), o se encontró. Antes todo era el mismo mensaje.

@@ -69,5 +69,6 @@ check('pareja: nombre exacto', pairNameOf('Knee Iso-Hold 20 s') === 'Run-Specifi
 check('pareja: mayúsculas y espacios no importan', pairNameOf('  hip iso-hold 20 S ') === 'Run-Specific Hip Iso-Push');
 check('pareja: el prefijo «Run-Specific» del Iso-Hold no impide encontrarla (hip, knee y ankle)', ['Hip', 'Knee', 'Ankle'].every((z) => pairNameOf(`Run-Specific ${z} Iso-Hold 20 s`) === `Run-Specific ${z} Iso-Push` && pairNameOf(`${z} Iso-Hold 20 s`) === `Run-Specific ${z} Iso-Push`));
 check('pareja: el talón sentado conserva la suya', pairNameOf('Single-Leg Seated Calf Raise Iso-Hold 20 s') === 'Single-Leg Seated Calf Raise');
+check('pareja: «SL Seated Calf Raise Iso-Hold 20 s» (nombre abreviado del usuario) encuentra la suya', pairNameOf('SL Seated Calf Raise Iso-Hold 20 s') === 'Single-Leg Seated Calf Raise');
 check('pareja: un test que no es Iso-Hold no tiene pareja', pairNameOf('CMJ') === null && pairNameOf(null) === null);
 process.exit(fail);

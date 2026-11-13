@@ -3,6 +3,7 @@
 // Los ratios son orientativos y no tienen unidad. No se inventa nada: sin datos suficientes devuelven «no definido» con el motivo.
 
 import { buildSeries, personalAverage, personalBest } from './evolucion.js';
+import { mismoTest } from './nombres.js';
 import { evaluate, median, MIN_N_DEFAULT } from './percentiles.js';
 import { asymmetryPct } from './catalogo.js';
 import { daysBetween } from './fechas.js';
@@ -118,7 +119,7 @@ export function ratioPB(numPoints, denPoints) {
 const T = { hipAdd: 'Hip Adduction 0° (Long Lever)', hipAbd: 'Hip Abduction 0° (Long Lever)', ankInv: 'Supine Isometric Ankle Inversion', ankEv: 'Supine Isometric Ankle Eversion', cmj: 'CMJ', sj: 'Squat Jump', sl: 'SL CMJ', knee: 'Run-Specific Knee Iso-Push', dj30: 'DL Drop Jump 30 cm', dj45: 'DL Drop Jump 45 cm' };
 export function locate(tests, variables) {
   const find = (testName, varName) => {
-    const t = tests.find((x) => lc(x.name) === lc(testName));
+    const t = tests.find((x) => mismoTest(x.name, testName));
     const v = t ? variables.find((x) => x.testId === t.id && lc(x.name) === lc(varName) && !x.archived) : null;
     return t && v ? { test: t, variable: v } : null;
   };

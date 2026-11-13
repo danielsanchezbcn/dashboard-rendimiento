@@ -119,6 +119,24 @@ check('SJ: carga adicional > 0 y LSJ omitidos', rs.ok && rs.groups[0].rows.lengt
   const again = await I.seedInitialCatalog(dbm);
   check('catálogo ya alineado: la migración no cambia nada (idempotente)', (again.unidadesAlineadas ?? 0) === 0);
 }
+// El mismo test escrito de otra forma en el catálogo del usuario (13/11/2026): «SL Seated Calf Raise» en vez de «Single-Leg Seated Calf Raise».
+{
+  const dbn = D.createDb('v-nombres'); await D.initDb(dbn); await I.seedInitialCatalog(dbn);
+  const tc = (await dbn.tests.toArray()).find((x) => x.name === 'Single-Leg Seated Calf Raise');
+  await dbn.tests.update(tc.id, { name: 'SL Seated Calf Raise' });
+  const catn = await C.listCatalog(dbn);
+  const cab2 = ['Name', 'ExternalId', 'Test Type', 'Date', 'Time', 'BW [KG]', 'Reps (L)', 'Reps (R)', 'Tags', 'Peak Vertical Force [N] ', 'Peak Vertical Force [N] (L)', 'Peak Vertical Force [N] (R)', 'Peak Vertical Force [N] (Asym)(%)'];
+  const g2 = [cab2, ['Jug. Sintetico A', '', 'SLSEICR', '12/11/2026', '10:33 AM', '7.6', '2', '2', '', '1372', '1308', '1435', '8.9 R']];
+  const rn = V.parseValdGrid(g2, catn);
+  check('VALD: el test renombrado «SL Seated Calf Raise» se reconoce igual', rn.ok && rn.groups[0].testId === tc.id && rn.groups[0].rows[0].ok && Object.keys(rn.groups[0].rows[0].values).length >= 1, rn.error ?? JSON.stringify({ g: rn.groups?.[0]?.testId, t: tc.id }));
+  await dbn.tests.update(tc.id, { name: 'SL Seated Calf Raise', archived: true });
+  const ra = V.parseValdGrid(g2, await C.listCatalog(dbn));
+  check('VALD: si el test está archivado, el aviso lo dice', !ra.ok && /archivado/.test(ra.error ?? JSON.stringify(ra.problems ?? [])), ra.error ?? JSON.stringify(ra.problems ?? []));
+  await dbn.tests.delete(tc.id);
+  const rd = V.parseValdGrid(g2, await C.listCatalog(dbn));
+  check('VALD: si el test no existe, el aviso dice qué hacer', !rd.ok && /no existe en el catálogo\. Créalo/.test(rd.error ?? JSON.stringify(rd.problems ?? [])), rd.error ?? JSON.stringify(rd.problems ?? []));
+}
+
 // Dos filas del mismo jugador y día que hoy se fusionan en una sesión, pero que en su momento se guardaron por separado (ventana de 60 min de antes):
 // el valor fusionado no coincide con ninguna de las dos y sale un conflicto. Debe explicarse: en qué cambia y que ese día ya hay 2 sesiones.
 {
