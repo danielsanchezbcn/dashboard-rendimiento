@@ -30,7 +30,7 @@ import { RadarPanel } from './pages-radar.js';
 import { Angulos } from './pages-angulos.js';
 import { NormativeBenchmarking } from './pages-normativo.js';
 import { ICONO_TARGET } from './iconos.js';
-import { dn } from './nombres.js';
+import { dn, mismoTest } from './nombres.js';
 
 // Bandera de Target (icono del usuario): se dibuja al final de la línea de target.
 const flagImg = typeof Image === 'undefined' ? null : Object.assign(new Image(), { src: ICONO_TARGET });
@@ -366,7 +366,7 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const selSide = sides.includes(cmpV.side) ? cmpV.side : sides[0];
   const selIds = [cmpV.a, cmpV.b].filter((x) => x != null).map((id) => selSide + ':' + id);
   const key = [player.id, test.id, variable.id, proto, from, to, sessions.map((s) => s.id + s.status).join(), sides.map((sd) => (tg[sd] ? tg[sd].origin + tg[sd].value : '-')).join()].join('|');
-  const cmj = test.name === 'CMJ', relArriba = ['squat jump', 'sl cmj'].includes(String(test.name ?? '').trim().toLowerCase()); // Squat Jump (EUR) y SL CMJ (DSI): su cuadrante va arriba del todo // CMJ y Perímetros: cuadro con todas las variables arriba del todo; en CMJ, justo debajo el radar y el cuadrante EUR
+  const cmj = mismoTest(test.name, 'CMJ'), relArriba = ['Squat Jump', 'SL CMJ'].some((n) => mismoTest(n, test.name)); // Squat Jump (EUR) y SL CMJ (DSI): su cuadrante va arriba del todo // CMJ y Perímetros: cuadro con todas las variables arriba del todo; en CMJ, justo debajo el radar y el cuadrante EUR
   const radarEl = html`<${RadarPanel} key=${'radar' + test.id + player.id} player=${player} testName=${test.name} />`;
   const relEl = html`<${RelacionTest} key=${'rel' + test.id + player.id} player=${player} test=${test} />`;
   return html`<div class="evo">

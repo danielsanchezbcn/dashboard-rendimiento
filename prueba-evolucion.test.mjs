@@ -70,7 +70,7 @@ check('auditoría sin valores', ['sesion-excluida', 'sesion-reincorporada', 'ses
   await dbm.meta.put({ key: 'catalogSeeded', value: { version: 3 } });
   const r = await I.seedInitialCatalog(dbm);
   const after = await dbm.variables.toArray();
-  check('migración v3→v4: asigna «más alto» a las que no tenían, respeta la ya definida y deja las asimetrías (%) sin dirección', r.direccionesAsignadas > 0 && after.find((v) => v.id === keep.id).direction === 'lower' && after.filter((v) => v.unit === '%').every((v) => v.direction === null) && after.filter((v) => v.unit !== '%' && v.unit !== 'cm' && v.unit !== '°' && v.name !== 'TOE-TOUCH TEST' && v.id !== keep.id).every((v) => v.direction === (I.LOWER_IS_BETTER.test(v.name) ? 'lower' : 'higher')), JSON.stringify(r));
+  check('migración v3→v4: asigna «más alto» a las que no tenían, respeta la ya definida y deja las asimetrías (%) sin dirección', r.direccionesAsignadas > 0 && after.find((v) => v.id === keep.id).direction === 'lower' && after.filter((v) => v.unit === '%').every((v) => v.direction === null) && after.filter((v) => v.unit !== '%' && v.unit !== 'cm' && v.unit !== '°' && v.name !== 'TOE-TOUCH TEST' && v.name !== 'DROP LANDING' && v.id !== keep.id).every((v) => v.direction === (I.LOWER_IS_BETTER.test(v.name) ? 'lower' : 'higher')), JSON.stringify(r));
   check('queda en el registro', (await dbm.auditLog.toArray()).some((l) => l.action === 'catalogo-direccion-por-defecto'));
 }
 process.exit(failed ? 1 : 0);

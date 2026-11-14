@@ -14,7 +14,7 @@ import { ISO_PAIRS, RM12_TESTS, RM_EST_FACTOR_DEFAULT, pairFactor } from './isoh
 
 import { mismoTest } from './nombres.js';
 
-export const CATALOG_SEED_VERSION = 12;
+export const CATALOG_SEED_VERSION = 14;
 
 const BLOCKS = [
   { key: 'fuerza', name: 'Manifestaciones de la fuerza' },
@@ -31,11 +31,11 @@ const TESTS = [
   ['Hip', 'Heavy Dynamic Strength', ['Nordic Hamstring Exercise', 'Hamstring Bridge 30 cm 8RM', 'Single-Leg Knee Flexion 8RM', 'RDL Force–Velocity Profile', 'Hip Thrust Force–Velocity Profile']],
   ['Knee', 'Max Isometric Strength', ['Run-Specific Knee Iso-Push', 'Knee Iso-Hold 20 s', 'Seated Isometric 90°/90° Knee Extension Test']],
   ['Knee', 'Heavy Dynamic Strength', ['Double-Leg Leg Press 45° 8RM', 'Single-Leg Leg Press 45° 8RM', 'RFESS 45° 8RM', 'Back Squat Force–Velocity Profile', 'Trap Bar Squat Force–Velocity Profile']],
-  ['Ankle', 'Max Isometric Strength', ['Run-Specific Ankle Iso-Push', 'Ankle Iso-Hold 20 s', 'Single-Leg Seated Calf Raise Iso-Hold 20 s', 'Single-Leg Seated Calf Raise', 'Supine Isometric Ankle Inversion', 'Supine Isometric Ankle Eversion']],
+  ['Ankle', 'Max Isometric Strength', ['Run-Specific Ankle Iso-Push', 'Ankle Iso-Hold 20 s', 'Seated Calf Raise Iso-Hold 20 s', 'Seated Calf Raise Iso-Push', 'Supine Isometric Ankle Inversion', 'Supine Isometric Ankle Eversion']],
   ['Ankle', 'Heavy Dynamic Strength', ['Single-Leg Standing Calf Raise 12RM', 'Single-Leg Seated Calf Raise 6RM']],
   ['Groin', 'Max Isometric Strength', ['Hip Adduction 0° (Long Lever)', 'Hip Abduction 0° (Long Lever)', 'Hip Adduction 45° (Short Lever)']],
   [null, 'Fast Dynamic Strength', ['CMJ', 'SL CMJ', 'Squat Jump']],
-  [null, 'Reactive Strength', ['Double-Leg Hop Test', 'DL Drop Jump 30 cm', 'DL Drop Jump 45 cm']],
+  [null, 'Reactive Strength', ['Double-Leg Hop Test', 'SL Hop Test', 'DL Drop Jump 30 cm', 'SL Drop Jump 30 cm', 'DL Drop Jump 45 cm']],
 ];
 
 // Variables por test (PDF de VALD del 7 de noviembre de 2026): nombre, unidad y tipo de valor. Sin direcciones ni fórmulas.
@@ -74,6 +74,23 @@ const DROP_JUMP_VARIABLES = [
   v('ACTIVE STIFFNESS', 'N/m'), asym('ACTIVE STIFFNESS ASYMMETRY'), asym('DROP LANDING RFD ASYMMETRY'), asym('PEAK DROP LANDING FORCE ASYMMETRY'),
 ];
 
+// Single-Leg Hop Test y Single-Leg Drop Jump 30 cm (fichero definitivo de VALD del usuario, 14/11/2026): un valor POR PIERNA, así que la asimetría
+// la calcula el dashboard a partir de izquierda y derecha —como en el SL CMJ— y no hacen falta variables de asimetría propias.
+// Las variables son las equivalentes de sus pruebas de dos piernas, con el mismo nombre, unidad y dirección, para que se lean igual.
+const SL_HOP_VARIABLES = [
+  v('MEAN RSI (FLIGHT TIME / CONTACT TIME)', null, 'LR'), v('MEAN JUMP HEIGHT (Flight Time) (cm)', 'cm', 'LR'), v('MEAN CONTACT TIME', 'ms', 'LR'),
+  v('MEAN PEAK POWER', 'W', 'LR'), v('MEAN PEAK FORCE', 'N', 'LR'), v('MEAN ACTIVE STIFFNESS', 'N/m', 'LR'), v('MEAN LANDING RFD', 'N/s', 'LR'),
+];
+const SL_DROP_JUMP_VARIABLES = [
+  v('RSI (FLIGHT TIME / CONTACT TIME)', null, 'LR'), v('JUMP HEIGHT (Flight Time - cm)', 'cm', 'LR'), v('CONTACT TIME', 's', 'LR'),
+  v('ECCENTRIC IMPULSE', 'N s', 'LR'), v('CONCENTRIC IMPULSE', 'N s', 'LR'), v('ACTIVE STIFFNESS', 'N/m', 'LR'),
+  // «Drop Landing» llega del fichero con unidad [s] pero con valores de dos y tres cifras, así que no está claro qué mide: se guarda el número tal cual
+  // y se deja SIN dirección (no entra en los percentiles de rendimiento ni en Déficits) hasta que el usuario lo confirme.
+  v('DROP LANDING', 's', 'LR'),
+];
+// Variables que tienen que quedarse SIN dirección «mejor/peor» aunque el catálogo asigne «más alto es mejor» por defecto a las que no la tienen.
+const SIN_DIRECCION = ['DROP LANDING'];
+
 // D5 (6 a 8/11/2026). Nordic: nombres como la tabla Premier para que se enlacen las referencias; la asimetría se guarda CON SIGNO (todas las asimetrías llevan signo).
 // RM e Iso-Hold: la carga la introduce el usuario (no viene de VALD). Las variables calculadas (MVIC, %PIMA, %BW/%SW, 1RM estimado) se crean en ensureDerived.
 const HDS = 'Heavy Dynamic Strength';
@@ -97,7 +114,18 @@ const VARIABLES_BY_TEST = {
   'Double-Leg Hop Test': HOP_VARIABLES,
   'DL Drop Jump 30 cm': DROP_JUMP_VARIABLES,
   'DL Drop Jump 45 cm': DROP_JUMP_VARIABLES,
+  'SL Hop Test': SL_HOP_VARIABLES,
+  'SL Drop Jump 30 cm': SL_DROP_JUMP_VARIABLES,
 };
+
+// Tests que aparecen en versiones posteriores del catálogo: hay que CREARLOS en las bases que ya estaban sembradas, no solo añadir sus variables.
+export const TESTS_POSTERIORES = ['SL Hop Test', 'SL Drop Jump 30 cm'];
+
+// Variables que creó la versión 13 del catálogo para esos dos tests y que el fichero definitivo de VALD (14/11/2026) no trae: se retiran.
+const VARIABLES_RETIRADAS = [
+  ['SL Hop Test', 'MEAN RSI (JUMP HEIGHT / CONTACT TIME)'], ['SL Hop Test', 'MEAN IMPULSE'],
+  ['SL Drop Jump 30 cm', 'RSI (JUMP HEIGHT / CONTACT TIME)'],
+];
 
 // Run-Specific Iso-Push: Peak Force (N), relativo (SW en Hip, BW en Knee y Ankle) y asimetría; RFD at 100 ms sin unidad ni fórmula.
 const ISO_PUSH = {
@@ -106,7 +134,7 @@ const ISO_PUSH = {
   'Run-Specific Ankle Iso-Push': { rel: 'REL_BW', relName: 'Peak Force relativo (BW)', relUnit: 'BW' },
   // 7 de noviembre de 2026: las mismas variables se aplican a estos dos tests. Hip → SW (29 %); el calf raise sentado usa otra variante de SW (5 % del peso corporal).
   'Supine Isometric 90°/90° Leg Curl Test': { rel: 'REL_SW', relName: 'Peak Force relativo (SW)', relUnit: 'SW' },
-  'Single-Leg Seated Calf Raise': { rel: 'REL_SW', relName: 'Peak Force relativo (SW)', relUnit: 'SW', factor: 0.05, relNotes: 'SW de este test = 5 % del peso corporal (variante indicada por el usuario el 7/11; sin fuente verificada).' },
+  'Seated Calf Raise Iso-Push': { rel: 'REL_SW', relName: 'Peak Force relativo (SW)', relUnit: 'SW', factor: 0.05, relNotes: 'SW de este test = 5 % del peso corporal (variante indicada por el usuario el 7/11; sin fuente verificada).' },
 };
 
 // Variables explosivas del Run-Specific Iso-Push (PDF de VALD): RFD at 100 ms (N/s) y Force at 100 ms (N); ambas en Explosive Strength.
@@ -115,7 +143,7 @@ const ISO_EXPLOSIVE = [
   { name: 'Force at 100 ms', unit: 'N', sides: 'LR', manifestation: 'Explosive Strength', notes: '' },
 ];
 const OLD_RFD_NOTE = 'Unidad y fórmula relativa pendientes de definir por el usuario.';
-const ISO_HOLD_TESTS = ['Hip Iso-Hold 20 s', 'Knee Iso-Hold 20 s', 'Ankle Iso-Hold 20 s', 'Single-Leg Seated Calf Raise Iso-Hold 20 s'];
+const ISO_HOLD_TESTS = ['Hip Iso-Hold 20 s', 'Knee Iso-Hold 20 s', 'Ankle Iso-Hold 20 s', 'Seated Calf Raise Iso-Hold 20 s'];
 
 export const CATALOG_TABLES = ['blocks', 'manifestations', 'zones', 'tests', 'protocols', 'variables', 'formulaHistory'];
 
@@ -212,7 +240,7 @@ export const LOWER_IS_BETTER = /^((mean )?contact time|ecc decel phase duration|
 async function defaultDirections(db, ts) {
   const all = await db.variables.toArray();
   const perim = new Set((await db.tests.toArray()).filter((t) => ['perimetros', 'nme'].includes(t.blockKey)).map((t) => t.id)); // perímetros y NME: sin dirección definida por el usuario
-  const todo = all.filter((v) => (v.direction ?? null) === null && v.unit !== '%' && !perim.has(v.testId));
+  const todo = all.filter((v) => (v.direction ?? null) === null && v.unit !== '%' && !perim.has(v.testId) && !SIN_DIRECCION.includes(String(v.name ?? '').toUpperCase()));
   for (const v of todo) await db.variables.update(v.id, { direction: LOWER_IS_BETTER.test(v.name) ? 'lower' : 'higher', updatedAt: ts }); // tiempo de contacto: más bajo es mejor (D50)
   if (todo.length) await audit(db, 'catalogo-direccion-por-defecto', { cantidad: todo.length, direccion: 'higher', excepciones: 'contact time = lower', excluye: 'asimetrias (%)' });
   return todo.length;
@@ -427,6 +455,19 @@ async function migrateCatalog(db, prev) {
       else { await db.tests.update(dup.id, { name: 'Ankle Iso-Hold 20 s', archived: false, updatedAt: ts }); res.duplicadoEliminado = true; }
       tests = await db.tests.toArray();
     }
+    // 2 bis) Tests que no existían cuando se sembró esta base (14/11/2026: SL Hop Test y SL Drop Jump 30 cm). Se crean en su manifestación,
+    // y el paso siguiente les añade las variables. Si el usuario ya los había creado a mano (con ese nombre o uno equivalente), no se duplican.
+    for (const nombre of TESTS_POSTERIORES) {
+      if (tests.some((t) => mismoTest(t.name, nombre))) continue;
+      const fila = TESTS.find(([, , nombres]) => nombres.some((n) => mismoTest(n, nombre)));
+      const man = fila ? manByName(fila[1]) : null;
+      const zona = fila && fila[0] ? (await db.zones.toArray()).find((z) => lc(z.name) === lc(fila[0])) : null;
+      const torder = (await db.tests.orderBy('order').last())?.order ?? 0;
+      await db.tests.add({ name: nombre, blockKey: 'fuerza', manifestationId: man?.id ?? null, zoneId: zona?.id ?? null, notes: '', archived: false, order: torder + 1, createdAt: ts, updatedAt: ts, source: 'inicial' });
+      res.testsAnadidos = (res.testsAnadidos ?? 0) + 1;
+    }
+    if (res.testsAnadidos) tests = await db.tests.toArray();
+
     // 3) Variables y unidades
     let order = (await db.variables.orderBy('order').last())?.order ?? 0;
     // también por nombre normalizado: un test renombrado por el usuario sigue recibiendo sus variables nuevas (el bloque del duplicado de Ankle,
@@ -457,6 +498,17 @@ async function migrateCatalog(db, prev) {
       }
     };
     for (const [name, specs] of Object.entries(VARIABLES_BY_TEST)) await apply(name, specs);
+
+    // 3 bis) Variables de una versión anterior que ya no corresponden (14/11/2026). Sin ningún dato se borran; con datos se archivan, para no perder nada.
+    for (const [testName, varName] of VARIABLES_RETIRADAS) {
+      const t = tests.find((x) => mismoTest(x.name, testName));
+      if (!t) continue;
+      const sesiones = await db.sessions.where('testId').equals(t.id).toArray();
+      for (const x of (await db.variables.where('testId').equals(t.id).toArray()).filter((y) => lc(y.name) === lc(varName) && y.source === 'inicial')) {
+        if (sesiones.some((ses) => ses.values?.[x.id] && Object.keys(ses.values[x.id]).length)) { await db.variables.update(x.id, { archived: true, updatedAt: ts }); res.variablesArchivadas = (res.variablesArchivadas ?? 0) + 1; }
+        else { await db.variables.delete(x.id); res.variablesRetiradas = (res.variablesRetiradas ?? 0) + 1; }
+      }
+    }
     const maxIsoId = maxIso?.id ?? null;
     for (const [name, cfg] of Object.entries(ISO_PUSH)) {
       const t = testByName(name);

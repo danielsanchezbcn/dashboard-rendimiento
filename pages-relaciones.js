@@ -1,4 +1,5 @@
 // pages-relaciones.js — fase 6: DSI y EUR (con orientación de fuerza) y ORZ en la pantalla del test correspondiente (orientativos; toda la historia siempre).
+import { mismoTest } from './nombres.js';
 import { html, useState } from './libs.js';
 import { useApp } from './context.js';
 import { useLoad } from './componentes.js';
@@ -73,11 +74,13 @@ function Cuadrante({ titulo, xLabel, yLabel, bg, cutX, cutY, mine, n, minN, nomb
 const Orient = ({ o }) => (!o ? '—' : o.text ? html`<span><strong>${o.text}</strong>${o.kneeNote ? html`<br /><span class="status warn">${o.kneeNote}</span>` : null}</span>` : html`<span class="muted">${o.reason}</span>`);
 
 // DSI en las pantallas de Knee Iso-Push y SL CMJ; EUR en las de CMJ y Squat Jump (9/11/2026). Detalle y comparación, solo con el cursor.
-const DSI_TESTS = ['run-specific knee iso-push', 'sl cmj'];
-const EUR_TESTS = ['cmj', 'squat jump'];
+// Se compara con `mismoTest`, no letra a letra: si el usuario renombra el test (p. ej. «Run-Specific Knee Iso-Push» → «Knee Iso-Push»),
+// el DSI tiene que seguir apareciendo en su pantalla (14/11/2026).
+export const DSI_TESTS = ['Run-Specific Knee Iso-Push', 'SL CMJ'];
+export const EUR_TESTS = ['CMJ', 'Squat Jump'];
 export function RelacionTest({ player, test }) {
-  const name = String(test.name ?? '').trim().toLowerCase();
-  const isDsi = DSI_TESTS.includes(name), isEur = EUR_TESTS.includes(name);
+  const name = test.name;
+  const isDsi = DSI_TESTS.some((n) => mismoTest(n, name)), isEur = EUR_TESTS.some((n) => mismoTest(n, name));
   if (!isDsi && !isEur) return null;
   return html`<${RelacionTestCarga} player=${player} isDsi=${isDsi} />`;
 }
@@ -119,11 +122,11 @@ function RelacionTestCarga({ player, isDsi }) {
 
 // Ratios del Excel del usuario (9/11/2026): Personal Best ÷ Personal Best. Tobillo (inversión÷eversión, izquierda, derecha y asimetría) en las pantallas de inversión y eversión;
 // cadera (aducción 0° ÷ abducción 0°, palanca larga, valor único) en las de aducción 0° y abducción 0°. Color de posición en La Liga (sin dirección «mejor/peor»).
-const ANKLE_TESTS = ['supine isometric ankle inversion', 'supine isometric ankle eversion'];
-const HIP_TESTS = ['hip adduction 0° (long lever)', 'hip abduction 0° (long lever)'];
+export const ANKLE_TESTS = ['supine isometric ankle inversion', 'supine isometric ankle eversion'];
+export const HIP_TESTS = ['hip adduction 0° (long lever)', 'hip abduction 0° (long lever)'];
 export function RatioTest({ player, test }) {
-  const name = String(test.name ?? '').trim().toLowerCase();
-  const isAnkle = ANKLE_TESTS.includes(name), isHip = HIP_TESTS.includes(name);
+  const name = test.name;
+  const isAnkle = ANKLE_TESTS.some((n) => mismoTest(n, name)), isHip = HIP_TESTS.some((n) => mismoTest(n, name));
   if (!isAnkle && !isHip) return null;
   return html`<${RatioTestCarga} player=${player} isAnkle=${isAnkle} />`;
 }
@@ -155,9 +158,9 @@ function RatioTestCarga({ player, isAnkle }) {
 }
 
 // ORZ solo en las pantallas de DL Drop Jump 30 cm y 45 cm (9/11/2026).
-const DJ_TESTS = ['dl drop jump 30 cm', 'dl drop jump 45 cm'];
+export const DJ_TESTS = ['dl drop jump 30 cm', 'dl drop jump 45 cm'];
 export function OrzTest({ test, player }) {
-  if (!DJ_TESTS.includes(String(test.name ?? '').trim().toLowerCase())) return null;
+  if (!DJ_TESTS.some((n) => mismoTest(n, test.name))) return null;
   return html`<${OrzCarga} player=${player} />`;
 }
 function OrzCarga({ player }) {

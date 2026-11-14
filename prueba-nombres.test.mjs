@@ -17,6 +17,7 @@ import { findNatera } from './natera.js';
 import { findPremier } from './premier.js';
 import { profileForTest } from './radar.js';
 import { pairNameOf } from './isohold.js';
+import { DSI_TESTS, EUR_TESTS, ANKLE_TESTS, HIP_TESTS, DJ_TESTS } from './pages-relaciones.js';
 
 let fail = 0; const check = (n, ok, d = '') => { console.log((ok ? 'OK   ' : 'FAIL ') + n + (ok ? '' : ' ' + d)); if (!ok) fail = 1; };
 
@@ -75,6 +76,11 @@ for (const t of cat.tests) { const m = new Map(); for (const v of cat.variables.
 check('catálogo: no hay dos variables activas con el mismo nombre dentro de un test', choquesVar.length === 0, choquesVar.join(' | '));
 
 
+// ---- 8 bis. Los cuadros que aparecen SOLO en ciertos tests (DSI, EUR, ratios de tobillo y cadera, ORZ) también localizan por nombre.
+const PANELES = [['DSI', DSI_TESTS], ['EUR', EUR_TESTS], ['ratio de tobillo', ANKLE_TESTS], ['ratio de cadera', HIP_TESTS], ['ORZ', DJ_TESTS]];
+const sinPanel = PANELES.flatMap(([q, ns]) => ns.filter((n) => !test(n)).map((n) => `${q}: ${n}`));
+check('pages-relaciones.js: los tests de los cuadros DSI, EUR, ratios y ORZ existen', sinPanel.length === 0, sinPanel.join(' | '));
+
 // ---- 9. Renombrar quitando «Run-Specific» y pasando «Double-Leg» a «DL» no puede romper nada (plan del usuario, 14/11/2026).
 // Estos dos cambios son invisibles para el normalizador, así que todas las búsquedas por nombre tienen que seguir encontrando su test.
 const RENOMBRES = {
@@ -97,6 +103,9 @@ check('tras renombrar: el radar sigue encontrando sus perfiles', RADAR_PROFILES.
 check('tras renombrar: cada iso-hold sigue encontrando su iso-push', Object.keys(ISO_PAIRS).every((hold) => !test2(hold) || !!test2(pairNameOf(hold))), Object.keys(ISO_PAIRS).filter((h) => test2(h) && !test2(pairNameOf(h))).join(', '));
 const sinComposite2 = descs.flatMap((d) => (d.orz ? [CT.dj30, CT.dj45] : [d.test]).filter((tn) => !variable2(tn, nombreVar(d))).map((tn) => `${tn} · ${nombreVar(d)}`));
 check('tras renombrar: las 7 cualidades siguen encontrando sus variables', sinComposite2.length === 0, [...new Set(sinComposite2)].join(' | '));
+const sinPanel2 = PANELES.flatMap(([q, ns]) => ns.filter((n) => !test2(n)).map((n) => `${q}: ${n}`));
+check('tras renombrar: los cuadros DSI, EUR, ratios y ORZ siguen apareciendo en su test', sinPanel2.length === 0, sinPanel2.join(' | '));
+check('tras renombrar: los dos tests de una pierna nuevos siguen siendo distintos de los de dos piernas', !mismoTest('SL Hop Test', 'DL Hop Test') && !mismoTest('SL Drop Jump 30 cm', 'DL Drop Jump 30 cm') && !!test2('SL Hop Test') && !!test2('SL Drop Jump 30 cm'));
 check('tras renombrar: el perfil del radar del Hop y los Drop Jump sigue existiendo', ['DL Hop Test', 'DL Drop Jump 30 cm', 'DL Drop Jump 45 cm', 'CMJ'].every((n) => profileForTest(n)));
 
 process.exit(fail);

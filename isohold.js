@@ -12,7 +12,7 @@ export const ISO_PAIRS = {
   'Hip Iso-Hold 20 s': 'Run-Specific Hip Iso-Push',
   'Knee Iso-Hold 20 s': 'Run-Specific Knee Iso-Push',
   'Ankle Iso-Hold 20 s': 'Run-Specific Ankle Iso-Push',
-  'Single-Leg Seated Calf Raise Iso-Hold 20 s': 'Single-Leg Seated Calf Raise',
+  'Seated Calf Raise Iso-Hold 20 s': 'Seated Calf Raise Iso-Push',
 };
 // Búsqueda de la pareja por nombre, tolerante a cómo esté escrito el test en el catálogo de cada base: no distingue mayúsculas, espacios sobrantes ni
 // el prefijo «Run-Specific», que algunos Iso-Hold llevan delante («Run-Specific Hip Iso-Hold 20 s» es el mismo test que «Hip Iso-Hold 20 s»; la migración

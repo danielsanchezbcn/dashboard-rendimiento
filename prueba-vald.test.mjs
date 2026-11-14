@@ -51,7 +51,7 @@ check('código desconocido rechazado', !V.parseValdGrid(grid.map((r, i) => (i ? 
     fila('Jug. Sintetico A', '08/07/2024', '10:25 AM', '13.99', '8', '', '656', '656', '', '', '322', '322', '', '', '445', '445', '', '')];
   const r = V.parseValdGrid(gridC, cat);
   const gr = r.groups?.[0];
-  check('VALD: el Single-Leg Seated Calf Raise se reconoce y va a su test', r.ok && r.codes[0] === 'SLSEICR' && gr.testName === 'Single-Leg Seated Calf Raise' && gr.rows.length === 2 && gr.rows.every((x) => x.ok), r.error ?? JSON.stringify(gr?.rows?.map((x) => x.issues)));
+  check('VALD: el seated calf raise iso-push se reconoce y va a su test', r.ok && r.codes[0] === 'SLSEICR' && gr.testName === 'Seated Calf Raise Iso-Push' && gr.rows.length === 2 && gr.rows.every((x) => x.ok), r.error ?? JSON.stringify(gr?.rows?.map((x) => x.issues)));
   const nom = (id) => cat.variables.find((v) => v.id === Number(id))?.name;
   const v1 = Object.fromEntries(Object.entries(gr.rows[0].values).map(([id, val]) => [nom(id), val]));
   check('VALD calf raise: Peak Force, Force at 100 ms y RFD at 100 ms por lado', v1['Peak Force'].L === 1308 && v1['Peak Force'].R === 1435 && v1['Force at 100 ms'].R === 574 && v1['RFD at 100 ms'].L === 808 && gr.rows[0].reps.L === 2);
@@ -119,17 +119,18 @@ check('SJ: carga adicional > 0 y LSJ omitidos', rs.ok && rs.groups[0].rows.lengt
   const again = await I.seedInitialCatalog(dbm);
   check('catálogo ya alineado: la migración no cambia nada (idempotente)', (again.unidadesAlineadas ?? 0) === 0);
 }
-// El mismo test escrito de otra forma en el catálogo del usuario (13/11/2026): «SL Seated Calf Raise» en vez de «Single-Leg Seated Calf Raise».
+// El mismo test escrito de otra forma en el catálogo del usuario: el nombre de fábrica es «Seated Calf Raise Iso-Push» y el usuario lo tenía
+// como «Single-Leg Seated Calf Raise» (y lo renombró el 14/11/2026). Las dos formas tienen que reconocerse igual.
 {
   const dbn = D.createDb('v-nombres'); await D.initDb(dbn); await I.seedInitialCatalog(dbn);
-  const tc = (await dbn.tests.toArray()).find((x) => x.name === 'Single-Leg Seated Calf Raise');
-  await dbn.tests.update(tc.id, { name: 'SL Seated Calf Raise' });
+  const tc = (await dbn.tests.toArray()).find((x) => x.name === 'Seated Calf Raise Iso-Push');
+  await dbn.tests.update(tc.id, { name: 'Single-Leg Seated Calf Raise' });
   const catn = await C.listCatalog(dbn);
   const cab2 = ['Name', 'ExternalId', 'Test Type', 'Date', 'Time', 'BW [KG]', 'Reps (L)', 'Reps (R)', 'Tags', 'Peak Vertical Force [N] ', 'Peak Vertical Force [N] (L)', 'Peak Vertical Force [N] (R)', 'Peak Vertical Force [N] (Asym)(%)'];
   const g2 = [cab2, ['Jug. Sintetico A', '', 'SLSEICR', '12/11/2026', '10:33 AM', '7.6', '2', '2', '', '1372', '1308', '1435', '8.9 R']];
   const rn = V.parseValdGrid(g2, catn);
-  check('VALD: el test renombrado «SL Seated Calf Raise» se reconoce igual', rn.ok && rn.groups[0].testId === tc.id && rn.groups[0].rows[0].ok && Object.keys(rn.groups[0].rows[0].values).length >= 1, rn.error ?? JSON.stringify({ g: rn.groups?.[0]?.testId, t: tc.id }));
-  await dbn.tests.update(tc.id, { name: 'SL Seated Calf Raise', archived: true });
+  check('VALD: el nombre anterior «Single-Leg Seated Calf Raise» se reconoce igual', rn.ok && rn.groups[0].testId === tc.id && rn.groups[0].rows[0].ok && Object.keys(rn.groups[0].rows[0].values).length >= 1, rn.error ?? JSON.stringify({ g: rn.groups?.[0]?.testId, t: tc.id }));
+  await dbn.tests.update(tc.id, { name: 'Single-Leg Seated Calf Raise', archived: true });
   const ra = V.parseValdGrid(g2, await C.listCatalog(dbn));
   check('VALD: si el test está archivado, el aviso lo dice', !ra.ok && /archivado/.test(ra.error ?? JSON.stringify(ra.problems ?? [])), ra.error ?? JSON.stringify(ra.problems ?? []));
   await dbn.tests.delete(tc.id);
@@ -160,5 +161,43 @@ check('SJ: carga adicional > 0 y LSJ omitidos', rs.ok && rs.groups[0].rows.lengt
   const ses = await dbm.sessions.toArray();
   check('fusión: «reemplazar» deja la sesión fusionada y no crea otra', rr.counts.conflictosReemplazados === 1 && ses.length === 2 && ses.some((x) => x.time === '12:42' && x.values[catm.variables.find((v) => v.name === 'Peak Force' && v.testId === ses[0].testId).id].L === 1100));
 }
+
+// ---------- SL Hop Test y SL Drop Jump 30 cm (ficheros del usuario del 14/11/2026): vienen por pierna, con columnas (L) y (R) ----------
+// Cabeceras idénticas a las de sus ficheros —incluidos los dobles espacios del RSI, que no llevan unidad—, con jugadores sintéticos.
+// La asimetría NO se importa: la calcula el dashboard a partir de los dos lados.
+const JUG = (n) => `JUGADOR SINTÉTICO ${n}, nombre completo VALD ficticio`;
+const colsSL = (base) => [`${base} `, `${base} (L)`, `${base} (R)`, `${base} (Asym)(%)`];
+const gridHop = [
+  ['Name', 'ExternalId', 'Test Type', 'Date', 'Time', 'BW [KG]', 'Reps (L)', 'Reps (R)', 'Tags',
+    ...colsSL('Mean RSI (Flight/Contact Time) '), ...colsSL('Mean Jump Height (Flight Time) [cm]'), ...colsSL('Mean Contact Time [ms]'),
+    ...colsSL('Mean Peak Power [W]'), ...colsSL('Mean Peak Force [N]'), ...colsSL('Mean Active Stiffness [N/m]'), ...colsSL('Mean Landing RFD [N/s]')],
+  [JUG('A'), 'SYN- ', 'SLHJ', '10/03/2026', '10:30 AM', '80.0', '1', '2', '', '1.19', '1.17', '1.20', '2.7 R', '8.3', '7.4', '8.8', '15 R', '219', '211', '223', '5.2 R',
+    '3105.0', '2963.0', '3177.0', '6.7 R', '3107', '3415', '2953', '14 L', '40810.0', '52970.0', '34730.0', '34 L', '38840', '49790', '33370', '33 L'],
+  [JUG('B'), 'SYN- ', 'SLHJ', '10/03/2026', '10:35 AM', '80.0', '2', '2', '', '1.21', '1.21', '1.21', '0.7 R', '12.1', '13.5', '10.7', '21 L', '259', '276', '243', '12 L',
+    '3771.0', '3507.0', '4035.0', '13 R', '2869', '2893', '2844', '1.7 L', '29270.0', '24760.0', '33790.0', '27 R', '33600', '31930', '35260', '9.4 R'],
+];
+const hop = V.parseValdGrid(gridHop, await C.listCatalog(db));
+const hopG = hop.groups?.[0] ?? {};
+check('SL Hop Test: el código SLHJ lo reconoce', hop.ok && hop.codes[0] === 'SLHJ' && hopG.testName === 'SL Hop Test', hop.error ?? hopG.testName);
+check('SL Hop Test: las siete variables, por lado', Object.keys(hopG.rows?.[0]?.values ?? {}).length === 7 && hopG.rows[0].reps?.L === 1 && hopG.rows[0].reps?.R === 2 && Object.values(hopG.rows[0].values).every((v) => 'L' in v && 'R' in v), JSON.stringify(hopG.rows?.[0]?.values));
+check('SL Hop Test: no se importan las columnas de asimetría ni la media sin lado', hop.ignored.some((h) => /Asym/.test(h)) && hop.ignored.some((h) => h === 'Mean RSI (Flight/Contact Time)'), JSON.stringify(hop.ignored).slice(0, 200));
+{
+  const cat = await C.listCatalog(db);
+  const vRsi = cat.variables.find((v) => v.name === 'MEAN RSI (FLIGHT TIME / CONTACT TIME)' && cat.tests.find((t) => t.id === v.testId)?.name === 'SL Hop Test');
+  const vRfd = cat.variables.find((v) => v.name === 'MEAN LANDING RFD' && cat.tests.find((t) => t.id === v.testId)?.name === 'SL Hop Test');
+  const r = hopG.rows?.[0];
+  check('SL Hop Test: izquierda y derecha se guardan por separado, también la última columna', Math.abs(r.values[vRsi.id].L - 1.17) < 1e-9 && Math.abs(r.values[vRsi.id].R - 1.20) < 1e-9 && r.values[vRfd.id].L === 49790 && r.values[vRfd.id].R === 33370, JSON.stringify([r.values[vRsi.id], r.values[vRfd.id]]));
+}
+const gridDj = [
+  ['Name', 'ExternalId', 'Test Type', 'Date', 'Time', 'BW [KG]', 'Reps (L)', 'Reps (R)', 'Tags', 'Drop Height [cm]',
+    ...colsSL('RSI (Flight Time/Contact Time) '), ...colsSL('Jump Height (Flight Time) [cm]'), ...colsSL('Contact Time [s]'),
+    ...colsSL('Eccentric Impulse [N s]'), ...colsSL('Concentric Impulse [N s]'), ...colsSL('Active Stiffness [N/m]'), ...colsSL('Drop Landing [s]')],
+  [JUG('A'), 'SYN- ', 'SLDJ', '10/03/2026', '11:30 AM', '80.0', '3', '3', '', '30', '1.21', '0.99', '1.44', '31 R', '12.9', '9.9', '15.9', '38 R', '0.269', '0.286', '0.252', '12 L',
+    '170.5', '170.3', '170.6', '0.2 R', '47.7', '26.9', '68.5', '61 R', '8765.00', '6998.00', '10530.00', '34 R', '215.700', '220.400', '211.000', '4.3 L'],
+];
+const dj = V.parseValdGrid(gridDj, await C.listCatalog(db));
+check('SL Drop Jump: SLDJ con 30 cm de caída va al test de 30 cm y trae sus siete variables', dj.ok && dj.groups?.[0]?.testName === 'SL Drop Jump 30 cm' && Object.keys(dj.groups[0].rows[0].values).length === 7, dj.error ?? JSON.stringify(dj.groups?.[0]?.testName));
+const dj45 = V.parseValdGrid(gridDj.map((r, i) => (i ? r.map((c, k) => (k === 9 ? '45' : c)) : r)), await C.listCatalog(db));
+check('SL Drop Jump: una caída de 45 cm se descarta con su motivo', !dj45.groups?.length || dj45.skipped?.some((s) => /45 cm/.test(s.reason ?? s)), JSON.stringify(dj45.skipped ?? dj45.error).slice(0, 160));
 
 process.exit(failed ? 1 : 0);

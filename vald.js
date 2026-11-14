@@ -49,6 +49,27 @@ const DJ = [
   s('Concentric Impulse [N s]', 'CONCENTRIC IMPULSE', 'N s'), s('Concentric Impulse % (Asym) (%)', 'CONCENTRIC IMPULSE ASYMMETRY', '%'), s('Active Stiffness [N/m]', 'ACTIVE STIFFNESS', 'N/m'),
   s('Active Stiffness % (Asym) (%)', 'ACTIVE STIFFNESS ASYMMETRY', '%'), s('Drop Landing RFD % (Asym) (%)', 'DROP LANDING RFD ASYMMETRY', '%'), s('Peak Drop Landing Force % (Asym) (%)', 'PEAK DROP LANDING FORCE ASYMMETRY', '%'),
 ];
+// Single-Leg Hop Test y Single-Leg Drop Jump (ficheros definitivos del usuario, 14/11/2026): vienen POR PIERNA, con columnas «(L)» y «(R)» como el
+// SL CMJ, así que la asimetría la calcula el dashboard a partir de los dos lados y no se importan sus columnas «(Asym)».
+// El RSI es tiempo de vuelo / tiempo de contacto, el mismo de las pruebas de dos piernas, y llega sin unidad en la cabecera.
+const SL_HOP = [
+  s('Mean RSI (Flight/Contact Time)', 'MEAN RSI (FLIGHT TIME / CONTACT TIME)'),
+  s('Mean Jump Height (Flight Time) [cm]', 'MEAN JUMP HEIGHT (Flight Time) (cm)', 'cm'),
+  s('Mean Contact Time [ms]', 'MEAN CONTACT TIME', 'ms'),
+  s('Mean Peak Power [W]', 'MEAN PEAK POWER', 'W'),
+  s('Mean Peak Force [N]', 'MEAN PEAK FORCE', 'N'),
+  s('Mean Active Stiffness [N/m]', 'MEAN ACTIVE STIFFNESS', 'N/m'),
+  s('Mean Landing RFD [N/s]', 'MEAN LANDING RFD', 'N/s'),
+];
+const SL_DJ = [
+  s('RSI (Flight Time/Contact Time)', 'RSI (FLIGHT TIME / CONTACT TIME)'),
+  s('Jump Height (Flight Time) [cm]', 'JUMP HEIGHT (Flight Time - cm)', 'cm'),
+  s('Contact Time [s]', 'CONTACT TIME', 's'),
+  s('Eccentric Impulse [N s]', 'ECCENTRIC IMPULSE', 'N s'),
+  s('Concentric Impulse [N s]', 'CONCENTRIC IMPULSE', 'N s'),
+  s('Active Stiffness [N/m]', 'ACTIVE STIFFNESS', 'N/m'),
+  s('Drop Landing [s]', 'DROP LANDING', 's'),
+];
 const SJ = [s('Jump Height (Imp-Mom) [cm]', 'JH (imp-mom)', 'cm'), s('RSI-modified (Imp-Mom) [m/s]', 'RSI MOD', 'm/s'), s('Concentric Impulse-100ms [N s]', 'CON IMPULSE 100ms', 'N s'), s('Concentric RFD - 100ms [N/s]', 'CON RFD 100ms', 'N/s')];
 
 // mode: 'LR' = un valor por lado (columnas «(L)» y «(R)», repeticiones por lado); 'S' = un único valor (columna «Reps»)
@@ -57,13 +78,15 @@ export const VALD_PROFILES = {
   'Run-Specific Knee Iso-Push': { mode: 'LR', cols: ISO },
   'Run-Specific Ankle Iso-Push': { mode: 'LR', cols: ISO },
   'Supine Isometric 90°/90° Leg Curl Test': { mode: 'LR', cols: ISO },
-  'Single-Leg Seated Calf Raise': { mode: 'LR', cols: ISO },
+  'Seated Calf Raise Iso-Push': { mode: 'LR', cols: ISO },
   'CMJ': { mode: 'S', cols: [...CMJ_COLS, ...CMJ_ONLY] },
   'SL CMJ': { mode: 'LR', cols: [...CMJ_COLS, ...SL_ONLY] },
   'Squat Jump': { mode: 'S', cols: SJ },
   'Double-Leg Hop Test': { mode: 'S', cols: HOP },
   'DL Drop Jump 30 cm': { mode: 'S', cols: DJ },
   'DL Drop Jump 45 cm': { mode: 'S', cols: DJ },
+  'SL Hop Test': { mode: 'LR', cols: SL_HOP },
+  'SL Drop Jump 30 cm': { mode: 'LR', cols: SL_DJ },
   // NordBord: columnas con nombre propio por lado; la asimetría (valor único, con signo) se calcula con D25 a partir del Max Force de la sesión (también tras fusionar).
   'Nordic Hamstring Exercise': { mode: 'LR', format: 'nordbord', reps: { L: 'L Reps', R: 'R Reps' }, asym: 'Max Force Asymmetry', asymFrom: 'Max Force',
     cols: [{ h: 'Max Force', v: 'Max Force', u: 'N', names: { L: 'L Max Force (N)', R: 'R Max Force (N)' } }, { h: 'Torque', v: 'Torque', u: 'Nm', names: { L: 'L Max Torque (Nm)', R: 'R Max Torque (Nm)' } }] },
@@ -91,9 +114,11 @@ export function parseAsym(v) {
 
 export const VALD_CODES = {
   RSHIP: fixed('Run-Specific Hip Iso-Push'), RSKIP: fixed('Run-Specific Knee Iso-Push'), RSAIP: fixed('Run-Specific Ankle Iso-Push'),
-  SLHNNI: fixed('Supine Isometric 90°/90° Leg Curl Test'), SLSEICR: fixed('Single-Leg Seated Calf Raise'),
+  SLHNNI: fixed('Supine Isometric 90°/90° Leg Curl Test'), SLSEICR: fixed('Seated Calf Raise Iso-Push'),
   Nordic: fixed('Nordic Hamstring Exercise'), SLJ: fixed('SL CMJ'), CMJ: fixed('CMJ'), SJ: fixed('Squat Jump'), HJ: fixed('Double-Leg Hop Test'),
   DJ: (r) => (r.dropHeight === 30 ? { test: 'DL Drop Jump 30 cm' } : r.dropHeight === 45 ? { test: 'DL Drop Jump 45 cm' } : { skip: `altura de caída ${r.dropHeight === null ? 'sin dato' : r.dropHeight + ' cm'} (el catálogo solo tiene 30 y 45 cm)` }),
+  SLHJ: fixed('SL Hop Test'),
+  SLDJ: (r) => (r.dropHeight === 30 ? { test: 'SL Drop Jump 30 cm' } : { skip: `altura de caída ${r.dropHeight === null ? 'sin dato' : r.dropHeight + ' cm'} (de una pierna el catálogo solo tiene 30 cm)` }),
 };
 
 const FIXED_COLS = ['Name', 'Test Type', 'Date', 'Time'];

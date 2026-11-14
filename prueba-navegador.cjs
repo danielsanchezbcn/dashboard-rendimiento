@@ -172,6 +172,14 @@ const server = http.createServer((req, res) => {
     const primero = await page.evaluate(() => { const e = document.querySelector('.evo')?.firstElementChild; return e ? (e.className || e.tagName) : ''; });
     check(`${nm}: el cuadrante va arriba del todo`, /refs/.test(primero), primero);
   }
+  // El DSI del Knee Iso-Push va al final de su pantalla, y tiene que seguir ahí aunque el usuario renombre el test (14/11/2026).
+  const hayDsi = () => page.evaluate(() => [...document.querySelectorAll('.evo h4')].some((h) => /^DSI \(Dynamic Strength Index\)/.test(h.textContent.trim())));
+  const dsiAlFinal = () => page.evaluate(() => { const sec = [...document.querySelectorAll('.evo section')].find((x) => /^DSI \(Dynamic Strength Index\)/.test(x.querySelector('h4')?.textContent.trim() ?? '')); if (!sec) return null; const hijos = [...document.querySelector('.evo').children]; return hijos.indexOf(sec.closest('.evo > *')) >= hijos.length - 4; });
+  await go(`#jugador-${P}?t=${t.kpush}&b=fuerza`, '.evo');
+  check('Knee Iso-Push: el DSI aparece y va al final de la pantalla', (await hayDsi()) && (await dsiAlFinal()) === true);
+  await page.evaluate((id) => new Promise((res, rej) => { const q = indexedDB.open('dashboard-rendimiento'); q.onsuccess = () => { const d = q.result; const tx = d.transaction('tests', 'readwrite'); const st = tx.objectStore('tests'); const g = st.get(id); g.onsuccess = () => { const v = g.result; v.name = 'Knee Iso-Push'; st.put(v); }; tx.oncomplete = () => { d.close(); res(); }; tx.onerror = () => rej(tx.error); }; q.onerror = () => rej(q.error); }), t.kpush);
+  await page.reload(); await page.waitForSelector('.evo');
+  check('Knee Iso-Push: tras renombrarlo a «Knee Iso-Push», el DSI sigue apareciendo', await hayDsi());
   for (const key of ['cmj', 'sl', 'sj', 'hop', 'dj']) { // Squat Jump también tiene RSI MOD en el catálogo, así que también arranca en RSI
     await go(`#jugador-${P}?t=${t[key]}&b=fuerza`, '.evo');
     const sel = await page.evaluate(() => { const l = [...document.querySelectorAll('.evo .filters label')].find((x) => /^Variable/.test(x.textContent.trim())); const s = l?.querySelector('select'); return s ? s.options[s.selectedIndex].text : ''; });

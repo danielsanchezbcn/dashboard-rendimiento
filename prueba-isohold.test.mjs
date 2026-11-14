@@ -30,8 +30,8 @@ check('Hip: %SW = carga ÷ (0,29 × masa más cercana a hoy: 90 kg) × 100', clo
 e = await run('Knee Iso-Hold 20 s', 'Run-Specific Knee Iso-Push', [push('Run-Specific Knee Iso-Push', 1, '2026-01-10', 2000, 2400)], [hold('Knee Iso-Hold 20 s', 10, 60)]);
 check('Knee: MVIC con factor 1 (BW) y %BW con la masa más cercana a hoy', close(val(e, 0, 'Knee Iso-Hold 20 s', 'MVIC iso-push (kg)'), 2200 / G - 80) && close(val(e, 0, 'Knee Iso-Hold 20 s', '%BW'), (60 / 90) * 100));
 // Talones sentado: factor 0,05 tomado de la variable relativa del Iso-Push emparejado
-e = await run('Single-Leg Seated Calf Raise Iso-Hold 20 s', 'Single-Leg Seated Calf Raise', [push('Single-Leg Seated Calf Raise', 1, '2026-01-10', 1000, 1200)], [hold('Single-Leg Seated Calf Raise Iso-Hold 20 s', 10, 20)]);
-check('Talones sentado: factor 0,05 del Iso-Push emparejado (MVIC y %SW)', close(val(e, 0, 'Single-Leg Seated Calf Raise Iso-Hold 20 s', 'MVIC iso-push (kg)'), 1100 / G - 0.05 * 80) && close(val(e, 0, 'Single-Leg Seated Calf Raise Iso-Hold 20 s', '%SW'), (20 / (0.05 * 90)) * 100));
+e = await run('Seated Calf Raise Iso-Hold 20 s', 'Seated Calf Raise Iso-Push', [push('Seated Calf Raise Iso-Push', 1, '2026-01-10', 1000, 1200)], [hold('Seated Calf Raise Iso-Hold 20 s', 10, 20)]);
+check('Talones sentado: factor 0,05 del Iso-Push emparejado (MVIC y %SW)', close(val(e, 0, 'Seated Calf Raise Iso-Hold 20 s', 'MVIC iso-push (kg)'), 1100 / G - 0.05 * 80) && close(val(e, 0, 'Seated Calf Raise Iso-Hold 20 s', '%SW'), (20 / (0.05 * 90)) * 100));
 // Ponderación por repeticiones, masa de cada sesión y exclusión
 e = await run('Knee Iso-Hold 20 s', 'Run-Specific Knee Iso-Push', [
   push('Run-Specific Knee Iso-Push', 1, '2026-01-10', 2000, 2000, { L: 5, R: 1, total: 6 }),
@@ -68,7 +68,9 @@ check('peso de referencia: valor y unidad válidos obligatorios', bad === 0);
 check('pareja: nombre exacto', pairNameOf('Knee Iso-Hold 20 s') === 'Run-Specific Knee Iso-Push');
 check('pareja: mayúsculas y espacios no importan', pairNameOf('  hip iso-hold 20 S ') === 'Run-Specific Hip Iso-Push');
 check('pareja: el prefijo «Run-Specific» del Iso-Hold no impide encontrarla (hip, knee y ankle)', ['Hip', 'Knee', 'Ankle'].every((z) => pairNameOf(`Run-Specific ${z} Iso-Hold 20 s`) === `Run-Specific ${z} Iso-Push` && pairNameOf(`${z} Iso-Hold 20 s`) === `Run-Specific ${z} Iso-Push`));
-check('pareja: el talón sentado conserva la suya', pairNameOf('Single-Leg Seated Calf Raise Iso-Hold 20 s') === 'Single-Leg Seated Calf Raise');
-check('pareja: «SL Seated Calf Raise Iso-Hold 20 s» (nombre abreviado del usuario) encuentra la suya', pairNameOf('SL Seated Calf Raise Iso-Hold 20 s') === 'Single-Leg Seated Calf Raise');
+check('pareja: el talón sentado conserva la suya', pairNameOf('Seated Calf Raise Iso-Hold 20 s') === 'Seated Calf Raise Iso-Push');
+// Nombres anteriores del mismo test: el usuario lo renombró el 14/11/2026 y las bases que aún lo tengan escrito como antes tienen que seguir emparejando.
+check('pareja: el nombre anterior «Single-Leg Seated Calf Raise Iso-Hold 20 s» también encuentra la suya', pairNameOf('Single-Leg Seated Calf Raise Iso-Hold 20 s') === 'Seated Calf Raise Iso-Push');
+check('pareja: «SL Seated Calf Raise Iso-Hold 20 s» (nombre abreviado anterior) encuentra la suya', pairNameOf('SL Seated Calf Raise Iso-Hold 20 s') === 'Seated Calf Raise Iso-Push');
 check('pareja: un test que no es Iso-Hold no tiene pareja', pairNameOf('CMJ') === null && pairNameOf(null) === null);
 process.exit(fail);
