@@ -524,10 +524,20 @@ table.pano.norm .badge { white-space: normal; font-size: .68rem; padding: .05rem
 .panorama .filters { align-items: flex-end; }
 .panorama + .pano-wrap, .panorama .pano-wrap + .pano-wrap { margin-top: .8rem; }
 
-/* Asimetrías: 5 columnas; asimetría, valores y fecha centrados bajo su título. */
-table.asim thead th:nth-child(1) { width: 22%; } table.asim thead th:nth-child(2) { width: 30%; } table.asim thead th:nth-child(3) { width: 13%; } table.asim thead th:nth-child(4) { width: 20%; } table.asim thead th:nth-child(5) { width: 15%; }
+/* Asimetrías: 6 columnas (14/11/2026 se añade la comparación con la base); asimetría, valores, comparación y fecha centrados bajo su título.
+   Anchos en % y `table-layout: fixed`: la tabla cabe siempre en el ancho disponible, sin desplazamiento horizontal. */
+table.asim thead th:nth-child(1) { width: 19%; } table.asim thead th:nth-child(2) { width: 24%; } table.asim thead th:nth-child(3) { width: 11%; } table.asim thead th:nth-child(4) { width: 17%; } table.asim thead th:nth-child(5) { width: 16%; } table.asim thead th:nth-child(6) { width: 13%; }
 table.asim thead th:nth-child(n+3), table.asim td.num { text-align: center; }
-table.asim td.asim-fecha { white-space: normal; }
+table.asim th, table.asim td { overflow-wrap: anywhere; }
+table.asim td.asim-fecha, table.asim thead th { white-space: normal; }
+table.asim td.asim-comp { line-height: 1.2; }
+/* Déficits: 7 columnas (14/11/2026 se añade la comparación con la base). Anchos en % para que quepa todo sin desplazamiento horizontal. */
+table.deficits { width: 100%; table-layout: fixed; }
+table.deficits th, table.deficits td { overflow-wrap: anywhere; white-space: normal; padding: .3rem .35rem; font-size: .82rem; }
+table.deficits thead th { text-transform: none; letter-spacing: normal; line-height: 1.15; }
+table.deficits th:nth-child(1) { width: 11%; } table.deficits th:nth-child(2) { width: 20%; } table.deficits th:nth-child(3) { width: 20%; } table.deficits th:nth-child(4) { width: 9%; }
+table.deficits th:nth-child(5) { width: 11%; } table.deficits th:nth-child(6) { width: 15%; } table.deficits th:nth-child(7) { width: 14%; }
+
 /* Enlace «Ver todos los jugadores en este test» dentro de la cabecera fija del test. */
 .test-sticky { flex-wrap: wrap; }
 .test-sticky .sticky-link { margin-left: auto; font-size: .85rem; padding: .25rem .6rem; }
@@ -555,11 +565,12 @@ table.composite { margin: .3rem 0 .2rem; max-width: 60rem; }
 table.composite th[scope="row"] { text-align: left; font-weight: 600; white-space: nowrap; }
 table.composite td { text-align: center; min-width: 6rem; }
 table.composite td.ref { color: var(--muted); font-size: .9rem; }
-/* Desglose (14/11/2026): SEIS columnas (Variable | Percentil La Liga | Valor | Orientation | Fecha | Peso) centradas bajo su encabezado.
-   Letra algo menor para que entren las seis sin romper la línea; la columna «Orientation» es la ancha, por eso lleva el texto a varias líneas. */
-table.composite-det { font-size: .8rem; width: 100%; }
-table.composite-det th, table.composite-det td { text-align: center; vertical-align: middle; }
+/* Desglose (14/11/2026): SIETE columnas centradas bajo su encabezado —Variable | Percentil La Liga | Valor | % comparación | Orientation | Fecha | Peso—.
+   Anchos en % con `table-layout: fixed` y texto a varias líneas: entran todas en pantalla sin desplazamiento horizontal. */
+table.composite-det { font-size: .76rem; width: 100%; table-layout: fixed; }
+table.composite-det th, table.composite-det td { text-align: center; vertical-align: middle; padding: .3rem .25rem; overflow-wrap: anywhere; white-space: normal; }
 table.composite-det th[scope="row"] { font-weight: 500; }
 table.composite-det td.num, table.composite-det th.num { text-align: center; }
-table.composite-det th:nth-child(4), table.composite-det td:nth-child(4) { min-width: 11rem; }
-table.composite-det th:nth-child(1) { min-width: 12rem; }
+table.composite-det thead th { text-transform: none; letter-spacing: normal; line-height: 1.15; }
+table.composite-det th:nth-child(1) { width: 19%; } table.composite-det th:nth-child(2) { width: 11%; } table.composite-det th:nth-child(3) { width: 11%; }
+table.composite-det th:nth-child(4) { width: 13%; } table.composite-det th:nth-child(5) { width: 20%; } table.composite-det th:nth-child(6) { width: 15%; } table.composite-det th:nth-child(7) { width: 11%; }

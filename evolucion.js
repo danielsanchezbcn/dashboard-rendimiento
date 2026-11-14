@@ -107,6 +107,38 @@ export function valorPrevio(sessions, variable, side, filters = {}) {
 // Variación porcentual de «actual» respecto a «referencia» ((actual − referencia) ÷ |referencia| × 100); null si no se puede calcular (sin referencia o referencia 0).
 export const variacionPct = (actual, referencia) => (Number.isFinite(actual) && Number.isFinite(referencia) && referencia !== 0 ? ((actual - referencia) / Math.abs(referencia)) * 100 : null);
 
+// ---- Comparación de la última sesión con la base que se está mostrando (14/11/2026, pedido del usuario: el cuadro de Normative Benchmarking
+// ya lo hacía y se lleva igual a Asimetrías, Déficits y COMPOSITE). DEFINICIÓN ÚNICA: lo que compara cada base y cómo se rotula la columna.
+//   Personal Average → % de la última sesión frente a ese Personal Average · Personal Best → ídem frente al Personal Best · Actual → % frente a la sesión anterior.
+export const ROTULO_COMP = { pa: '% latest session vs Personal Average', pb: '% latest session vs Personal Best', last: '% change vs previous session' };
+export const TIP_COMP = {
+  pa: 'Cambio porcentual del valor de la última sesión frente al Personal Average que se está mostrando, para cada lado.',
+  pb: 'Cambio porcentual del valor de la última sesión frente al Personal Best que se está mostrando, para cada lado.',
+  last: 'Cambio porcentual de la última sesión frente a la sesión válida anterior, para cada lado.',
+};
+export const rotuloComp = (base) => ROTULO_COMP[base] ?? ROTULO_COMP.pa;
+
+// «+3,1 %» / «−2,0 %» (el signo solo si el valor redondeado no es 0). null si no hay variación.
+export function fmtVar(p) {
+  if (p === null || p === undefined || !Number.isFinite(p)) return null;
+  const r = Math.round(Math.abs(p) * 10) / 10;
+  return `${r > 0 ? (p > 0 ? '+' : '−') : ''}${r.toLocaleString('es-ES', { maximumFractionDigits: 1 })} %`;
+}
+// Lo mismo, pero en PUNTOS porcentuales: para magnitudes que YA son un porcentaje (una asimetría del 2 % que pasa al 4 % no ha subido «un 100 %», ha subido 2 puntos).
+export function fmtPuntos(p) {
+  if (p === null || p === undefined || !Number.isFinite(p)) return null;
+  const r = Math.round(Math.abs(p) * 10) / 10;
+  return `${r > 0 ? (p > 0 ? '+' : '−') : ''}${r.toLocaleString('es-ES', { maximumFractionDigits: 1 })} p.p.`;
+}
+
+// % de la última sesión frente a la base mostrada (con «Actual», frente a la sesión anterior). Misma definición que usa `columnasNormativas`.
+export function variacionBase(sessions, variable, side, base, filters = {}) {
+  const act = valorBase(sessions, variable, side, 'last', filters);
+  if (!act) return null;
+  const ref = base === 'last' ? valorPrevio(sessions, variable, side, filters) : valorBase(sessions, variable, side, base, filters);
+  return variacionPct(act.value, ref?.value);
+}
+
 export const currentResult = (points) => (points.length ? points[points.length - 1] : null);
 
 // G5: asimetría por sesión (D25: (R − L) / máx × 100, positivo = domina la derecha). Solo sesiones con ambos lados.

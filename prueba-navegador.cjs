@@ -17,12 +17,25 @@ const server = http.createServer((req, res) => {
 (async () => {
   await new Promise((ok) => server.listen(0, '127.0.0.1', ok));
   const base = `http://127.0.0.1:${server.address().port}/index.html`;
-  const browser = await chromium.launch(); const ctx = await browser.newContext({ viewport: { width: 1840, height: 1000 }, colorScheme: 'dark' });
+  // Ancho de la ventana: 1840 px por defecto; VW=1440 (o el que sea) para revisar cómo quedan las tablas en una pantalla más estrecha.
+  const VW = Number(process.env.VW) > 0 ? Number(process.env.VW) : 1840;
+  const browser = await chromium.launch(); const ctx = await browser.newContext({ viewport: { width: VW, height: 1000 }, colorScheme: 'dark' });
   const page = await ctx.newPage(); const logs = [];
   page.on('console', (m) => { if (m.type() === 'error') logs.push(m.text()); }); page.on('pageerror', (e) => logs.push('pageerror ' + e.message));
   const shot = async (n) => { if (CAP) await page.screenshot({ path: path.join(CAP, n + '.png') }); };
   const go = async (hash, sel, ms = 1200) => { await page.goto(base + hash); if (sel) await page.waitForSelector(sel, { timeout: 15000 }); await page.waitForTimeout(ms); };
   const texts = (sel) => page.locator(sel).allInnerTexts();
+  // ¿Caben estas tablas sin desplazamiento horizontal en una pantalla normal? Se mide también a 1440 y 1280 px, no solo en la ventana ancha de la prueba (14/11/2026).
+  const sinDesborde = async (sel) => {
+    const malas = [];
+    for (const w of [...new Set([VW, 1840, 1440, 1280])]) {
+      await page.setViewportSize({ width: w, height: 1000 }); await page.waitForTimeout(350);
+      const r = await page.evaluate((s2) => { document.querySelectorAll('details').forEach((d) => { d.open = true; }); const ws = [...document.querySelectorAll(s2)].map((t) => t.closest('.table-wrap') ?? t); return { tabla: ws.some((x) => x.scrollWidth > x.clientWidth + 1), pagina: document.documentElement.scrollWidth > window.innerWidth + 1 }; }, sel);
+      if (r.tabla || r.pagina) malas.push(`${w}px${r.tabla ? ' tabla' : ''}${r.pagina ? ' página' : ''}`);
+    }
+    await page.setViewportSize({ width: VW, height: 1000 }); await page.waitForTimeout(350);
+    return malas;
+  };
 
   await go('#configuracion', '.ver', 800);
   // ---- Datos sintéticos (12 jugadores): sesión k de cada test; RSI mejor en la sesión 1 (la «mejor sesión»)
@@ -101,7 +114,23 @@ const server = http.createServer((req, res) => {
   const PBAJO = ids.players[0]; // el jugador con los valores más bajos de la siembra: es el que tiene déficits
   await go(`#jugador-${PBAJO}?b=deficits`, 'table.deficits, .status.fail, p.muted', 2500);
   const def = await page.evaluate(() => { const t = document.querySelector('table.deficits'); return { n: t ? t.querySelectorAll('tbody tr').length : 0, pct: t ? [...t.querySelectorAll('tbody tr td:first-child .band')].map((x) => Number(x.innerText)) : [], cab: t ? [...t.querySelectorAll('thead th')].map((x) => x.innerText) : [] }; });
-  check('Déficits: tabla con percentil, test, variable, lado, valor y fecha', def.cab.join('|').toLowerCase() === 'percentil la liga|test|variable|lado|valor|fecha', def.cab.join('|'));
+  check('Déficits: tabla con percentil, test, variable, lado, valor, comparación y fecha', def.cab.join('|').toLowerCase() === 'percentil la liga|test|variable|lado|valor|% latest session vs personal average|fecha', def.cab.join('|'));
+  // La columna de comparación (14/11/2026): el título dice QUÉ compara y cambia con la base, y el contenido es un % con signo.
+  const cabComp = async () => page.evaluate(() => [...document.querySelectorAll('table.deficits thead th')][5]?.innerText.trim() ?? '');
+  const compDef = async () => page.evaluate(() => [...document.querySelectorAll('table.deficits tbody tr')].map((r) => r.children[5].innerText.trim()));
+  check('Déficits: con Personal Average el título compara con el Personal Average', (await cabComp()) === '% latest session vs Personal Average', await cabComp());
+  const compPA = await compDef();
+  check('Déficits: la columna trae porcentajes con signo (o «—» si no hay con qué comparar)', compPA.length > 0 && compPA.every((x) => /^[+−]?\d+(,\d)? (%|p\.p\.)$|^—$/.test(x)) && compPA.some((x) => x !== '—'), JSON.stringify(compPA.slice(0, 6)));
+  await page.locator('input[name="def-base"]').nth(1).check(); await page.waitForTimeout(400);
+  check('Déficits: con Personal Best el título compara con el Personal Best', (await cabComp()) === '% latest session vs Personal Best', await cabComp());
+  await page.locator('input[name="def-base"]').nth(2).check(); await page.waitForTimeout(400);
+  check('Déficits: con Actual el título compara con la sesión anterior', (await cabComp()) === '% change vs previous session', await cabComp());
+  const ladoCol = await page.evaluate(() => { const c = (sel) => { const e = document.querySelector(sel); return e ? getComputedStyle(e).color : null; }; return { l: c('table.deficits tbody td.asim-l'), r: c('table.deficits tbody td.asim-r') }; });
+  check('Déficits: el lado va en azul (izquierda) y naranja (derecha)', ladoCol.l === 'rgb(49, 179, 254)' && ladoCol.r === 'rgb(252, 145, 47)', JSON.stringify(ladoCol));
+  const anchoDef = await sinDesborde('table.deficits');
+  check('Déficits: cabe a lo ancho a 1840, 1440 y 1280 px, sin desplazamiento horizontal', anchoDef.length === 0, anchoDef.join(' · '));
+  await shot('deficits');
+  await page.locator('input[name="def-base"]').nth(0).check(); await page.waitForTimeout(400);
   check('Déficits: todas las filas están en el umbral o por debajo, de menor a mayor', def.n > 0 && def.pct.length === def.n && def.pct.every((x) => x <= 35) && def.pct.every((x, i) => i === 0 || x >= def.pct[i - 1]), JSON.stringify(def.pct));
   await page.locator('input[type=number]').first().fill('10');
   await page.waitForTimeout(600);
@@ -376,17 +405,17 @@ const server = http.createServer((req, res) => {
     return ds.map((d) => ({ titulo: d.querySelector('summary').textContent.trim(), texto: d.textContent, filas: [...d.querySelectorAll('table.composite-det tbody tr')].map((tr) => [...tr.children].map((c) => c.textContent.trim())) }));
   });
   const dIso = det[0], dDin = det[1], dGct = det[2];
-  // Las SEIS columnas del desglose, en el orden pedido por el usuario (14/11/2026), y todas centradas bajo su encabezado.
+  // Las columnas del desglose, en el orden pedido por el usuario (14/11/2026), y todas centradas bajo su encabezado. Aquí el bloque está en PA.
   const cabDet = await page.evaluate(() => {
     const t = document.querySelector('table.composite-det');
     const th = [...t.querySelectorAll('thead th')];
     return { cab: th.map((x) => x.textContent.trim()), centradas: th.every((x) => getComputedStyle(x).textAlign === 'center') && [...t.querySelectorAll('tbody tr:first-child td')].every((x) => getComputedStyle(x).textAlign === 'center') };
   });
-  check('COMPOSITE: el desglose tiene las seis columnas del documento, en orden', cabDet.cab.join() === 'Variable,Percentil La Liga,Valor,Orientation,Fecha,Peso / etiqueta', cabDet.cab.join());
+  check('COMPOSITE: el desglose tiene las columnas del documento más la comparación, en orden', cabDet.cab.join() === 'Variable,Percentil La Liga,Valor,% latest session vs Personal Average,Orientation,Fecha,Peso / etiqueta', cabDet.cab.join());
   check('COMPOSITE: las columnas del desglose están centradas bajo su encabezado', cabDet.centradas === true);
   check('COMPOSITE: el desglose dice el peso de cada variable de puntuación', dDin.filas[0].at(-1) === '60 %' && dDin.filas[1].at(-1) === '20 %' && dDin.filas[2].at(-1) === '20 %', JSON.stringify(dDin.filas.map((f) => f.at(-1))));
   check('COMPOSITE: el Knee Iso-Push muestra las dos piernas', dIso.filas[0][0].includes('izquierda') && dIso.filas[1][0].includes('derecha'), JSON.stringify(dIso.filas.slice(0, 2).map((f) => f[0])));
-  check('COMPOSITE: el DSI aparece por lado con su orientación en la columna Orientation', dIso.filas.filter((f) => /^DSI/.test(f[0])).length === 2 && /strength training/i.test(dIso.filas.find((f) => /^DSI/.test(f[0]))[3]), JSON.stringify(dIso.filas.filter((f) => /^DSI/.test(f[0]))));
+  check('COMPOSITE: el DSI aparece por lado con su orientación en la columna Orientation', dIso.filas.filter((f) => /^DSI/.test(f[0])).length === 2 && /strength training/i.test(dIso.filas.find((f) => /^DSI/.test(f[0]))[4]), JSON.stringify(dIso.filas.filter((f) => /^DSI/.test(f[0]))));
   check('COMPOSITE: el impulso se usa por kilo (N s/kg), no en N·s absolutos', dDin.filas.some((f) => /CON IMPULSE\/BM/.test(f[0]) && /N s\/kg/.test(f[2])), JSON.stringify(dDin.filas.map((f) => [f[0], f[2]])));
   check('COMPOSITE: el Drop Jump dice de qué altura es cada dato', dGct.filas.filter((f) => /^(30|45) cm · /.test(f[0])).length >= 1, JSON.stringify(dGct.filas.map((f) => f[0])));
   // Short GCT puntúa con las DOS mitades: Drop Jump (de la altura de la ORZ) y Double-Leg Hop Test. El nombre del Hop Test estaba mal escrito
@@ -396,7 +425,7 @@ const server = http.createServer((req, res) => {
   // Los textos de orientación que sustituyen al «No aplicable»: salen en la columna Orientation y, en Dynamic Strength, también en el título.
   // Textos del documento: los de las variables (v0.4), más los que ya traían el DSI, el EUR y el perfil carga-velocidad desde «Relaciones».
   const ORIENTS = ['Prioritize max isometric strength', 'Prioritize LML isometric strength', 'Prioritize Dynamic strength depth', 'Propulsive strategy', 'Prioritize foundational dynamic strength', 'Acceptable output', 'Prioritize Power', 'Prioritize Strength', 'Reactive strategy', 'Prioritize Dynamic strength / concentric emphasis', 'tendency', 'Iso max strength training orientation', 'Maximal strength training orientation', 'Ballistic strength training orientation', 'Concurrent strength training', 'Force-deficit', 'Velocity-deficit', 'Well-balanced', 'Explosive = Propulsive'];
-  const textosOri = det.flatMap((d) => d.filas.map((f) => f[3])).filter((x) => x && x !== '—' && !/interpretativa|puntuación/.test(x));
+  const textosOri = det.flatMap((d) => d.filas.map((f) => f[4])).filter((x) => x && x !== '—' && !/interpretativa|puntuación/.test(x));
   check('COMPOSITE: la columna Orientation trae textos del documento y ninguno inventado', textosOri.length > 0 && textosOri.every((x) => ORIENTS.some((o) => x.includes(o))), JSON.stringify([...new Set(textosOri)]));
   check('COMPOSITE: la orientación de Dynamic Strength sale en el título del desglose', /Prioritize (Power|Strength)/.test(dDin.titulo) === /Prioritize (Power|Strength)/.test(dDin.texto), `${dDin.titulo}`);
   check('COMPOSITE: Propulsive y Explosive dicen qué tendencia domina', det.slice(5).some((d) => /(Explosive|Propulsive) tendency/.test(d.texto)), JSON.stringify(det.slice(5).map((d) => d.titulo)));
@@ -411,16 +440,21 @@ const server = http.createServer((req, res) => {
   check('COMPOSITE: y también su columna en el cuadro', cabP75 === 'Cualidad,PA,P50 La Liga,P75 La Liga', cabP75);
   if (CAP) await page.locator('.card').filter({ hasText: 'COMPOSITE PROFILE SCORE' }).first().screenshot({ path: path.join(CAP, 'composite2.png') });
   // El filtro de valor cambia tabla, radar y desglose a la vez
-  const fechasPA = det[1].filas[0][4];
+  const fechasPA = det[1].filas[0][5];
   await page.evaluate(() => [...document.querySelectorAll('fieldset.modes')].find((f) => /Valor/.test(f.querySelector('legend').textContent)).querySelectorAll('input[type="radio"]')[0].click());
   await page.waitForTimeout(600);
   const trasCps = await page.evaluate(() => {
     const d = [...document.querySelectorAll('details')].filter((x) => /·/.test(x.querySelector('summary')?.textContent ?? ''))[1];
     d.open = true;
-    return { fecha: d.querySelectorAll('table.composite-det tbody tr')[0].children[4].textContent.trim(), aria: document.querySelector('svg.radar-svg').getAttribute('aria-label'), base: [...document.querySelectorAll('fieldset.modes input[type="radio"]')].findIndex((r) => r.checked) };
+    return { fecha: d.querySelectorAll('table.composite-det tbody tr')[0].children[5].textContent.trim(), comp: [...d.querySelectorAll('table.composite-det thead th')][3].textContent.trim(), aria: document.querySelector('svg.radar-svg').getAttribute('aria-label'), base: [...document.querySelectorAll('fieldset.modes input[type="radio"]')].findIndex((r) => r.checked) };
   });
   check('COMPOSITE: al cambiar a Latest el desglose pasa a la fecha de la última sesión', trasCps.fecha !== fechasPA && !trasCps.fecha.includes('–') && fechasPA.includes('–'), `${fechasPA} → ${trasCps.fecha}`);
   check('COMPOSITE: el radar sigue hablando de las mismas 7 cualidades', (trasCps.aria.match(/;/g) ?? []).length === 6, trasCps.aria.slice(0, 120));
+  check('COMPOSITE: al cambiar a Latest la comparación pasa a ser con la sesión anterior', trasCps.comp === '% change vs previous session', trasCps.comp);
+  const compCps = await page.evaluate(() => { const d = [...document.querySelectorAll('details')].filter((x) => /·/.test(x.querySelector('summary')?.textContent ?? ''))[1]; d.open = true; return [...d.querySelectorAll('table.composite-det tbody tr')].map((r) => r.children[3].textContent.trim()); });
+  check('COMPOSITE: la columna de comparación trae porcentajes con signo (o «—»)', compCps.length > 0 && compCps.every((x) => /^[+−]?\d+(,\d)? %$|^—$/.test(x)), JSON.stringify(compCps));
+  const anchoCps = await sinDesborde('table.composite-det');
+  check('COMPOSITE: el desglose cabe a lo ancho a 1840, 1440 y 1280 px, sin desplazamiento horizontal', anchoCps.length === 0, anchoCps.join(' · '));
 
   // ---- CMJ: las asimetrías del propio test, con su selector independiente (13/11/2026, pedido por el usuario)
   await go(`#jugador-${P}?t=${t.cmj}&b=fuerza`, '.evo');
@@ -449,14 +483,23 @@ const server = http.createServer((req, res) => {
   const caps = await texts('table.asim caption'); const filas = await texts('table.asim tbody th');
   check('Asimetrías: aparecen cmj, sl cmj y perímetros', ['cmj', 'sl cmj', 'perímetros'].every((n) => caps.includes(n)), caps.join('|'));
   check('Asimetrías: Nordic, torque y 100 ms fuera; las 5 asimetrías de CMJ dentro', !caps.some((c) => /nordic/i.test(c)) && !filas.some((f) => /torque|(force|rfd) at 100 ms/i.test(f)) && filas.filter((f) => /asym$/i.test(f)).length === 5, filas.join('|'));
-  const centr = await page.evaluate(() => { const t = document.querySelector('table.asim'); const al = (e) => getComputedStyle(e).textAlign; return [...t.querySelectorAll('thead th')].slice(2).every((h) => al(h) === 'center') && [...t.querySelectorAll('tbody td.num')].every((d) => al(d) === 'center') && t.querySelectorAll('thead th').length === 5; });
-  check('Asimetrías: 5 columnas y Asimetría · Valores · Fecha centrados bajo su título', centr);
+  const centr = await page.evaluate(() => { const t = document.querySelector('table.asim'); const al = (e) => getComputedStyle(e).textAlign; return [...t.querySelectorAll('thead th')].slice(2).every((h) => al(h) === 'center') && [...t.querySelectorAll('tbody td.num')].every((d) => al(d) === 'center') && t.querySelectorAll('thead th').length === 6; });
+  check('Asimetrías: 6 columnas y Asimetría · Valores · Comparación · Fecha centrados bajo su título', centr);
+  // La columna de comparación (14/11/2026): título que dice qué compara, y por lado.
+  const cabAsim = async () => page.evaluate(() => [...document.querySelectorAll('table.asim thead th')][4]?.innerText.trim() ?? '');
+  check('Asimetrías: con Personal Average el título compara con el Personal Average', (await cabAsim()) === '% latest session vs Personal Average', await cabAsim());
+  const compAsim = await texts('table.asim tbody td.asim-comp');
+  check('Asimetrías: la comparación sale por lado (L y R) o en puntos porcentuales en las variables ASYM de VALD', compAsim.length > 0 && compAsim.every((x) => /^L .+ · R .+$|p\.p\.$|^—$/.test(x.replace(/\s+/g, ' ').trim())), JSON.stringify(compAsim.slice(0, 4)));
+  const anchoAsim = await sinDesborde('table.asim');
+  check('Asimetrías: caben a lo ancho a 1840, 1440 y 1280 px, sin desplazamiento horizontal', anchoAsim.length === 0, anchoAsim.join(' · '));
   const f1 = await texts('table.asim tbody td.asim-fecha');
   check('Asimetrías con Personal Average: la columna indica PA y su periodo', f1.length > 0 && f1.every((x) => /^PA · /.test(x)), f1.slice(0, 2).join('|'));
   await page.locator('input[name="asim-base"]').nth(1).check(); await page.waitForTimeout(300);
+  check('Asimetrías: con Personal Best el título de la comparación cambia', (await cabAsim()) === '% latest session vs Personal Best', await cabAsim());
   const f2 = await texts('table.asim tbody td.asim-fecha');
   check('Asimetrías con Personal Best: la columna indica PB y la fecha', f2.length > 0 && f2.every((x) => /^PB · \d/.test(x)), f2.slice(0, 2).join('|'));
   await page.locator('input[name="asim-base"]').nth(2).check(); await page.waitForTimeout(300);
+  check('Asimetrías: con Actual la comparación es con la sesión anterior', (await cabAsim()) === '% change vs previous session', await cabAsim());
   const f3 = await texts('table.asim tbody td.asim-fecha');
   check('Asimetrías con Actual: la columna muestra la fecha de cada asimetría', f3.length > 0 && f3.every((x) => /^\d{2}\/\d{2}\/\d{4}$/.test(x.trim())), f3.slice(0, 2).join('|'));
   await page.locator('input[name="asim-base"]').nth(0).check(); await page.waitForTimeout(300);

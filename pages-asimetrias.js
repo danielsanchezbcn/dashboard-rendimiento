@@ -5,7 +5,7 @@
 import { html } from './libs.js';
 import { orderVars, isViewable, hasData, isRelative } from './relativos.js';
 import { isAsymVariable, asymText, esGrados, asimetriaLR, testExcluidoDeAsimetrias, variableExcluidaDeAsimetrias } from './catalogo.js';
-import { valorBase } from './evolucion.js';
+import { valorBase, valorPrevio, variacionBase, fmtVar, fmtPuntos, rotuloComp, TIP_COMP } from './evolucion.js';
 import { AsimTexto } from './asim-ui.js';
 import { fmtDay } from './fechas.js';
 import { dn } from './nombres.js';
@@ -19,6 +19,13 @@ const nf = (n, d = 1) => (n === null || n === undefined || !Number.isFinite(n) ?
 
 // Valor y fecha de un jugador en una variable y lado, según la base (definición única: valorBase en evolucion.js).
 const own = (sessions, v, side, base) => { const x = valorBase(sessions, v, side, base, {}); return x ? { value: x.value, date: x.date, from: x.from ?? x.date } : null; };
+// Cambio en PUNTOS porcentuales de una magnitud que ya es un porcentaje (variables «ASYM» de VALD): se compara la MAGNITUD de la asimetría,
+// no el valor con signo, porque pasar de −8 % a +6 % es menos asimetría aunque cambie de lado.
+const puntosBase = (sessions, v, side, base) => {
+  const act = valorBase(sessions, v, side, 'last', {});
+  const ref = base === 'last' ? valorPrevio(sessions, v, side, {}) : valorBase(sessions, v, side, base, {});
+  return act && ref && Number.isFinite(act.value) && Number.isFinite(ref.value) ? Math.abs(act.value) - Math.abs(ref.value) : null;
+};
 
 // Exclusiones (pedidas el 10/11/2026) como propiedades editables en el catálogo (test: «excluir de Asimetrías»; variable: ídem). Por defecto: el test Nordic Hamstring Exercise completo
 // y las variables Torque, Force at 100 ms y RFD at 100 ms. Solo afecta a esta pestaña.
@@ -33,10 +40,12 @@ export function filasAsimetria(test, catalog, tsess, base) {
       const deg = esGrados(v);
       const pct = asimetriaLR(v, L.value, R.value);
       if (pct === null || !Number.isFinite(pct)) continue;
-      rows.push({ v, deg, pct, L: L.value, R: R.value, date: [L.date, R.date].sort().at(-1), from: [L.from, R.from].sort()[0] });
+      // Comparación de la última sesión con la base mostrada, por lado (misma definición que Normative Benchmarking).
+      rows.push({ v, deg, pct, L: L.value, R: R.value, date: [L.date, R.date].sort().at(-1), from: [L.from, R.from].sort()[0], variL: variacionBase(tsess, v, 'L', base), variR: variacionBase(tsess, v, 'R', base) });
     } else {
       const S = own(tsess, v, 'S', base);
-      if (S && Number.isFinite(S.value)) rows.push({ v, deg: false, pct: S.value, L: null, R: null, date: S.date, from: S.from ?? S.date, vald: true });
+      // Variable «ASYM» de VALD: es un porcentaje en sí misma, así que su cambio va en puntos porcentuales.
+      if (S && Number.isFinite(S.value)) rows.push({ v, deg: false, pct: S.value, L: null, R: null, date: S.date, from: S.from ?? S.date, vald: true, variPuntos: puntosBase(tsess, v, 'S', base) });
     }
   }
   return rows;
@@ -68,16 +77,21 @@ export function PanelAsimetrias({ catalog, sessions, q, setQ }) {
   return html`<section class="asimetrias" aria-label="Asimetrías del jugador">
     <fieldset class="modes"><legend>Valor mostrado</legend>${BASES.map(([k, n]) => html`<label class="check" key=${k}><input type="radio" name="asim-base" checked=${base === k} onChange=${() => setQ({ am: k })} /> ${n}</label>`)}</fieldset>
     ${!bloques.length ? html`<p class="muted">Este jugador aún no tiene asimetrías calculables (hacen falta tests con valores por lado —izquierda y derecha— o variables de asimetría de VALD).</p>` : html`
-      <${Desplegable} titulo="Cómo leer las barras"><p class="muted">Barra hacia la izquierda y <span class="asim-l">azul</span>: domina Left. Hacia la derecha y <span class="asim-r">naranja</span>: domina Right. Escala común de ±${limPct} % (la barra llena = ese valor o más)${hayDeg ? `; las medidas en grados (°) usan su propia escala de ±${limDeg} °` : ''}. Asimetría = |R − L| ÷ máx × 100 con el valor del lado más alto.</p><//>
+      <${Desplegable} titulo="Cómo leer las barras"><p class="muted">Barra hacia la izquierda y <span class="asim-l">azul</span>: domina Left. Hacia la derecha y <span class="asim-r">naranja</span>: domina Right. Escala común de ±${limPct} % (la barra llena = ese valor o más)${hayDeg ? `; las medidas en grados (°) usan su propia escala de ±${limDeg} °` : ''}. Asimetría = |R − L| ÷ máx × 100 con el valor del lado más alto. La columna «${rotuloComp(base)}» compara, en cada lado, el valor de la última sesión con la base elegida (con «Actual», con la sesión válida anterior): es la misma comparación que muestra el cuadro «Normative Benchmarking» de cada test.</p><//>
       ${bloques.map((b) => html`<div class="asim-bloque" key=${b.key}><h3 class="asim-h-bloque">${b.nombre}</h3>
         ${b.grupos.map((g) => html`<div key=${g.g ?? '-'}>${g.g ? html`<h4 class="asim-h-sub">${g.g}</h4>` : null}
           ${g.tests.map(({ t, rows, falta }) => html`<div class="table-wrap asim-test" key=${t.id}><table class="asim"><caption><strong>${dn(t.name)}</strong>${zName(t) ? html` <span class="muted">· ${zName(t)}</span>` : null}</caption>
-            <thead><tr><th scope="col">Variable</th><th scope="col" class="asim-th-barra"><span class="asim-l">◄ Left</span> <span class="asim-r">Right ►</span></th><th scope="col">Asimetría</th><th scope="col">Valores</th><th scope="col">${base === 'last' ? 'Fecha' : base === 'pa' ? 'Periodo' : 'Sesión'}</th></tr></thead>
+            <thead><tr><th scope="col">Variable</th><th scope="col" class="asim-th-barra"><span class="asim-l">◄ Left</span> <span class="asim-r">Right ►</span></th><th scope="col">Asimetría</th><th scope="col">Valores</th><th scope="col" title=${TIP_COMP[base]}>${rotuloComp(base)}</th><th scope="col">${base === 'last' ? 'Fecha' : base === 'pa' ? 'Periodo' : 'Sesión'}</th></tr></thead>
             <tbody>${rows.map((r) => html`<tr key=${r.v.id} title=${fmtDay(r.date)}>
               <th scope="row">${dn(r.v.name)}</th>
               <td class="asim-barra"><${Barra} pct=${r.pct} lim=${r.deg ? limDeg : limPct} /></td>
               <td class="num">${r.deg ? html`<${AsimTexto} pct=${r.pct} texto=${Math.abs(r.pct) < 0.05 ? '0 °' : `${nf(Math.abs(r.pct))} ° ${r.pct > 0 ? 'R' : 'L'}`} />` : html`<${AsimTexto} pct=${r.pct} />`}</td>
               <td class="num muted">${r.vald ? 'VALD' : html`<span class="asim-l">L ${nf(r.L, 2)}</span> · <span class="asim-r">R ${nf(r.R, 2)}</span>${r.v.unit ? ' ' + r.v.unit : ''}`}</td>
+              <td class="num muted asim-comp" title=${r.vald ? 'La variable de asimetría de VALD ya es un porcentaje: su cambio se da en puntos porcentuales.' : TIP_COMP[base]}>${r.vald
+                ? fmtPuntos(r.variPuntos) ?? '—'
+                : fmtVar(r.variL) || fmtVar(r.variR)
+                  ? html`<span class="asim-l">L ${fmtVar(r.variL) ?? '—'}</span> · <span class="asim-r">R ${fmtVar(r.variR) ?? '—'}</span>`
+                  : '—'}</td>
               <td class="num muted asim-fecha">${base === 'last' ? fmtDay(r.date) : base === 'pb' ? `PB · ${fmtDay(r.date)}` : `PA · ${r.from === r.date ? fmtDay(r.date) : `${fmtDay(r.from)} – ${fmtDay(r.date)}`}`}</td></tr>`)}</tbody></table>${falta.length ? html`<p class="muted asim-falta">Sin valores en este jugador: ${falta.map((v) => dn(v.name)).join(', ')}. Para verlas hay que importar esas columnas de VALD en su sesión.</p>` : null}</div>`)}
         </div>`)}</div>`)}`}
   </section>`;

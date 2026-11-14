@@ -11,7 +11,8 @@ import { getSetting } from './db.js';
 import { expandRelative, orderVars, isViewable, hasData, isRelative } from './relativos.js';
 import { withReferenceWeights } from './relaciones.js';
 import { pairContext } from './isohold.js';
-import { isAsymVariable, variableExcluidaDeDeficits } from './catalogo.js';
+import { isAsymVariable, variableExcluidaDeDeficits, asimetriaLR } from './catalogo.js';
+import { fmtVar, fmtPuntos, rotuloComp, TIP_COMP } from './evolucion.js';
 import { columnasNormativas, ordenIsoHold } from './pages-normativo.js';
 import { Banda } from './pages-percentiles.js';
 import { MIN_N_DEFAULT } from './percentiles.js';
@@ -36,15 +37,20 @@ export function deficitsDeTest({ player, test, catalog, refData, base, positionI
   if (!vars.length) return [];
   const cols = columnasNormativas({ player, test, catalog, sessions: mias, refData, vars, base, f: {}, positionId });
   const out = [];
+  // Asimetría de la última sesión y de la anterior, para poder compararlas (la asimetría ya es un %, así que su cambio se da en PUNTOS porcentuales).
+  const asimDe = (c, campo) => { const L = c.lado.L?.[campo], R = c.lado.R?.[campo]; return L && R ? asimetriaLR(c.v, L.value, R.value) : null; };
   for (const c of cols) {
     for (const sd of c.sides) {
       const l = c.lado[sd], ev = l?.ev;
       // Sin dirección «mejor/peor» el percentil solo dice dónde cae en La Liga, no si es un déficit: esas variables no entran.
       if (!l?.x || !ev || !ev.sufficient || ev.band === null || ev.positional || ev.percentilePerf > umbral) continue;
-      out.push({ tipo: 'valor', test, variable: c.v, side: sd, value: l.x.value, date: l.x.date, from: l.x.from ?? l.x.date, unit: c.v.unit ?? '', ev });
+      // La misma comparación que muestra Normative Benchmarking para esa base: viene ya calculada en `columnasNormativas`, no se recalcula aquí.
+      out.push({ tipo: 'valor', test, variable: c.v, side: sd, value: l.x.value, date: l.x.date, from: l.x.from ?? l.x.date, unit: c.v.unit ?? '', ev, vari: l.vari ?? null, variPuntos: null });
     }
     if (c.evAsim && c.evAsim.sufficient && c.evAsim.band !== null && c.evAsim.percentilePerf <= umbral) {
-      out.push({ tipo: 'asimetria', test, variable: c.v, side: null, value: Math.abs(c.asim), date: c.lado.L?.x?.date ?? null, unit: '%', ev: c.evAsim });
+      const act = asimDe(c, 'act'), ref = base === 'last' ? asimDe(c, 'prev') : c.asim;
+      const variPuntos = Number.isFinite(act) && Number.isFinite(ref) ? Math.abs(act) - Math.abs(ref) : null;
+      out.push({ tipo: 'asimetria', test, variable: c.v, side: null, value: Math.abs(c.asim), date: c.lado.L?.x?.date ?? null, unit: '%', ev: c.evAsim, vari: null, variPuntos });
     }
   }
   return out;
@@ -87,17 +93,19 @@ export function Deficits({ player, positionId = null }) {
     ${!filas.length
       ? html`<p class="muted">Ninguna variable de este jugador tiene un percentil de La Liga igual o inferior a ${u} con esta base. Solo se miran las variables con dirección «mejor/peor» y con al menos ${minN} jugadores en la referencia.</p>`
       : html`<div class="table-wrap"><table class="deficits"><caption>Ordenados del percentil más bajo al más alto</caption>
-        <thead><tr><th scope="col">Percentil La Liga</th><th scope="col">Test</th><th scope="col">Variable</th><th scope="col">Lado</th><th scope="col">Valor</th><th scope="col">Fecha</th></tr></thead>
+        <thead><tr><th scope="col">Percentil La Liga</th><th scope="col">Test</th><th scope="col">Variable</th><th scope="col">Lado</th><th scope="col">Valor</th><th scope="col" title=${TIP_COMP[base]}>${rotuloComp(base)}</th><th scope="col">Fecha</th></tr></thead>
         <tbody>${filas.map((f) => html`<tr key=${`${f.test.id}-${f.variable.id}-${f.tipo}-${f.side ?? ''}`}>
           <td><${Banda} ev=${f.ev} /></td>
           <td><a href=${href(f)}>${dn(f.test.name)}</a></td>
           <td>${dn(f.variable.name)}${f.tipo === 'asimetria' ? html` <span class="muted">(asimetría)</span>` : ''}</td>
-          <td>${f.tipo === 'asimetria' ? '—' : LADO[f.side] || '—'}</td>
+          <td class=${f.side === 'L' ? 'asim-l' : f.side === 'R' ? 'asim-r' : ''}>${f.tipo === 'asimetria' ? '—' : LADO[f.side] || '—'}</td>
           <td class="num">${nf(f.value)}${f.unit ? ` ${f.unit}` : ''}</td>
+          <td class="num muted" title=${f.tipo === 'asimetria' ? 'La asimetría ya es un porcentaje: su cambio se da en puntos porcentuales.' : TIP_COMP[base]}>${(f.tipo === 'asimetria' ? fmtPuntos(f.variPuntos) : fmtVar(f.vari)) ?? '—'}</td>
           <td>${f.date ? (f.from && f.from !== f.date ? `${fmtDay(f.from)} – ${fmtDay(f.date)}` : fmtDay(f.date)) : '—'}</td>
         </tr>`)}</tbody></table></div>`}
     <${Desplegable} titulo="Qué entra en esta lista y qué no">
       <p class="muted">Se recorre cada test con datos del jugador y cada una de sus variables visibles, con el valor de la base elegida (Personal Average, Personal Best o Actual) y el mismo percentil de La Liga que muestra el cuadro «Normative Benchmarking» de ese test: es la misma función de cálculo, no una copia.</p>
+      <p class="muted">La columna «${rotuloComp(base)}» es la misma comparación que muestra el cuadro «Normative Benchmarking»: el valor de la última sesión frente a la base elegida y, con «Actual», frente a la sesión válida anterior. En las filas de asimetría el cambio va en puntos porcentuales (p.p.), porque la asimetría ya es un porcentaje.</p>
       <p class="muted">Se listan las variables por lado (cada pierna por separado) y, además, las asimetrías: en ellas un percentil bajo significa una asimetría grande comparada con la de los demás jugadores.</p>
       <p class="muted">No entran: las variables sin dirección «mejor/peor» (ahí el percentil solo dice dónde cae en La Liga, no si es bueno o malo), las que no llegan al mínimo de ${minN} jugadores en la referencia, los valores que el jugador no tiene con esa base, y los tests archivados, las variables marcadas como excluidas en el Catálogo (por defecto Torque del Nordic y Force/RFD at 100 ms) y la medida absoluta cuando existe su relativa al peso con datos (se lista solo la relativa). La referencia nunca incluye al propio jugador ni datos sintéticos.</p>
     <//>

@@ -73,4 +73,20 @@ check('auditoría sin valores', ['sesion-excluida', 'sesion-reincorporada', 'ses
   check('migración v3→v4: asigna «más alto» a las que no tenían, respeta la ya definida y deja las asimetrías (%) sin dirección', r.direccionesAsignadas > 0 && after.find((v) => v.id === keep.id).direction === 'lower' && after.filter((v) => v.unit === '%').every((v) => v.direction === null) && after.filter((v) => v.unit !== '%' && v.unit !== 'cm' && v.unit !== '°' && v.name !== 'TOE-TOUCH TEST' && v.name !== 'DROP LANDING' && v.id !== keep.id).every((v) => v.direction === (I.LOWER_IS_BETTER.test(v.name) ? 'lower' : 'higher')), JSON.stringify(r));
   check('queda en el registro', (await dbm.auditLog.toArray()).some((l) => l.action === 'catalogo-direccion-por-defecto'));
 }
+
+// ---- Comparación de la última sesión con la base mostrada (14/11/2026): la misma definición la usan Normative Benchmarking, Asimetrías, Déficits y COMPOSITE.
+{
+  const v = { id: 9, name: 'Peak Force', sides: 'LR', direction: 'higher' };
+  // Izquierda: 100 (3 reps) → 120 (5) → 120 (2): PA ponderado por repeticiones = 114, PB = 120. Derecha: 110 → 100 → 105: PA = 104, PB = 110.
+  // La sesión del 10/03 está excluida y no cuenta en ninguna de las tres bases.
+  const vb = (sd, base) => E.variacionBase(sessions, v, sd, base);
+  check('rótulos: cada base dice exactamente con qué compara', E.rotuloComp('pa') === '% latest session vs Personal Average' && E.rotuloComp('pb') === '% latest session vs Personal Best' && E.rotuloComp('last') === '% change vs previous session', `${E.rotuloComp('pa')} / ${E.rotuloComp('pb')} / ${E.rotuloComp('last')}`);
+  check('base desconocida: se rotula como Personal Average, nunca en blanco', E.rotuloComp(undefined) === E.rotuloComp('pa'));
+  check('con Personal Average compara la última sesión con el PA (ponderado por repeticiones)', Math.round(vb('L', 'pa') * 100) / 100 === Math.round(((120 - 114) / 114) * 10000) / 100, String(vb('L', 'pa')));
+  check('con Personal Best compara la última sesión con el PB (aquí la última ES el mejor: 0 %)', vb('L', 'pb') === 0 && Math.round(vb('R', 'pb') * 10) / 10 === -4.5, `${vb('L', 'pb')} / ${vb('R', 'pb')}`);
+  check('con Actual compara con la sesión válida anterior, saltándose las excluidas', vb('L', 'last') === 0 && Math.round(vb('R', 'last') * 10) / 10 === 5, `${vb('L', 'last')} / ${vb('R', 'last')}`);
+  check('sin sesión anterior no hay comparación', E.variacionBase([sessions[0]], v, 'L', 'last') === null);
+  check('formato: signo solo si no se redondea a 0, y coma decimal', E.fmtVar(3.14) === '+3,1 %' && E.fmtVar(-2) === '−2 %' && E.fmtVar(0.01) === '0 %' && E.fmtVar(null) === null);
+  check('formato en puntos porcentuales (magnitudes que ya son un %)', E.fmtPuntos(2.14) === '+2,1 p.p.' && E.fmtPuntos(-3) === '−3 p.p.' && E.fmtPuntos(0) === '0 p.p.' && E.fmtPuntos(null) === null);
+}
 process.exit(failed ? 1 : 0);

@@ -18,6 +18,7 @@ import { CUALIDADES, UMBRALES_DEFAULT, T, claveDesc, calcular, referenciaPosicio
 import { BotonesImagen, Copiable, chartToBlob } from './copiar.js';
 import { FUENTE_GRAFICOS } from './fuentes.js';
 import { PAL } from './colores.js';
+import { fmtVar, rotuloComp, TIP_COMP } from './evolucion.js';
 import { fmtDay } from './fechas.js';
 import { mismoTest } from './nombres.js';
 import { playerLabel } from './jugadores.js';
@@ -181,7 +182,8 @@ export function CompositeProfile({ player, positionId = null }) {
     const partes = col.sides.map((sd) => {
       const l = col.lado[sd] ?? {};
       const pct = l.ev && l.ev.sufficient && Number.isFinite(l.ev.percentilePerf) ? l.ev.percentilePerf : null;
-      return { sd, x: l.x ?? null, ev: l.ev ?? null, pct };
+      // `vari`: la comparación de la última sesión con la base elegida que ya calcula `columnasNormativas` (con «Latest», con la sesión anterior).
+      return { sd, x: l.x ?? null, ev: l.ev ?? null, pct, vari: l.vari ?? null };
     });
     const con = partes.filter((p) => p.pct !== null);
     return { pct: con.length ? con.reduce((a, p) => a + p.pct, 0) / con.length : null, partes, v: col.v, test: nombre, n: partes.find((p) => p.ev)?.ev?.n ?? 0 };
@@ -268,12 +270,13 @@ export function CompositeProfile({ player, positionId = null }) {
   // ---- Comparación propulsivo / explosivo (14/11/2026): se decide con los percentiles de los dos impulsos, no con los valores.
   const textoTendencia = tendencia(medida);
 
-  // Una fila del desglose: SEIS columnas, en el orden pedido por el usuario (14/11/2026).
-  // Variable | Percentil La Liga | Valor | Orientation | Fecha | Peso / etiqueta
-  const fila = (k, { variable, percentil, valor, orientacion, nota = null, fecha, peso }) => html`<tr key=${k}>
+  // Una fila del desglose: las SEIS columnas pedidas el 14/11/2026 más la comparación con la base, que va justo al lado del valor (14/11/2026, tarde).
+  // Variable | Percentil La Liga | Valor | % … | Orientation | Fecha | Peso / etiqueta
+  const fila = (k, { variable, percentil, valor, comp = null, orientacion, nota = null, fecha, peso }) => html`<tr key=${k}>
     <th scope="row">${variable}</th>
     <td>${percentil ?? html`<span class="muted">${SIN_DATOS}</span>`}</td>
     <td class="num">${valor ?? html`<span class="muted">${SIN_DATOS}</span>`}</td>
+    <td class="num muted" title=${TIP_COMP[base]}>${comp ?? SIN_DATOS}</td>
     <td>${orientacion ? html`<span title=${nota ?? ''}>${orientacion}</span>` : html`<span class="muted">${SIN_DATOS}</span>`}</td>
     <td>${fecha ?? html`<span class="muted">${SIN_DATOS}</span>`}</td>
     <td>${peso ?? html`<span class="muted">${SIN_DATOS}</span>`}</td></tr>`;
@@ -305,6 +308,7 @@ export function CompositeProfile({ player, positionId = null }) {
       variable: html`${i === 0 ? etiquetaVar(d, med) : ''}${med.partes.length > 1 ? html` <span class="muted">${p.sd === 'L' ? 'izquierda' : 'derecha'}</span>` : null}`,
       percentil: p.ev ? html`<${Banda} ev=${p.ev} />` : null,
       valor: p.x ? `${nf(p.x.value)}${u}` : null,
+      comp: fmtVar(p.vari),
       orientacion: orientacionDe(d, p.pct, umbrales) ?? (d.tendencia && i === 0 ? textoTendencia : null),
       fecha: p.x ? fechaTexto(p.x) : null,
       peso: i === 0 ? pesoTexto(peso) ?? html`<span class="muted">interpretativa</span>` : null,
@@ -321,7 +325,7 @@ export function CompositeProfile({ player, positionId = null }) {
       ${q.faltaCritica ? html`<p class="muted">Falta la variable principal de esta cualidad, así que no se puntúa (${SIN_DATOS}).</p>` : null}
       ${q.id === 'shortgct' ? html`<p class="muted">${orzNota}.</p>` : null}
       <div class="table-wrap"><table class="composite-det">
-        <thead><tr><th scope="col">Variable</th><th scope="col">Percentil La Liga</th><th scope="col">Valor</th><th scope="col">Orientation</th><th scope="col">Fecha</th><th scope="col">Peso / etiqueta</th></tr></thead>
+        <thead><tr><th scope="col">Variable</th><th scope="col">Percentil La Liga</th><th scope="col">Valor</th><th scope="col" title=${TIP_COMP[base]}>${rotuloComp(base)}</th><th scope="col">Orientation</th><th scope="col">Fecha</th><th scope="col">Peso / etiqueta</th></tr></thead>
         <tbody>
           ${cual.scores.flatMap((s, i) => [filaMedida(s, q.scores[i].med, ps[i] / sumaP), ...(s.interp ?? []).map((it) => filaMedida(it, medida(it), null))])}
           ${cual.interp.map((it) => filaMedida(it, medida(it), null))}

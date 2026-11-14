@@ -7,7 +7,7 @@ import { html, useState, useEffect, useRef } from './libs.js';
 import { orderVars, isViewable, hasData, isRelative } from './relativos.js';
 import { isIsoDerived, LOAD_VARIABLE_NAMES } from './isohold.js';
 import { isAsymVariable, asymmetryPct, asimetriaLR, asymText, asymSideLetter, esGrados, usaPanelColumnas } from './catalogo.js';
-import { valorBase, valorPrevio, variacionPct, personalBestFor } from './evolucion.js';
+import { valorBase, valorPrevio, variacionPct, personalBestFor, fmtVar, rotuloComp, TIP_COMP } from './evolucion.js';
 import { refContext, Banda } from './pages-percentiles.js';
 import { evaluate, buildReference } from './percentiles.js';
 import { placeAgainstPremier, PREMIER_SEASON } from './premier.js';
@@ -22,12 +22,9 @@ import { playerLabel } from './jugadores.js';
 const nf = (n, d = 2) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 const BASES = [['pa', 'Personal Average'], ['pb', 'Personal Best'], ['last', 'Latest']];
 
-// «+3,1 %» / «−2,0 %» (el signo solo si el valor redondeado no es 0). null si no hay variación.
-export function fmtVar(p) {
-  if (p === null || p === undefined || !Number.isFinite(p)) return null;
-  const r = Math.round(Math.abs(p) * 10) / 10;
-  return `${r > 0 ? (p > 0 ? '+' : '−') : ''}${nf(r, 1)} %`;
-}
+// El formato de la variación y el rótulo de lo que compara cada base viven en evolucion.js (definición única: la comparten este cuadro,
+// Asimetrías, Déficits y COMPOSITE). Se re-exporta para no romper lo que ya los importaba de aquí.
+export { fmtVar };
 
 // Reparte las columnas en bloques que caben en pantalla: cada bloque suma como máximo `presupuesto` subcolumnas (una variable con dos piernas ocupa 2, una de un solo valor ocupa 1).
 // El orden se conserva (las variables siguen consecutivas); un bloque nunca queda vacío.
@@ -133,8 +130,8 @@ export function NormativeBenchmarking({ player, test, catalog, sessions, refData
   };
   const pick = (id) => { setQ({ v: id }); setTimeout(() => document.getElementById('detalle-variable')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250); };
   const tipVal = (c, sd) => { const x = c.lado[sd]?.x; return x ? `${sd === 'S' ? '' : sd === 'L' ? 'Left · ' : 'Right · '}${base === 'pa' ? `${fmtDay(x.from)} to ${fmtDay(x.date)}` : fmtDay(x.date)}${c.lado[sd].act && base !== 'last' ? ` · latest session ${fmtDay(c.lado[sd].act.date)}: ${nf(c.lado[sd].act.value)}` : ''}` : ''; };
-  const rotuloVar = { last: 'Value (% change vs previous session)', pa: 'Value (% latest session vs Personal Average)', pb: 'Value (% latest session vs Personal Best)' }[base];
-  const tipVar = { last: 'In brackets: % change of the latest session against the previous valid session, for each leg.', pa: 'The Personal Average is shown. In brackets: % change of the latest session against that Personal Average, for each leg.', pb: 'The Personal Best is shown. In brackets: % change of the latest session against that Personal Best, for each leg.' }[base];
+  const rotuloVar = `Value (${rotuloComp(base)})`;
+  const tipVar = TIP_COMP[base];
   const bloques = trocear(cols, presupuestoAncho(ancho));
   const celdasLado = (c, fn, cls = '') => c.sides.map((sd) => html`<td key=${c.v.id + sd} class=${cls + (c.v.id === selectedId ? ' sel' : '')}>${fn(c.lado[sd], sd)}</td>`);
   const celdaUnica = (c, contenido) => html`<td key=${c.v.id} colSpan=${c.span} class=${c.v.id === selectedId ? 'sel' : ''}>${contenido}</td>`;
