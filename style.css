@@ -555,6 +555,11 @@ table.composite { margin: .3rem 0 .2rem; max-width: 60rem; }
 table.composite th[scope="row"] { text-align: left; font-weight: 600; white-space: nowrap; }
 table.composite td { text-align: center; min-width: 6rem; }
 table.composite td.ref { color: var(--muted); font-size: .9rem; }
-table.composite-det { font-size: .86rem; }
-table.composite-det th[scope="row"] { text-align: left; font-weight: 500; }
-table.composite-det td.num { text-align: right; }
+/* Desglose (14/11/2026): SEIS columnas (Variable | Percentil La Liga | Valor | Orientation | Fecha | Peso) centradas bajo su encabezado.
+   Letra algo menor para que entren las seis sin romper la línea; la columna «Orientation» es la ancha, por eso lleva el texto a varias líneas. */
+table.composite-det { font-size: .8rem; width: 100%; }
+table.composite-det th, table.composite-det td { text-align: center; vertical-align: middle; }
+table.composite-det th[scope="row"] { font-weight: 500; }
+table.composite-det td.num, table.composite-det th.num { text-align: center; }
+table.composite-det th:nth-child(4), table.composite-det td:nth-child(4) { min-width: 11rem; }
+table.composite-det th:nth-child(1) { min-width: 12rem; }

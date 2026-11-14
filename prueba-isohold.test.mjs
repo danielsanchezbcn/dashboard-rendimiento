@@ -25,13 +25,15 @@ let e = await run('Hip Iso-Hold 20 s', 'Run-Specific Hip Iso-Push', [push('Run-S
 const mvicHip = 1100 / G - 0.29 * 80;
 check('Hip: MVIC = Peak Force media / g − 0,29 × masa de la sesión de Iso-Push (80 kg, medición más cercana al 10/1)', close(val(e, 0, 'Hip Iso-Hold 20 s', 'MVIC iso-push (kg)'), mvicHip));
 check('Hip: %PIMA = carga ÷ MVIC × 100', close(val(e, 0, 'Hip Iso-Hold 20 s', '%PIMA'), (40 / mvicHip) * 100));
-check('Hip: %SW = carga ÷ (0,29 × masa más cercana a hoy: 90 kg) × 100', close(val(e, 0, 'Hip Iso-Hold 20 s', '%SW'), (40 / (0.29 * 90)) * 100));
+// Desde el 14/11/2026 todos los iso-hold usan %BW: la carga externa frente al PESO CORPORAL, para que los cuatro se lean y se comparen igual.
+check('Hip: %BW = carga ÷ masa más cercana a hoy (90 kg) × 100', close(val(e, 0, 'Hip Iso-Hold 20 s', '%BW'), (40 / 90) * 100));
 // Knee: BW, factor 1
 e = await run('Knee Iso-Hold 20 s', 'Run-Specific Knee Iso-Push', [push('Run-Specific Knee Iso-Push', 1, '2026-01-10', 2000, 2400)], [hold('Knee Iso-Hold 20 s', 10, 60)]);
 check('Knee: MVIC con factor 1 (BW) y %BW con la masa más cercana a hoy', close(val(e, 0, 'Knee Iso-Hold 20 s', 'MVIC iso-push (kg)'), 2200 / G - 80) && close(val(e, 0, 'Knee Iso-Hold 20 s', '%BW'), (60 / 90) * 100));
 // Talones sentado: factor 0,05 tomado de la variable relativa del Iso-Push emparejado
 e = await run('Seated Calf Raise Iso-Hold 20 s', 'Seated Calf Raise Iso-Push', [push('Seated Calf Raise Iso-Push', 1, '2026-01-10', 1000, 1200)], [hold('Seated Calf Raise Iso-Hold 20 s', 10, 20)]);
-check('Talones sentado: factor 0,05 del Iso-Push emparejado (MVIC y %SW)', close(val(e, 0, 'Seated Calf Raise Iso-Hold 20 s', 'MVIC iso-push (kg)'), 1100 / G - 0.05 * 80) && close(val(e, 0, 'Seated Calf Raise Iso-Hold 20 s', '%SW'), (20 / (0.05 * 90)) * 100));
+// El MVIC sigue descontando el peso del segmento con el factor 0,05 del Iso-Push emparejado; el %BW ya no usa ese factor.
+check('Talones sentado: el MVIC conserva el factor 0,05 del Iso-Push y el %BW va con el peso corporal', close(val(e, 0, 'Seated Calf Raise Iso-Hold 20 s', 'MVIC iso-push (kg)'), 1100 / G - 0.05 * 80) && close(val(e, 0, 'Seated Calf Raise Iso-Hold 20 s', '%BW'), (20 / 90) * 100));
 // Ponderación por repeticiones, masa de cada sesión y exclusión
 e = await run('Knee Iso-Hold 20 s', 'Run-Specific Knee Iso-Push', [
   push('Run-Specific Knee Iso-Push', 1, '2026-01-10', 2000, 2000, { L: 5, R: 1, total: 6 }),
@@ -58,7 +60,7 @@ const rm = (anthro, s = std(50)) => expandRelative(variables, T('Single-Leg Stan
 check('1RM estimado = (carga + masa) × 1,4 con la masa medida más cercana a la fecha (90 kg el 10/3)', close(rm(an).sessions[0].values[V('Single-Leg Standing Calf Raise 12RM', '1RM estimado (kg)').id].S, (50 + 90) * 1.4));
 check('1RM estimado: sin masa ni peso de referencia no se calcula y se cuenta; con peso de referencia sí', rm([]).sessions[0].values[V('Single-Leg Standing Calf Raise 12RM', '1RM estimado (kg)').id] === undefined && rm([]).omitted[V('Single-Leg Standing Calf Raise 12RM', '1RM estimado (kg)').id] === 1 && close(rm(withReferenceWeights([], players)).sessions[0].values[V('Single-Leg Standing Calf Raise 12RM', '1RM estimado (kg)').id].S, (50 + 75.5) * 1.4));
 check('1RM solo en 12RM: el 6RM y el 8RM no tienen esa variable; sin Personal Average se aplica en pantalla (variable de carga única)', !V('Single-Leg Seated Calf Raise 6RM', '1RM estimado (kg)') && !V('Hamstring Bridge 30 cm 8RM', '1RM estimado (kg)'));
-check('variables calculadas visibles y con dato: MVIC, %PIMA, %SW, 1RM', [['Hip Iso-Hold 20 s', 'MVIC iso-push (kg)'], ['Hip Iso-Hold 20 s', '%PIMA'], ['Hip Iso-Hold 20 s', '%SW'], ['Single-Leg Standing Calf Raise 12RM', '1RM estimado (kg)']].every(([t, n]) => isViewable(V(t, n))) && hasData(V('Hip Iso-Hold 20 s', '%PIMA'), [hold('Hip Iso-Hold 20 s', 1, 40)]));
+check('variables calculadas visibles y con dato: MVIC, %PIMA, %BW, 1RM', [['Hip Iso-Hold 20 s', 'MVIC iso-push (kg)'], ['Hip Iso-Hold 20 s', '%PIMA'], ['Hip Iso-Hold 20 s', '%BW'], ['Single-Leg Standing Calf Raise 12RM', '1RM estimado (kg)']].every(([t, n]) => isViewable(V(t, n))) && hasData(V('Hip Iso-Hold 20 s', '%PIMA'), [hold('Hip Iso-Hold 20 s', 1, 40)]));
 check('pairContext: devuelve las sesiones del Iso-Push emparejado y nada en un test sin pareja', (await pairContext(db, tests, T('Knee Iso-Hold 20 s'))).allSessions.length === 0 && (await pairContext(db, tests, T('CMJ'))).allSessions.length === 0);
 await clearReferenceWeight(db, p1);
 check('peso de referencia: eliminar lo borra y se audita', (await db.players.get(p1)).referenceWeight === undefined && (await db.auditLog.toArray()).some((a) => a.action === 'peso-referencia-eliminado'));

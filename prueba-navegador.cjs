@@ -179,7 +179,9 @@ const server = http.createServer((req, res) => {
   check('Knee Iso-Push: el DSI aparece y va al final de la pantalla', (await hayDsi()) && (await dsiAlFinal()) === true);
   await page.evaluate((id) => new Promise((res, rej) => { const q = indexedDB.open('dashboard-rendimiento'); q.onsuccess = () => { const d = q.result; const tx = d.transaction('tests', 'readwrite'); const st = tx.objectStore('tests'); const g = st.get(id); g.onsuccess = () => { const v = g.result; v.name = 'Knee Iso-Push'; st.put(v); }; tx.oncomplete = () => { d.close(); res(); }; tx.onerror = () => rej(tx.error); }; q.onerror = () => rej(q.error); }), t.kpush);
   await page.reload(); await page.waitForSelector('.evo');
-  check('Knee Iso-Push: tras renombrarlo a «Knee Iso-Push», el DSI sigue apareciendo', await hayDsi());
+  // El cuadro del DSI se dibuja cuando terminan de cargarse las relaciones, un instante después que el resto de la pantalla: se espera a que aparezca.
+  const esperaDsi = async () => { for (let i = 0; i < 40; i++) { if (await hayDsi()) return true; await page.waitForTimeout(250); } return false; };
+  check('Knee Iso-Push: tras renombrarlo a «Knee Iso-Push», el DSI sigue apareciendo', await esperaDsi());
   for (const key of ['cmj', 'sl', 'sj', 'hop', 'dj']) { // Squat Jump también tiene RSI MOD en el catálogo, así que también arranca en RSI
     await go(`#jugador-${P}?t=${t[key]}&b=fuerza`, '.evo');
     const sel = await page.evaluate(() => { const l = [...document.querySelectorAll('.evo .filters label')].find((x) => /^Variable/.test(x.textContent.trim())); const s = l?.querySelector('select'); return s ? s.options[s.selectedIndex].text : ''; });
@@ -319,12 +321,17 @@ const server = http.createServer((req, res) => {
     return { filas, marcas, leyenda, nLinea, desgloses, radar: !!svg, aria: svg?.getAttribute('aria-label') ?? '' };
   });
   if (CAP) { await page.locator('.card').filter({ hasText: 'COMPOSITE PROFILE SCORE' }).first().screenshot({ path: path.join(CAP, 'composite.png') }); await page.locator('svg.radar-svg').first().screenshot({ path: path.join(CAP, 'composite-radar.png') }); }
+  // Por defecto el bloque viene en «Latest» (14/11/2026, decisión del usuario); el resto de comprobaciones se hacen en PA.
+  check('COMPOSITE: por defecto el valor es «Latest»', await page.evaluate(() => { const f = [...document.querySelectorAll('fieldset.modes')].find((x) => /Valor/.test(x.querySelector('legend').textContent)); const r = [...f.querySelectorAll('input[type="radio"]')].findIndex((i) => i.checked); return r === 0 && /Latest/.test(f.querySelectorAll('label.check')[0].textContent); }));
+  await page.evaluate(() => [...document.querySelectorAll('fieldset.modes')].find((x) => /Valor/.test(x.querySelector('legend').textContent)).querySelectorAll('input[type="radio"]')[1].click());
+  await page.waitForTimeout(700);
   const NOMBRES = 'Isometric Strength,Dynamic Strength,Short GCT Reactive Strength,Deceleration,Reactivity,Propulsive,Explosive / Snappy';
   check('COMPOSITE: las 7 cualidades, en el orden del documento', cps.filas.map((f) => f[0]).join() === NOMBRES, cps.filas.map((f) => f[0]).join());
-  check('COMPOSITE: cada puntuación es un entero con su color, «No aplicable» o «—»', cps.filas.every(([, v, cls]) => (/^\d+$/.test(v) && Number(v) >= 0 && Number(v) <= 100 && /band band-/.test(cls ?? '')) || v === 'No aplicable' || v === '—'), JSON.stringify(cps.filas));
-  check('COMPOSITE: al menos una de Propulsive y Explosive sale «No aplicable» (consecuencia de comparar sus percentiles)', ['Propulsive', 'Explosive / Snappy'].some((n) => cps.filas.find((f) => f[0] === n)?.[1] === 'No aplicable'), JSON.stringify(cps.filas.slice(5)));
-  check('COMPOSITE: el radar tiene los 7 ejes con su marca', cps.radar && cps.marcas.length === 7 && cps.marcas.every((m) => /^\d+$|^n\/a$|^—$/.test(m)), JSON.stringify(cps.marcas));
-  check('COMPOSITE: un eje sin puntuación se marca «n/a» o «—» y nunca como 0', cps.marcas.every((m, i) => (cps.filas[i][1] === 'No aplicable' ? m === 'n/a' : cps.filas[i][1] === '—' ? m === '—' : m === cps.filas[i][1])), `${JSON.stringify(cps.marcas)} vs ${JSON.stringify(cps.filas.map((f) => f[1]))}`);
+  // 14/11/2026: ya no hay «No aplicable»: las 7 cualidades puntúan siempre que haya datos y «—» solo significa que falta el dato.
+  check('COMPOSITE: cada puntuación es un entero con su color o «—»', cps.filas.every(([, v, cls]) => (/^\d+$/.test(v) && Number(v) >= 0 && Number(v) <= 100 && /band band-/.test(cls ?? '')) || v === '—'), JSON.stringify(cps.filas));
+  check('COMPOSITE: ninguna cualidad ni fila del desglose sale «No aplicable»', !/No aplicable/.test(await page.evaluate(() => { const card = [...document.querySelectorAll('.card')].find((c) => /COMPOSITE PROFILE SCORE/.test(c.querySelector('h2,h3')?.textContent ?? '')); const ds = [...card.querySelectorAll('details')].filter((d) => /·/.test(d.querySelector('summary')?.textContent ?? '')); ds.forEach((d) => { d.open = true; }); return (card.querySelector('table.composite')?.textContent ?? '') + ds.map((d) => d.textContent).join(' '); })));
+  check('COMPOSITE: el radar tiene los 7 ejes con su marca', cps.radar && cps.marcas.length === 7 && cps.marcas.every((m) => /^\d+$|^—$/.test(m)), JSON.stringify(cps.marcas));
+  check('COMPOSITE: un eje sin puntuación se marca «—» y nunca como 0', cps.marcas.every((m, i) => m === cps.filas[i][1]), `${JSON.stringify(cps.marcas)} vs ${JSON.stringify(cps.filas.map((f) => f[1]))}`);
   check('COMPOSITE: línea de contexto con el N de la referencia', /^Percentiles sobre N = [\d–]+ jugadores de la base\.$/.test(cps.nLinea.trim()), cps.nLinea);
   check('COMPOSITE: un desglose por cualidad', cps.desgloses.length === 7, JSON.stringify(cps.desgloses));
   // Las referencias elegidas salen como columnas del cuadro, con los mismos valores que dibuja el radar (13/11/2026, pedido por el usuario)
@@ -346,7 +353,7 @@ const server = http.createServer((req, res) => {
     const d = [...document.querySelectorAll('details')].filter((x) => /·/.test(x.querySelector('summary')?.textContent ?? ''))[1];
     d.open = true;
     const tr = [...d.querySelectorAll('table.composite-det tbody tr')].find((r) => r.children[0].textContent.trim().startsWith('JH (imp-mom)'));
-    return tr ? tr.children[2].textContent.trim() : null;
+    return tr ? tr.children[1].textContent.trim() : null;
   });
   await go(`#jugador-${P}?t=${t.cmj}&b=fuerza&pn=pa`, 'table.pano.norm');
   const pctNb = await page.evaluate(() => {
@@ -358,6 +365,9 @@ const server = http.createServer((req, res) => {
   });
   check('COMPOSITE: el percentil de una variable es el mismo que muestra Normative Benchmarking', pctComposite !== null && pctNb !== null && pctNb.includes(pctComposite), `composite: ${pctComposite} · normative: ${pctNb}`);
   await go(`#jugador-${P}?b=composite`, 'table.composite', 4000);
+  // al volver, el bloque arranca otra vez en «Latest»: el resto de comprobaciones se hacen en PA
+  await page.evaluate(() => [...document.querySelectorAll('fieldset.modes')].find((x) => /Valor/.test(x.querySelector('legend').textContent)).querySelectorAll('input[type="radio"]')[1].click());
+  await page.waitForTimeout(700);
 
   // El desglose: pesos, los dos lados del Knee Iso-Push, la altura del Drop Jump y lo que falta
   const det = await page.evaluate(() => {
@@ -366,15 +376,30 @@ const server = http.createServer((req, res) => {
     return ds.map((d) => ({ titulo: d.querySelector('summary').textContent.trim(), texto: d.textContent, filas: [...d.querySelectorAll('table.composite-det tbody tr')].map((tr) => [...tr.children].map((c) => c.textContent.trim())) }));
   });
   const dIso = det[0], dDin = det[1], dGct = det[2];
-  check('COMPOSITE: el desglose dice el peso de cada variable de puntuación', dDin.filas[0].at(-1) === 'peso 70 %' && dDin.filas[1].at(-1) === 'peso 15 %' && dDin.filas[2].at(-1) === 'peso 15 %', JSON.stringify(dDin.filas.map((f) => f.at(-1))));
+  // Las SEIS columnas del desglose, en el orden pedido por el usuario (14/11/2026), y todas centradas bajo su encabezado.
+  const cabDet = await page.evaluate(() => {
+    const t = document.querySelector('table.composite-det');
+    const th = [...t.querySelectorAll('thead th')];
+    return { cab: th.map((x) => x.textContent.trim()), centradas: th.every((x) => getComputedStyle(x).textAlign === 'center') && [...t.querySelectorAll('tbody tr:first-child td')].every((x) => getComputedStyle(x).textAlign === 'center') };
+  });
+  check('COMPOSITE: el desglose tiene las seis columnas del documento, en orden', cabDet.cab.join() === 'Variable,Percentil La Liga,Valor,Orientation,Fecha,Peso / etiqueta', cabDet.cab.join());
+  check('COMPOSITE: las columnas del desglose están centradas bajo su encabezado', cabDet.centradas === true);
+  check('COMPOSITE: el desglose dice el peso de cada variable de puntuación', dDin.filas[0].at(-1) === '60 %' && dDin.filas[1].at(-1) === '20 %' && dDin.filas[2].at(-1) === '20 %', JSON.stringify(dDin.filas.map((f) => f.at(-1))));
   check('COMPOSITE: el Knee Iso-Push muestra las dos piernas', dIso.filas[0][0].includes('izquierda') && dIso.filas[1][0].includes('derecha'), JSON.stringify(dIso.filas.slice(0, 2).map((f) => f[0])));
-  check('COMPOSITE: el DSI aparece por lado con su etiqueta de orientación', dIso.filas.filter((f) => /^DSI/.test(f[0])).length === 2 && /strength training/i.test(dIso.filas.find((f) => /^DSI/.test(f[0])).at(-1)), JSON.stringify(dIso.filas.filter((f) => /^DSI/.test(f[0]))));
-  check('COMPOSITE: el impulso se usa por kilo (N s/kg), no en N·s absolutos', dDin.filas.some((f) => /CON IMPULSE\/BM/.test(f[0]) && /N s\/kg/.test(f[1])), JSON.stringify(dDin.filas.map((f) => f.slice(0, 2))));
+  check('COMPOSITE: el DSI aparece por lado con su orientación en la columna Orientation', dIso.filas.filter((f) => /^DSI/.test(f[0])).length === 2 && /strength training/i.test(dIso.filas.find((f) => /^DSI/.test(f[0]))[3]), JSON.stringify(dIso.filas.filter((f) => /^DSI/.test(f[0]))));
+  check('COMPOSITE: el impulso se usa por kilo (N s/kg), no en N·s absolutos', dDin.filas.some((f) => /CON IMPULSE\/BM/.test(f[0]) && /N s\/kg/.test(f[2])), JSON.stringify(dDin.filas.map((f) => [f[0], f[2]])));
   check('COMPOSITE: el Drop Jump dice de qué altura es cada dato', dGct.filas.filter((f) => /^(30|45) cm · /.test(f[0])).length >= 1, JSON.stringify(dGct.filas.map((f) => f[0])));
   // Short GCT puntúa con las DOS mitades: Drop Jump (de la altura de la ORZ) y Double-Leg Hop Test. El nombre del Hop Test estaba mal escrito
   // en el código («Hop Test») y la mitad del Hop se perdía en silencio; esta comprobación es el guardián de ese fallo (14/11/2026).
-  const filaConValor = (f) => f[1] !== '—' && /^\d+$/.test(f[2]);
+  const filaConValor = (f) => f[2] !== '—' && /^\d+$/.test(f[1]);
   check('COMPOSITE: Short GCT usa el Drop Jump y el Hop Test, los dos con dato y percentil', dGct.filas.some((f) => /^(30|45) cm · RSI/.test(f[0]) && filaConValor(f)) && dGct.filas.some((f) => /^MEAN RSI/.test(f[0]) && filaConValor(f)), JSON.stringify(dGct.filas.map((f) => f.slice(0, 3))));
+  // Los textos de orientación que sustituyen al «No aplicable»: salen en la columna Orientation y, en Dynamic Strength, también en el título.
+  // Textos del documento: los de las variables (v0.4), más los que ya traían el DSI, el EUR y el perfil carga-velocidad desde «Relaciones».
+  const ORIENTS = ['Prioritize max isometric strength', 'Prioritize LML isometric strength', 'Prioritize Dynamic strength depth', 'Propulsive strategy', 'Prioritize foundational dynamic strength', 'Acceptable output', 'Prioritize Power', 'Prioritize Strength', 'Reactive strategy', 'Prioritize Dynamic strength / concentric emphasis', 'tendency', 'Iso max strength training orientation', 'Maximal strength training orientation', 'Ballistic strength training orientation', 'Concurrent strength training', 'Force-deficit', 'Velocity-deficit', 'Well-balanced', 'Explosive = Propulsive'];
+  const textosOri = det.flatMap((d) => d.filas.map((f) => f[3])).filter((x) => x && x !== '—' && !/interpretativa|puntuación/.test(x));
+  check('COMPOSITE: la columna Orientation trae textos del documento y ninguno inventado', textosOri.length > 0 && textosOri.every((x) => ORIENTS.some((o) => x.includes(o))), JSON.stringify([...new Set(textosOri)]));
+  check('COMPOSITE: la orientación de Dynamic Strength sale en el título del desglose', /Prioritize (Power|Strength)/.test(dDin.titulo) === /Prioritize (Power|Strength)/.test(dDin.texto), `${dDin.titulo}`);
+  check('COMPOSITE: Propulsive y Explosive dicen qué tendencia domina', det.slice(5).some((d) => /(Explosive|Propulsive) tendency/.test(d.texto)), JSON.stringify(det.slice(5).map((d) => d.titulo)));
   check('COMPOSITE: las interpretativas del Hop Test también traen dato', dGct.filas.some((f) => /^MEAN CONTACT TIME/.test(f[0]) && filaConValor(f)) && dGct.filas.some((f) => /^MEAN JUMP HEIGHT/.test(f[0]) && filaConValor(f)), JSON.stringify(dGct.filas.map((f) => f[0])));
   // Las referencias del radar se activan y desactivan
   const lineasLeyenda = () => page.evaluate(() => [...document.querySelector('svg.radar-svg').querySelectorAll('g > line')].length);
@@ -382,16 +407,17 @@ const server = http.createServer((req, res) => {
   await page.evaluate(() => [...document.querySelectorAll('fieldset.modes')].find((f) => /Referencia La Liga/.test(f.querySelector('legend').textContent)).querySelectorAll('input[type="checkbox"]')[2].click());
   await page.waitForTimeout(500);
   check('COMPOSITE: activar el P75 de La Liga añade su polígono al radar', (await lineasLeyenda()) === antesLeg + 1, `${antesLeg} → ${await lineasLeyenda()}`);
-  check('COMPOSITE: y también su columna en el cuadro', (await page.evaluate(() => [...document.querySelectorAll('table.composite thead th')].map((t) => t.textContent.trim()).join())) === 'Cualidad,PA,P50 La Liga,P75 La Liga');
+  const cabP75 = await page.evaluate(() => [...document.querySelectorAll('table.composite thead th')].map((t) => t.textContent.trim()).join());
+  check('COMPOSITE: y también su columna en el cuadro', cabP75 === 'Cualidad,PA,P50 La Liga,P75 La Liga', cabP75);
   if (CAP) await page.locator('.card').filter({ hasText: 'COMPOSITE PROFILE SCORE' }).first().screenshot({ path: path.join(CAP, 'composite2.png') });
   // El filtro de valor cambia tabla, radar y desglose a la vez
-  const fechasPA = det[1].filas[0][3];
+  const fechasPA = det[1].filas[0][4];
   await page.evaluate(() => [...document.querySelectorAll('fieldset.modes')].find((f) => /Valor/.test(f.querySelector('legend').textContent)).querySelectorAll('input[type="radio"]')[0].click());
   await page.waitForTimeout(600);
   const trasCps = await page.evaluate(() => {
     const d = [...document.querySelectorAll('details')].filter((x) => /·/.test(x.querySelector('summary')?.textContent ?? ''))[1];
     d.open = true;
-    return { fecha: d.querySelectorAll('table.composite-det tbody tr')[0].children[3].textContent.trim(), aria: document.querySelector('svg.radar-svg').getAttribute('aria-label'), base: [...document.querySelectorAll('fieldset.modes input[type="radio"]')].findIndex((r) => r.checked) };
+    return { fecha: d.querySelectorAll('table.composite-det tbody tr')[0].children[4].textContent.trim(), aria: document.querySelector('svg.radar-svg').getAttribute('aria-label'), base: [...document.querySelectorAll('fieldset.modes input[type="radio"]')].findIndex((r) => r.checked) };
   });
   check('COMPOSITE: al cambiar a Latest el desglose pasa a la fecha de la última sesión', trasCps.fecha !== fechasPA && !trasCps.fecha.includes('–') && fechasPA.includes('–'), `${fechasPA} → ${trasCps.fecha}`);
   check('COMPOSITE: el radar sigue hablando de las mismas 7 cualidades', (trasCps.aria.match(/;/g) ?? []).length === 6, trasCps.aria.slice(0, 120));
@@ -470,6 +496,25 @@ const server = http.createServer((req, res) => {
 
   await go(`#jugador-${P}?t=${t.sj}&b=fuerza&pn=pb`, '.evo');
   check('Squat Jump: ahora también tiene tabla de columnas (todos los tests) y su gráfico longitudinal', (await page.locator('section.panorama').count()) === 1 && (await page.locator('h4.sec-titulo').count()) > 0);
+
+  // ---- Aviso al renombrar un test que el código localiza por su nombre, y comprobación de nombres en Ajustes (14/11/2026)
+  await go(`#catalogo-test-${t.cmj}`, 'form.fields');
+  const campoNombre = page.locator('form.fields label', { hasText: /^Nombre/ }).locator('input').first();
+  const guardarTest = () => page.locator('form.fields').first().locator('button[type=submit]').first().click();
+  check('catálogo: dice qué partes del dashboard usan este test por su nombre', (await page.locator('form.fields p.muted', { hasText: /Lo usan por su nombre/ }).count()) === 1, (await texts('form.fields p')).join(' | ').slice(0, 160));
+  await campoNombre.fill('Countermovement Jump'); await page.waitForTimeout(250);
+  check('catálogo: avisa antes de un renombrado que rompería las búsquedas', (await page.locator('p.status.warn', { hasText: /dejarán de encontrarlo/ }).count()) === 1);
+  await guardarTest(); await page.waitForTimeout(600);
+  const trasPrimerIntento = await page.evaluate((id) => new Promise((ok) => { const r = indexedDB.open('dashboard-rendimiento'); r.onsuccess = () => { const d = r.result; d.transaction('tests').objectStore('tests').get(id).onsuccess = (e) => { d.close(); ok(e.target.result.name); }; }; }), t.cmj);
+  check('catálogo: el primer «Guardar» no renombra, solo avisa', trasPrimerIntento === 'CMJ', trasPrimerIntento);
+  await campoNombre.fill('cmj'); await page.waitForTimeout(250);
+  check('catálogo: un nombre equivalente no avisa', (await page.locator('p.status.warn', { hasText: /dejarán de encontrarlo/ }).count()) === 0);
+  await guardarTest(); await page.waitForTimeout(600);
+  const trasEquivalente = await page.evaluate((id) => new Promise((ok) => { const r = indexedDB.open('dashboard-rendimiento'); r.onsuccess = () => { const d = r.result; d.transaction('tests').objectStore('tests').get(id).onsuccess = (e) => { d.close(); ok(e.target.result.name); }; }; }), t.cmj);
+  check('catálogo: un nombre equivalente se guarda a la primera', trasEquivalente === 'cmj', trasEquivalente);
+  await go('#configuracion', '.card');
+  await page.waitForFunction(() => [...document.querySelectorAll('.card')].some((x) => /Comprobación de nombres/.test(x.textContent)), null, { timeout: 8000 }).catch(() => {});
+  check('ajustes: la comprobación de nombres no encuentra ningún problema', (await page.locator('.card', { hasText: 'Comprobación de nombres' }).locator('p.status.ok').count()) === 1, await page.evaluate(() => { const c = [...document.querySelectorAll('.card')].find((x) => /Comprobación de nombres/.test(x.textContent)); return c ? c.innerText.slice(0, 400) : 'no está la tarjeta'; }));
 
   // ---- Reglas por propiedad: la tarjeta del catálogo y que renombrar un test no rompa nada
   await go(`#catalogo-test-${t.hop}`, 'form.fields');

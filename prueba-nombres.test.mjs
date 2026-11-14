@@ -17,7 +17,8 @@ import { findNatera } from './natera.js';
 import { findPremier } from './premier.js';
 import { profileForTest } from './radar.js';
 import { pairNameOf } from './isohold.js';
-import { DSI_TESTS, EUR_TESTS, ANKLE_TESTS, HIP_TESTS, DJ_TESTS } from './pages-relaciones.js';
+import { DSI_TESTS, EUR_TESTS, ANKLE_TESTS, HIP_TESTS, DJ_TESTS } from './relaciones.js';
+import { comprobarNombres, usosDeTest, renombradoSeguro } from './usos.js';
 
 let fail = 0; const check = (n, ok, d = '') => { console.log((ok ? 'OK   ' : 'FAIL ') + n + (ok ? '' : ' ' + d)); if (!ok) fail = 1; };
 
@@ -54,7 +55,7 @@ check('isohold.js: las parejas iso-hold/iso-push y los 12RM existen', sinIso.len
 const descs = [];
 for (const c of CUALIDADES) {
   const mete = (d) => { if (d && !d.tipo) descs.push(d); (d?.interp ?? []).forEach(mete); };
-  c.scores.forEach(mete); c.interp.forEach(mete); c.reglas.forEach((r) => r.descs.forEach(mete));
+  c.scores.forEach(mete); c.interp.forEach(mete);
 }
 const nombreVar = (d) => (d.rel ? IMPULSOS_REL.find((r) => r.name === d.variable + '/BM')?.src ?? d.variable : d.variable);
 const sinComposite = descs.flatMap((d) => (d.orz ? [CT.dj30, CT.dj45] : [d.test]).filter((tn) => !variable(tn, nombreVar(d))).map((tn) => `${tn} · ${nombreVar(d)}`));
@@ -81,6 +82,11 @@ const PANELES = [['DSI', DSI_TESTS], ['EUR', EUR_TESTS], ['ratio de tobillo', AN
 const sinPanel = PANELES.flatMap(([q, ns]) => ns.filter((n) => !test(n)).map((n) => `${q}: ${n}`));
 check('pages-relaciones.js: los tests de los cuadros DSI, EUR, ratios y ORZ existen', sinPanel.length === 0, sinPanel.join(' | '));
 
+// ---- 8 ter. La comprobación que el usuario puede lanzar desde Ajustes tiene que dar cero problemas con el catálogo de fábrica.
+check('usos.js: el catálogo recién sembrado no tiene ningún aviso de nombres', comprobarNombres(cat).length === 0, JSON.stringify(comprobarNombres(cat)).slice(0, 300));
+check('usos.js: sabe qué partes usan cada test', usosDeTest('CMJ').length >= 3 && usosDeTest('Double-Leg Hop Test').includes('radar') && usosDeTest('Perímetros').length === 0, JSON.stringify(usosDeTest('CMJ')));
+check('usos.js: distingue un renombrado inofensivo de uno que rompe', renombradoSeguro('Run-Specific Knee Iso-Push', 'Knee Iso-Push') && renombradoSeguro('Double-Leg Hop Test', 'DL Hop Test') && !renombradoSeguro('CMJ', 'Countermovement Jump'));
+
 // ---- 9. Renombrar quitando «Run-Specific» y pasando «Double-Leg» a «DL» no puede romper nada (plan del usuario, 14/11/2026).
 // Estos dos cambios son invisibles para el normalizador, así que todas las búsquedas por nombre tienen que seguir encontrando su test.
 const RENOMBRES = {
@@ -106,6 +112,7 @@ check('tras renombrar: las 7 cualidades siguen encontrando sus variables', sinCo
 const sinPanel2 = PANELES.flatMap(([q, ns]) => ns.filter((n) => !test2(n)).map((n) => `${q}: ${n}`));
 check('tras renombrar: los cuadros DSI, EUR, ratios y ORZ siguen apareciendo en su test', sinPanel2.length === 0, sinPanel2.join(' | '));
 check('tras renombrar: los dos tests de una pierna nuevos siguen siendo distintos de los de dos piernas', !mismoTest('SL Hop Test', 'DL Hop Test') && !mismoTest('SL Drop Jump 30 cm', 'DL Drop Jump 30 cm') && !!test2('SL Hop Test') && !!test2('SL Drop Jump 30 cm'));
+check('tras renombrar: la comprobación de Ajustes sigue sin dar avisos', comprobarNombres(cat2).length === 0, JSON.stringify(comprobarNombres(cat2)).slice(0, 300));
 check('tras renombrar: el perfil del radar del Hop y los Drop Jump sigue existiendo', ['DL Hop Test', 'DL Drop Jump 30 cm', 'DL Drop Jump 45 cm', 'CMJ'].every((n) => profileForTest(n)));
 
 process.exit(fail);

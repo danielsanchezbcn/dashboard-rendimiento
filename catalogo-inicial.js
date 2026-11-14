@@ -14,7 +14,7 @@ import { ISO_PAIRS, RM12_TESTS, RM_EST_FACTOR_DEFAULT, pairFactor } from './isoh
 
 import { mismoTest } from './nombres.js';
 
-export const CATALOG_SEED_VERSION = 14;
+export const CATALOG_SEED_VERSION = 15;
 
 const BLOCKS = [
   { key: 'fuerza', name: 'Manifestaciones de la fuerza' },
@@ -236,7 +236,9 @@ async function sembrarCatalogo(db) {
 // Solo el TIEMPO de contacto (suelo) es «más bajo es mejor». El RSI también lleva «CONTACT TIME» en el nombre («FLIGHT TIME / CONTACT TIME») y es «más alto es mejor» (9/11/2026).
 // Direcciones confirmadas por el usuario el 9/11/2026: «más bajo es mejor» en tiempo de contacto, duraciones, profundidad y velocidad excéntrica pico (valores negativos);
 // «más alto es mejor» en COM STIFFNESS, FORCE AT 0 VELOCITY y las rigideces activas (Hop Test y Drop Jump), que son también el valor por defecto.
-export const LOWER_IS_BETTER = /^((mean )?contact time|ecc decel phase duration|concentric duration|contraction time|depth|ecc peak velocity)$/i;
+// 14/11/2026: el usuario cambia DEPTH (CMJ y SL CMJ) a «más alto es mejor»: el valor es negativo, así que −40 cm (muy profundo) queda en un percentil
+// más bajo que −20 cm. Sale por tanto de esta lista. Sigue entrando en Déficits: bajar en exceso es lo que quiere detectar.
+export const LOWER_IS_BETTER = /^((mean )?contact time|ecc decel phase duration|concentric duration|contraction time|ecc peak velocity)$/i;
 async function defaultDirections(db, ts) {
   const all = await db.variables.toArray();
   const perim = new Set((await db.tests.toArray()).filter((t) => ['perimetros', 'nme'].includes(t.blockKey)).map((t) => t.id)); // perímetros y NME: sin dirección definida por el usuario
@@ -355,12 +357,11 @@ async function ensureDerived(db, ts, counts) {
   for (const [holdName, pushName] of Object.entries(ISO_PAIRS)) {
     const hold = tByName(holdName), push = tByName(pushName);
     if (!hold) continue;
-    const pairVars = push ? await db.variables.where('testId').equals(push.id).toArray() : [];
-    const { factor, unitName } = pairFactor(pairVars);
     await make(hold, 'Carga externa (kg)', 'MVIC iso-push (kg)', 'ISO_MVIC', MAXISO, {}, `Calculada con el Personal Average de «${pushName}» y la masa de cada sesión de Iso-Push (D5).`);
     await make(hold, 'Carga externa (kg)', '%PIMA', 'ISO_PIMA', MAXISO, {}, 'Carga externa ÷ MVIC iso-push (kg). La sigla se conserva como la escribe el usuario.');
-    if (unitName === 'SW') await make(hold, 'Carga externa (kg)', '%SW', 'ISO_LOAD_SW', MAXISO, { factor }, `Carga externa ÷ (${factor} × masa corporal); masa medida más cercana a hoy.`);
-    else await make(hold, 'Carga externa (kg)', '%BW', 'ISO_LOAD_BW', MAXISO, {}, 'Carga externa ÷ masa corporal; masa medida más cercana a hoy.');
+    // Todos los iso-hold usan %BW (14/11/2026, decisión del usuario): el %SW del talón sentado salía en miles por ciento, porque comparaba una carga
+    // de decenas de kilos con el 5 % de la masa corporal. Con el peso corporal como referencia los cuatro iso-hold se leen y se comparan igual.
+    await make(hold, 'Carga externa (kg)', '%BW', 'ISO_LOAD_BW', MAXISO, {}, 'Carga externa ÷ masa corporal; masa medida más cercana a hoy.');
   }
   for (const n of RM12_TESTS) { const t = tByName(n); if (t) await make(t, 'Carga máxima (kg)', '1RM estimado (kg)', 'RM_EST', HDS, { factor: RM_EST_FACTOR_DEFAULT }, '(carga + masa corporal) × 1,4, solo en 12RM. Estimado, no medido. 1,4 coincide con Epley a 12 repeticiones (inferencia no verificada con fuente).'); }
 }
@@ -499,6 +500,12 @@ async function migrateCatalog(db, prev) {
     };
     for (const [name, specs] of Object.entries(VARIABLES_BY_TEST)) await apply(name, specs);
 
+    // 3 ter) Los iso-hold dejan de usar %SW y pasan todos a %BW (14/11/2026, decisión del usuario). Son variables calculadas, no hay datos que migrar.
+    for (const x of (await db.variables.toArray()).filter((y) => y.formula?.op === 'ISO_LOAD_SW')) {
+      await db.variables.update(x.id, { name: '%BW', formula: { ...x.formula, op: 'ISO_LOAD_BW', params: {} }, notes: 'Carga externa ÷ masa corporal; masa medida más cercana a hoy.', updatedAt: ts });
+      res.isoHoldABW = (res.isoHoldABW ?? 0) + 1;
+    }
+
     // 3 bis) Variables de una versión anterior que ya no corresponden (14/11/2026). Sin ningún dato se borran; con datos se archivan, para no perder nada.
     for (const [testName, varName] of VARIABLES_RETIRADAS) {
       const t = tests.find((x) => mismoTest(x.name, testName));
@@ -536,6 +543,11 @@ async function migrateCatalog(db, prev) {
     for (const v of rsiMal) await db.variables.update(v.id, { direction: 'higher', updatedAt: ts });
     if (rsiMal.length) await audit(db, 'catalogo-direccion-rsi-corregida', { cantidad: rsiMal.length, de: 'lower', a: 'higher' });
     res.rsiCorregidos = rsiMal.length;
+    // 14/11/2026: DEPTH pasa a «más alto es mejor» en las bases ya sembradas (decisión del usuario, ver LOWER_IS_BETTER).
+    const depthAlto = (await db.variables.toArray()).filter((v) => v.source === 'inicial' && /^depth$/i.test(String(v.name ?? '').trim()) && v.direction !== 'higher');
+    for (const v of depthAlto) await db.variables.update(v.id, { direction: 'higher', updatedAt: ts });
+    if (depthAlto.length) await audit(db, 'catalogo-direccion-depth', { cantidad: depthAlto.length, de: 'lower', a: 'higher' });
+    res.depthAlto = depthAlto.length;
     await ensureDerived(db, ts, res);
     await ensureGroinAnkle(db, ts, res);
     await ensurePerimeters(db, ts, res);

@@ -5,6 +5,8 @@ import { getSetting, setSetting, clearSetting } from './db.js';
 import { listPositions, createPosition, renamePosition, setPositionActive, movePosition, deletePosition, positionUsage } from './posiciones.js';
 import { loadSyntheticDemo, deleteSynthetic, countSynthetic, totalOf } from './sinteticos.js';
 import { CUALIDADES, UMBRALES_DEFAULT, pesosDe } from './composite.js';
+import { comprobarNombres } from './usos.js';
+import { listCatalog } from './catalogo.js';
 
 // ---------- Posiciones: lista definida por el usuario con orden configurable (D9) ----------
 
@@ -144,18 +146,38 @@ export function CompositeCard() {
   };
   const volver = async () => { await clearSetting(db, 'compositeConfig'); setBorrador(null); setMsg({ level: 'ok', text: 'Se han restaurado los pesos y umbrales del documento.' }); bump(); };
   return html`<${Card} titulo="COMPOSITE PROFILE SCORE">
-    <p>Pesos de las variables de puntuación de cada cualidad (en %, sobre el total de la cualidad: si no suman 100 se reparten en proporción) y umbrales de las reglas de «No aplicable». Los valores de partida son los de la especificación.</p>
+    <p>Pesos de las variables de puntuación de cada cualidad (en %, sobre el total de la cualidad: si no suman 100 se reparten en proporción) y umbrales de los textos de orientación. Los valores de partida son los de la especificación.</p>
     <form class="fields" onSubmit=${guardar}>
       ${CUALIDADES.map((c) => html`<fieldset key=${c.id}><legend>${c.nombre}</legend>
         ${c.scores.map((s, i) => html`<label key=${i}>${s.orz ? 'Drop Jump (ORZ) · ' : s.test + ' · '}${s.variable}${s.rel ? '/BM' : ''} <input type="number" min="0" max="100" step="0.1" value=${d.pesos[c.id][i]} onInput=${(e) => setPeso(c.id, i, e.target.value)} /></label>`)}
       </fieldset>`)}
-      <fieldset><legend>Umbrales de las reglas (percentil)</legend>
-        <label>Jump height mínimo (p35) <input type="number" min="0" max="100" value=${d.umbrales.p35} onInput=${(e) => set({ umbrales: { ...d.umbrales, p35: e.target.value } })} /></label>
-        <label>Depth y contraction time mínimos (p10) <input type="number" min="0" max="100" value=${d.umbrales.p10} onInput=${(e) => set({ umbrales: { ...d.umbrales, p10: e.target.value } })} /></label>
-        <label>Knee Iso-Push máximo para el DSI (p65) <input type="number" min="0" max="100" value=${d.umbrales.p65} onInput=${(e) => set({ umbrales: { ...d.umbrales, p65: e.target.value } })} /></label>
+      <fieldset><legend>Umbrales de los textos de orientación (percentil)</legend>
+        <label>Umbral bajo (p35): jump height, Knee Iso-Push, Dynamic Strength y DSI <input type="number" min="0" max="100" value=${d.umbrales.p35} onInput=${(e) => set({ umbrales: { ...d.umbrales, p35: e.target.value } })} /></label>
+        <label>Umbral muy bajo (p10): depth y contraction time <input type="number" min="0" max="100" value=${d.umbrales.p10} onInput=${(e) => set({ umbrales: { ...d.umbrales, p10: e.target.value } })} /></label>
+        <label>Umbral alto (p65): Prioritize Power, Propulsive strategy y Reactive strategy <input type="number" min="0" max="100" value=${d.umbrales.p65} onInput=${(e) => set({ umbrales: { ...d.umbrales, p65: e.target.value } })} /></label>
       </fieldset>
       <div class="actions"><button type="submit">Guardar</button> <button type="button" class="secondary" onClick=${volver}>Volver a los valores del documento</button></div>
     </form>
     <${Msg} msg=${msg} />
+  <//>`;
+}
+
+// ---------- Comprobación de nombres (14/11/2026): el código localiza tests y variables por su NOMBRE; esta tarjeta comprueba que los encuentra todos ----------
+
+export function NombresCard() {
+  const { db, version } = useApp();
+  const { data } = useLoad(async () => comprobarNombres(await listCatalog(db)), [db, version]);
+  if (!data) return null;
+  const porTipo = { test: 'Test que no se encuentra', variable: 'Variable que no se encuentra', duplicado: 'Nombre repetido', equivalente: 'Nombres equivalentes' };
+  return html`<${Card} titulo="Comprobación de nombres">
+    <p>Varias partes del dashboard localizan un test o una variable por su nombre: el radar, las referencias de la Premier League y de Natera, el emparejamiento iso-hold/iso-push, los cuadros del DSI, el EUR y la ORZ, y el bloque COMPOSITE PROFILE SCORE. Si renombras algo que usan, dejan de encontrarlo sin dar ningún error. Aquí se comprueba contra tu catálogo.</p>
+    ${!data.length
+      ? html`<p class="status ok" role="status">Todo correcto: cada test y cada variable que el código busca por su nombre está en tu catálogo, y no hay nombres repetidos ni equivalentes.</p>`
+      : html`<p class="status warn" role="status">${data.length} ${data.length === 1 ? 'aviso' : 'avisos'}.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th scope="col">Aviso</th><th scope="col">Dónde</th><th scope="col">Qué busca</th><th scope="col">Detalle</th></tr></thead>
+          <tbody>${data.map((p, i) => html`<tr key=${i}><td>${porTipo[p.tipo] ?? p.tipo}</td><td>${p.quien ?? '—'}</td><td>${p.test ?? '—'}${p.variable ? ` · ${p.variable}` : ''}</td><td>${p.detalle}</td></tr>`)}</tbody>
+        </table></div>
+        <p class="muted">Para arreglarlo, devuelve al test o a la variable el nombre que el dashboard espera (en el Catálogo), o dime el nombre nuevo y lo añado como equivalente en el código.</p>`}
   <//>`;
 }

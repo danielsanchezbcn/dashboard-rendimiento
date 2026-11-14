@@ -14,7 +14,7 @@ import { columnasNormativas } from './pages-normativo.js';
 import { Banda } from './pages-percentiles.js';
 import { MIN_N_DEFAULT, perfQuantile, bandFor, BANDS } from './percentiles.js';
 import { fitLoadVelocity, classText } from './fuerzavelocidad.js';
-import { CUALIDADES, UMBRALES_DEFAULT, T, claveDesc, calcular, referenciaPosicional, pesosDe, expandirImpulsos, alturaDropJump, dsiNoAplicable } from './composite.js';
+import { CUALIDADES, UMBRALES_DEFAULT, T, claveDesc, calcular, referenciaPosicional, pesosDe, expandirImpulsos, alturaDropJump, orientacionDe, tendencia, DESC_IMP100, DESC_CPP } from './composite.js';
 import { BotonesImagen, Copiable, chartToBlob } from './copiar.js';
 import { FUENTE_GRAFICOS } from './fuentes.js';
 import { PAL } from './colores.js';
@@ -30,7 +30,6 @@ const BASES = [['last', 'Latest'], ['pa', 'PA'], ['pb', 'PB']];
 const REFS = [['p50', 'P50 La Liga'], ['p50pos', 'P50 posicional'], ['p75', 'P75 La Liga'], ['p75pos', 'P75 posicional']];
 const BACK_SQUAT = 'Back Squat Force–Velocity Profile';
 const SIN_DATOS = '—';
-const NO_APLICABLE = 'No aplicable';
 
 // ---- Radar de las 7 cualidades (3.9): los ejes YA son percentiles, así que la escala es 0–100 fija y no se normaliza por el P50.
 // Mismo estilo que el radar del CMJ (negro, Agency FB, jugador en blanco y referencias en amarillo), pero gráfico aparte: el del CMJ no se toca.
@@ -48,7 +47,7 @@ export function RadarCualidades({ ejes, series, playerName, svgRef }) {
   const ang = (i) => ((-90 + (i * 360) / n) * Math.PI) / 180;
   const rOf = (p) => R0 + (Math.max(0, Math.min(100, p)) / 100) * (RREF - R0);
   const pt = (i, p) => [CX + Math.cos(ang(i)) * rOf(p), CY + Math.sin(ang(i)) * rOf(p)];
-  // Un eje sin puntuación («No aplicable» o «—») deja un HUECO: nunca se dibuja como 0 (3.9).
+  // Un eje sin puntuación («—», falta el dato) deja un HUECO: nunca se dibuja como 0 (3.9).
   const trazos = (vals) => {
     const segs = []; let cur = [];
     for (let i = 0; i < n; i++) {
@@ -103,13 +102,13 @@ export function RadarCualidades({ ejes, series, playerName, svgRef }) {
 // ---- Puntuación con el color del percentil exacto de La Liga (mismo código de color que el resto del dashboard).
 const Puntuacion = ({ q }) => (q.estado === 'ok'
   ? html`<span class=${'band band-' + BANDS[bandFor(q.score)].key} title=${`${BANDS[bandFor(q.score)].name} (P${BANDS[bandFor(q.score)].range})`}>${q.score}</span>`
-  : html`<span class="muted">${q.estado === 'na' ? NO_APLICABLE : SIN_DATOS}</span>`);
+  : html`<span class="muted">${SIN_DATOS}</span>`);
 
 const fechaTexto = (x) => (!x?.date ? '—' : x.from && x.from !== x.date ? `${fmtDay(x.from)} – ${fmtDay(x.date)}` : fmtDay(x.date));
 
 export function CompositeProfile({ player, positionId = null }) {
   const { db, version } = useApp();
-  const [base, setBase] = useState('pa');
+  const [base, setBase] = useState('last');
   const [refs, setRefs] = useState(['p50']);
   const refTabla = useRef(null), refSvg = useRef(null), refRadar = useRef(null);
   const { data, error } = useLoad(async () => {
@@ -165,7 +164,8 @@ export function CompositeProfile({ player, positionId = null }) {
     const mine = t.refData.sessions.filter((s) => s.playerId === player.id);
     const necesarias = new Set();
     const recoger = (d) => { if (!d.tipo && (d.orz ? djTests.includes(nombre) : mismoTest(d.test, nombre))) necesarias.add(lc(d.rel ? d.variable + '/BM' : d.variable)); };
-    for (const c of CUALIDADES) { for (const s of c.scores) { recoger(s); (s.interp ?? []).forEach(recoger); } c.interp.forEach(recoger); for (const r of c.reglas) r.descs.forEach(recoger); }
+    for (const c of CUALIDADES) { for (const s of c.scores) { recoger(s); (s.interp ?? []).forEach(recoger); } c.interp.forEach(recoger); }
+    recoger(DESC_IMP100); recoger(DESC_CPP); // la comparación propulsivo / explosivo necesita los dos percentiles
     const vars = t.variables.filter((v) => necesarias.has(lc(v.name)) && !v.archived);
     columnas[nombre] = vars.length && mine.length
       ? columnasNormativas({ player, test: t.test, catalog, sessions: mine, refData: t.refData, vars, base, f: {}, positionId: null })
@@ -210,9 +210,10 @@ export function CompositeProfile({ player, positionId = null }) {
         const val = mias.dsi[sd];
         const knee = (sd === 'L' ? rel.kneeL : rel.kneeR);
         const kneePct = knee && knee.sufficient ? knee.percentilePerf : null;
-        // «No aplicable» si el percentil del Knee Iso-Push de ESA pierna pasa del umbral (p65 por defecto): anula solo la fila del DSI.
-        const na = dsiNoAplicable(kneePct, umbrales);
-        return { sd, defined: val.defined, value: val.defined ? val.value : null, ev, na, kneePct, etiqueta: na ? null : strengthOrientation('dsi', ev, kneeEvs.filter((k) => k.label === sd))?.text ?? null, razon: val.defined ? null : val.reason };
+        // La orientación la decide `strengthOrientation`, que ya aplica la regla del usuario (14/11/2026): con el Knee Iso-Push de ESA pierna por
+        // debajo del percentil 35 de La Liga, la orientación es siempre «Iso max strength training orientation», sea cual sea el ratio del DSI.
+        const o = strengthOrientation('dsi', ev, kneeEvs.filter((k) => k.label === sd), umbrales.p35);
+        return { sd, defined: val.defined, value: val.defined ? val.value : null, ev, kneePct, etiqueta: o?.text ?? null, nota: o?.kneeNote ?? null, razon: val.defined ? null : val.reason };
       });
       return { tipo: 'dsi', filas };
     }
@@ -221,6 +222,8 @@ export function CompositeProfile({ player, positionId = null }) {
       return { tipo: 'eur', defined: e.defined, value: e.defined ? e.value : null, ev: rel.eur, etiqueta: strengthOrientation('eur', rel.eur)?.text ?? null, razon: e.defined ? null : e.reason };
     }
     if (d.tipo === 'fv') return { tipo: 'fv', etiqueta: fv && fv.ok ? classText(fv.class) : null, fecha: fvFecha, razon: !fv ? 'Sin datos' : fv.ok ? null : fv.reason };
+    // Interpretativa que mira la puntuación de OTRA cualidad (Reactivity lee Dynamic Strength; Propulsive lee Reactivity): el número ya está calculado.
+    if (d.tipo === 'cualidad') { const q = porId[d.id]; return q && q.score !== null ? { tipo: 'cualidad', pct: q.score } : null; }
     return null;
   }
 
@@ -252,7 +255,8 @@ export function CompositeProfile({ player, positionId = null }) {
     ...(refs.includes('p75pos') ? [{ clave: 'p75pos', nombre: `P75 ${posNombre(positions, posActual)}`, vals: CUALIDADES.map((c) => referenciaPosicional(c, (d) => pctPosicional(d, 0.75), pesos)) }] : []),
   ];
   const series = [{ clave: 'jugador', nombre: 'Player', vals: qs.map((q) => (q.estado === 'ok' ? q.score : null)) }, ...referencias];
-  const ejes = qs.map((q) => ({ nombre: q.nombre, valor: q.score, texto: q.estado === 'na' ? 'n/a' : q.estado === 'sin-datos' ? SIN_DATOS : null, gris: q.estado !== 'ok' }));
+  // Un eje solo deja hueco cuando FALTA el dato (14/11/2026): ya no hay cualidades anuladas por regla.
+  const ejes = qs.map((q) => ({ nombre: q.nombre, valor: q.score, texto: q.estado === 'ok' ? null : SIN_DATOS, gris: q.estado !== 'ok' }));
 
   // N de la referencia: el número de jugadores con los que se ha comparado, que depende de la variable.
   const enes = qs.flatMap((q) => q.scores.map((s) => s.med?.n).filter((x) => Number.isFinite(x) && x > 0));
@@ -261,38 +265,63 @@ export function CompositeProfile({ player, positionId = null }) {
   const toggleRef = (k) => setRefs(refs.includes(k) ? refs.filter((x) => x !== k) : [...refs, k]);
   const etiquetaVar = (d, med) => (d.tipo === 'dsi' ? 'DSI' : d.tipo === 'eur' ? 'EUR' : d.tipo === 'fv' ? 'Back Squat load–velocity profile' : d.tipo === 'cualidad' ? porId[d.id]?.nombre ?? d.id : `${d.orz ? (med?.varias ? '30 + 45 cm' : `${dj.alturas[0] ?? '—'} cm`) + ' · ' : ''}${d.variable}${d.rel ? '/BM' : ''}`);
 
+  // ---- Comparación propulsivo / explosivo (14/11/2026): se decide con los percentiles de los dos impulsos, no con los valores.
+  const textoTendencia = tendencia(medida);
+
+  // Una fila del desglose: SEIS columnas, en el orden pedido por el usuario (14/11/2026).
+  // Variable | Percentil La Liga | Valor | Orientation | Fecha | Peso / etiqueta
+  const fila = (k, { variable, percentil, valor, orientacion, nota = null, fecha, peso }) => html`<tr key=${k}>
+    <th scope="row">${variable}</th>
+    <td>${percentil ?? html`<span class="muted">${SIN_DATOS}</span>`}</td>
+    <td class="num">${valor ?? html`<span class="muted">${SIN_DATOS}</span>`}</td>
+    <td>${orientacion ? html`<span title=${nota ?? ''}>${orientacion}</span>` : html`<span class="muted">${SIN_DATOS}</span>`}</td>
+    <td>${fecha ?? html`<span class="muted">${SIN_DATOS}</span>`}</td>
+    <td>${peso ?? html`<span class="muted">${SIN_DATOS}</span>`}</td></tr>`;
+  const pesoTexto = (peso) => (peso === null ? null : html`<span class="muted">${pc(peso * 100)} %</span>`);
+
   const filaMedida = (d, med, peso = null) => {
-    if (d.tipo === 'dsi') return med.filas.map((f) => html`<tr key=${'dsi' + f.sd}><th scope="row">DSI ${f.sd === 'L' ? 'izquierda' : 'derecha'}</th>
-      <td class="num">${f.defined ? nf(f.value) : html`<span class="muted">${f.razon}</span>`}</td>
-      <td>${f.ev ? html`<${Banda} ev=${f.ev} />` : '—'}</td><td>—</td>
-      <td>${f.na ? html`<span class="muted">${NO_APLICABLE} (Knee Iso-Push p${pc(f.kneePct)} > p${umbrales.p65})</span>` : f.etiqueta ?? html`<span class="muted">—</span>`}</td></tr>`);
-    if (d.tipo === 'eur') return html`<tr><th scope="row">EUR</th><td class="num">${med.defined ? nf(med.value) : html`<span class="muted">${med.razon}</span>`}</td>
-      <td>${med.ev ? html`<${Banda} ev=${med.ev} />` : '—'}</td><td>—</td><td>${med.etiqueta ?? html`<span class="muted">—</span>`}</td></tr>`;
-    if (d.tipo === 'fv') return html`<tr><th scope="row">Back Squat load–velocity profile</th><td class="num">—</td><td>—</td><td>${med.fecha ? fmtDay(med.fecha) : '—'}</td>
-      <td>${med.etiqueta ?? html`<span class="muted">${med.razon ?? 'Sin datos'}</span>`}</td></tr>`;
-    if (d.tipo === 'cualidad') return html`<tr><th scope="row">${etiquetaVar(d)}</th><td class="num">${med ? pc(med.pct) : SIN_DATOS}</td><td>—</td><td>—</td><td><span class="muted">puntuación de la cualidad${med?.texto ? ` (${med.texto})` : ''}</span></td></tr>`;
+    if (d.tipo === 'dsi') return med.filas.map((f) => fila('dsi' + f.sd, {
+      variable: `DSI ${f.sd === 'L' ? 'izquierda' : 'derecha'}`,
+      percentil: f.ev ? html`<${Banda} ev=${f.ev} />` : null,
+      valor: f.defined ? nf(f.value) : html`<span class="muted">${f.razon}</span>`,
+      orientacion: f.etiqueta, nota: f.nota, fecha: null, peso: html`<span class="muted">interpretativa</span>`,
+    }));
+    if (d.tipo === 'eur') return fila('eur', {
+      variable: 'EUR', percentil: med.ev ? html`<${Banda} ev=${med.ev} />` : null,
+      valor: med.defined ? nf(med.value) : html`<span class="muted">${med.razon}</span>`,
+      orientacion: med.etiqueta, fecha: null, peso: html`<span class="muted">interpretativa</span>`,
+    });
+    if (d.tipo === 'fv') return fila('fv', {
+      variable: 'Back Squat load–velocity profile', percentil: null, valor: null,
+      orientacion: med.etiqueta, nota: med.razon, fecha: med.fecha ? fmtDay(med.fecha) : null, peso: html`<span class="muted">interpretativa</span>`,
+    });
+    if (d.tipo === 'cualidad') return fila('q' + d.id, {
+      variable: etiquetaVar(d), percentil: med && Number.isFinite(med.pct) ? pc(med.pct) : null, valor: null,
+      orientacion: orientacionDe(d, med?.pct, umbrales), fecha: null, peso: html`<span class="muted">puntuación de la cualidad</span>`,
+    });
     const u = med?.v?.unit ? ` ${med.v.unit}` : '';
-    if (!med) return html`<tr><th scope="row">${etiquetaVar(d, med)}</th><td class="num">${SIN_DATOS}</td><td>—</td><td>—</td><td><span class="muted">sin dato con esta base</span>${peso === null ? null : html` <span class="muted">· peso ${pc(peso * 100)} %</span>`}</td></tr>`;
-    return med.partes.map((p, i) => html`<tr key=${etiquetaVar(d, med) + p.sd}>
-      <th scope="row">${i === 0 ? etiquetaVar(d, med) : ''}${med.partes.length > 1 ? html` <span class="muted">${p.sd === 'L' ? 'izquierda' : 'derecha'}</span>` : null}</th>
-      <td class="num">${p.x ? `${nf(p.x.value)}${u}` : SIN_DATOS}</td>
-      <td>${p.ev ? html`<${Banda} ev=${p.ev} />` : '—'}</td>
-      <td>${fechaTexto(p.x)}</td>
-      <td>${i === 0 && peso !== null ? html`<span class="muted">peso ${pc(peso * 100)} %</span>` : null}</td></tr>`);
+    if (!med) return fila(etiquetaVar(d, med), { variable: etiquetaVar(d, med), percentil: null, valor: null, orientacion: null, nota: 'Sin dato con esta base', fecha: null, peso: pesoTexto(peso) ?? html`<span class="muted">interpretativa</span>` });
+    return med.partes.map((p, i) => fila(etiquetaVar(d, med) + p.sd, {
+      variable: html`${i === 0 ? etiquetaVar(d, med) : ''}${med.partes.length > 1 ? html` <span class="muted">${p.sd === 'L' ? 'izquierda' : 'derecha'}</span>` : null}`,
+      percentil: p.ev ? html`<${Banda} ev=${p.ev} />` : null,
+      valor: p.x ? `${nf(p.x.value)}${u}` : null,
+      orientacion: orientacionDe(d, p.pct, umbrales) ?? (d.tendencia && i === 0 ? textoTendencia : null),
+      fecha: p.x ? fechaTexto(p.x) : null,
+      peso: i === 0 ? pesoTexto(peso) ?? html`<span class="muted">interpretativa</span>` : null,
+    }));
   };
 
   const desglose = (q) => {
     const cual = CUALIDADES.find((c) => c.id === q.id);
     const ps = pesosDe(cual, pesos);
     const sumaP = ps.reduce((a, b) => a + b, 0) || 1;
-    return html`<${Desplegable} titulo=${`${q.nombre} · ${q.estado === 'ok' ? q.score : q.estado === 'na' ? NO_APLICABLE : SIN_DATOS}`}>
-      ${q.fallan.length ? html`<p class="status warn" role="status">${NO_APLICABLE}: ${q.fallan.map((f) => f.texto).join(' · ')}</p>` : null}
-      ${q.reglas.filter((r) => !r.evaluada).length ? html`<p class="muted">Reglas que no se han podido comprobar: ${q.reglas.filter((r) => !r.evaluada).map((r) => r.clave).join(', ')} (falta el percentil de alguna de sus variables).</p>` : null}
+    return html`<${Desplegable} titulo=${`${q.nombre} · ${q.estado === 'ok' ? q.score : SIN_DATOS}${q.orientacion ? ' · ' + q.orientacion : ''}`}>
+      ${q.orientacion ? html`<p class="status" role="status">${q.nombre}: ${q.orientacion}</p>` : null}
       ${q.estado !== 'sin-datos' && q.usadas < q.total ? html`<p class="muted">Calculado con ${q.usadas} de ${q.total} variables de puntuación: el peso se reparte entre las que hay.</p>` : null}
       ${q.faltaCritica ? html`<p class="muted">Falta la variable principal de esta cualidad, así que no se puntúa (${SIN_DATOS}).</p>` : null}
       ${q.id === 'shortgct' ? html`<p class="muted">${orzNota}.</p>` : null}
       <div class="table-wrap"><table class="composite-det">
-        <thead><tr><th scope="col">Variable</th><th scope="col" class="num">Valor</th><th scope="col">Percentil La Liga</th><th scope="col">Fecha</th><th scope="col">Peso / etiqueta</th></tr></thead>
+        <thead><tr><th scope="col">Variable</th><th scope="col">Percentil La Liga</th><th scope="col">Valor</th><th scope="col">Orientation</th><th scope="col">Fecha</th><th scope="col">Peso / etiqueta</th></tr></thead>
         <tbody>
           ${cual.scores.flatMap((s, i) => [filaMedida(s, q.scores[i].med, ps[i] / sumaP), ...(s.interp ?? []).map((it) => filaMedida(it, medida(it), null))])}
           ${cual.interp.map((it) => filaMedida(it, medida(it), null))}
@@ -323,7 +352,7 @@ const posNombre = (positions, id) => (id == null ? 'posición' : positions.find(
 
 const NotaMetodo = ({ umbrales, minN }) => html`<${Desplegable} titulo="Cómo se calcula">
   <p class="muted">Cada cualidad es la media ponderada de los percentiles de rendimiento de La Liga de sus variables de puntuación, redondeada a entero. Los percentiles son los mismos que muestra «Normative Benchmarking» de cada test: la referencia excluye al propio jugador y a los sintéticos, y hace falta un mínimo de ${minN} jugadores. Las variables interpretativas nunca puntúan: están para leer el número.</p>
-  <p class="muted">«${NO_APLICABLE}» quiere decir que una regla anula la cualidad, y afecta solo a esa cualidad: Reactivity y Explosive / Snappy con jump height por debajo de p${umbrales.p35}, depth por debajo de p${umbrales.p10} o contraction time por debajo de p${umbrales.p10} (contraction time solo en Reactivity); Propulsive si el percentil de con impulse 100 ms no es menor que el de con peak power, y Explosive / Snappy si no es mayor. Con los dos percentiles iguales las dos salen «${NO_APLICABLE}», así que todo jugador con datos tendrá al menos una de las dos. La regla del DSI anula solo la fila del DSI, no la puntuación de Isometric Strength. «${SIN_DATOS}» es otra cosa: no hay datos suficientes para puntuar, y nunca se muestra como 0.</p>
+  <p class="muted">Las 7 cualidades puntúan siempre que haya datos (14/11/2026): ninguna regla anula una cualidad. Lo que antes era «No aplicable» es ahora un texto en la columna «Orientation», que dice qué hacer con ese número: jump height por debajo de p${umbrales.p35} → «Prioritize foundational dynamic strength»; depth o contraction time por debajo de p${umbrales.p10} → «Prioritize Dynamic strength depth»; por encima de p${umbrales.p65} → «Propulsive strategy»; Dynamic Strength por encima de p${umbrales.p65} → «Prioritize Power», y por debajo de p${umbrales.p35} → «Prioritize Strength». En Propulsive y en Explosive / Snappy se compara además el percentil de con impulse 100 ms con el de con peak power, y se indica qué tendencia domina. Con el Knee Iso-Push por debajo de p${umbrales.p35} de La Liga, la orientación del DSI es siempre «Iso max strength training orientation», sea cual sea el ratio. «${SIN_DATOS}» significa que no hay datos suficientes para puntuar, y nunca se muestra como 0.</p>
   <p class="muted">Los impulsos (con impulse, con impulse 100 ms y ecc deceleration impulse) llegan de VALD en N·s absolutos y aquí se usan divididos por la masa corporal (N·s/kg), también en la referencia de La Liga: comparar un valor relativo con una referencia absoluta sería un error. La masa es la medida más cercana a la fecha de la sesión (la misma regla que el resto del dashboard); sin masa utilizable, esa sesión no tiene impulso relativo. En el Drop Jump se usa la altura de la ORZ, y las interpretativas son de esa misma altura. Los tests de Groin, Hip y Ankle no entran en este bloque.</p>
   <p class="muted">El radar tiene los ejes en percentil 0–100 (el centro es 0) y no normaliza por el P50, porque los ejes ya son percentiles: por eso el P50 y el P75 de La Liga son polígonos regulares. Las referencias posicionales son, para cada variable, el percentil de La Liga del P50 (o P75) de la posición del jugador, combinado con los mismos pesos de la cualidad. Un eje sin puntuación deja un hueco en el polígono; nunca se dibuja como 0.</p>
 <//>`;

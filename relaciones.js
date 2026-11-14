@@ -117,6 +117,20 @@ export function ratioPB(numPoints, denPoints) {
   return { defined: true, value: a.value / b.value, num: a.value, den: b.value };
 }
 const T = { hipAdd: 'Hip Adduction 0° (Long Lever)', hipAbd: 'Hip Abduction 0° (Long Lever)', ankInv: 'Supine Isometric Ankle Inversion', ankEv: 'Supine Isometric Ankle Eversion', cmj: 'CMJ', sj: 'Squat Jump', sl: 'SL CMJ', knee: 'Run-Specific Knee Iso-Push', dj30: 'DL Drop Jump 30 cm', dj45: 'DL Drop Jump 45 cm' };
+// Tests en los que aparece cada cuadro de esta familia (el DSI, el EUR, los ratios de tobillo y cadera y la ORZ). Están aquí, junto a la lógica,
+// para que la pantalla y el inventario de `usos.js` miren la MISMA lista. Se comparan siempre con `mismoTest`, nunca letra a letra.
+export const DSI_TESTS = ['Run-Specific Knee Iso-Push', 'SL CMJ'];
+export const EUR_TESTS = ['CMJ', 'Squat Jump'];
+export const ANKLE_TESTS = ['supine isometric ankle inversion', 'supine isometric ankle eversion'];
+export const HIP_TESTS = ['hip adduction 0° (long lever)', 'hip abduction 0° (long lever)'];
+export const DJ_TESTS = ['dl drop jump 30 cm', 'dl drop jump 45 cm'];
+// Tests y variables que necesita `locate()`: el inventario de nombres los lee de aquí para comprobarlos contra el catálogo del usuario.
+export const TESTS_RELACIONES = [
+  [T.cmj, 'JH (imp-mom)'], [T.sj, 'JH (imp-mom)'], [T.sl, 'CONCENTRIC PEAK FORCE / BM'], [T.knee, 'Peak Force'],
+  [T.hipAdd, 'Peak Force'], [T.hipAbd, 'Peak Force'], [T.ankInv, 'Peak Force'], [T.ankEv, 'Peak Force'],
+  [T.dj30, 'RSI (FLIGHT TIME / CONTACT TIME)'], [T.dj45, 'RSI (FLIGHT TIME / CONTACT TIME)'],
+];
+
 export function locate(tests, variables) {
   const find = (testName, varName) => {
     const t = tests.find((x) => mismoTest(x.name, testName));
@@ -219,8 +233,22 @@ const ORIENT = {
   dsi: ['Ballistic strength training orientation', 'Concurrent strength training', 'Maximal strength training orientation'],
   eur: ['Plyometric strength training orientation', 'Concurrent strength training', 'Maximal strength training orientation'],
 };
-export function strengthOrientation(kind, ev, kneeEvs = []) {
+// Umbral del Knee Iso-Push por debajo del cual la orientación del DSI deja de depender del ratio (14/11/2026, decisión del usuario).
+export const KNEE_ISO_CUT = 35;
+export const ORIENT_ISO_MAX = 'Iso max strength training orientation';
+
+export function strengthOrientation(kind, ev, kneeEvs = [], cut = KNEE_ISO_CUT) {
   if (!ev) return null;
+  // Con el Knee Iso-Push por debajo del percentil 35 de La Liga, la orientación del DSI es SIEMPRE entrenar fuerza isométrica máxima, sea cual sea
+  // el ratio: el usuario la considera una cualidad de base previa al trabajo de ciclo estiramiento-acortamiento. Vale en todos los sitios donde
+  // aparece el DSI, porque la decisión está aquí y no en cada pantalla.
+  if (kind === 'dsi') {
+    const pct = (k) => (k?.ev?.sufficient ? k.ev.percentilePerf ?? k.ev.percentileStat ?? null : null);
+    const conocidos = kneeEvs.filter((k) => pct(k) !== null);
+    if (conocidos.length && conocidos.every((k) => pct(k) < cut)) {
+      return { text: ORIENT_ISO_MAX, band: null, forzadaPorKnee: true, kneeNote: `Knee Iso-Push por debajo del percentil ${cut} de La Liga (${conocidos.map((k) => `${k.label} ${Math.round(pct(k))}`).join(', ')}): fuerza isométrica máxima primero, sea cual sea el DSI.` };
+    }
+  }
   if (!ev.sufficient || ev.percentileStat === null) return { text: null, reason: 'Sin orientación: muestra insuficiente en La Liga.' };
   const p = ev.percentileStat;
   const band = p < ORIENTATION_CUTS[0] ? 0 : p <= ORIENTATION_CUTS[1] ? 1 : 2;

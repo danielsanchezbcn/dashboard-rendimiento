@@ -34,11 +34,15 @@ check('migración v6→v7: RSI vuelven a «más alto», contact time sigue «má
 // Direcciones confirmadas el 9/11: duraciones, profundidad y velocidad excéntrica pico «más bajo»; rigideces y fuerza a velocidad 0 «más alto».
 const D2 = (await db.variables.toArray()).filter((v) => v.source === 'inicial');
 const dirDe = (re) => D2.filter((v) => re.test(v.name) && v.kind === 'raw');
-check('más bajo es mejor: ECC DECEL PHASE DURATION, CONCENTRIC DURATION, CONTRACTION TIME, DEPTH, ECC PEAK VELOCITY', ['ECC DECEL PHASE DURATION', 'CONCENTRIC DURATION', 'CONTRACTION TIME', 'DEPTH', 'ECC PEAK VELOCITY'].every((n) => dirDe(new RegExp('^' + n + '$', 'i')).length >= 2 && dirDe(new RegExp('^' + n + '$', 'i')).every((v) => v.direction === 'lower')));
+check('más bajo es mejor: ECC DECEL PHASE DURATION, CONCENTRIC DURATION, CONTRACTION TIME, ECC PEAK VELOCITY', ['ECC DECEL PHASE DURATION', 'CONCENTRIC DURATION', 'CONTRACTION TIME', 'ECC PEAK VELOCITY'].every((n) => dirDe(new RegExp('^' + n + '$', 'i')).length >= 2 && dirDe(new RegExp('^' + n + '$', 'i')).every((v) => v.direction === 'lower')));
+// 14/11/2026: DEPTH pasa a «más alto es mejor» (el valor es negativo: −40 cm queda por debajo de −20 cm en percentil).
+check('DEPTH: más alto es mejor (CMJ y SL CMJ)', dirDe(/^depth$/i).length >= 2 && dirDe(/^depth$/i).every((v) => v.direction === 'higher'), JSON.stringify(dirDe(/^depth$/i).map((v) => v.direction)));
 check('más alto es mejor: COM STIFFNESS, FORCE AT 0 VELOCITY y rigideces activas', ['COM STIFFNESS', 'FORCE AT 0 VELOCITY', 'ACTIVE STIFFNESS', 'MEAN ACTIVE STIFFNESS'].every((n) => dirDe(new RegExp('^' + n + '$', 'i')).length >= 1 && dirDe(new RegExp('^' + n + '$', 'i')).every((v) => v.direction === 'higher')));
 // catálogo del usuario con «higher» por defecto en esas variables (versión 7): se pasan a «lower» una vez
-for (const v of dirDe(/^(depth|concentric duration|ecc peak velocity)$/i)) await db.variables.update(v.id, { direction: 'higher' });
+for (const v of dirDe(/^(concentric duration|ecc peak velocity)$/i)) await db.variables.update(v.id, { direction: 'higher' });
+for (const v of dirDe(/^depth$/i)) await db.variables.update(v.id, { direction: 'lower' }); // como quedó con la versión anterior
 await db.meta.put({ key: 'catalogSeeded', value: { version: 7 } });
 const r8 = await I.seedInitialCatalog(db);
-check('migración v7→v8 corrige las direcciones sembradas', r8.direccionesBajo >= 6 && (await db.variables.toArray()).filter((v) => /^(depth|concentric duration|ecc peak velocity)$/i.test(v.name)).every((v) => v.direction === 'lower'), JSON.stringify(r8));
+check('migración v7→v8 corrige las direcciones sembradas', r8.direccionesBajo >= 4 && (await db.variables.toArray()).filter((v) => /^(concentric duration|ecc peak velocity)$/i.test(v.name)).every((v) => v.direction === 'lower'), JSON.stringify(r8));
+check('la migración pasa DEPTH de «más bajo» a «más alto» en una base ya sembrada', r8.depthAlto >= 2 && (await db.variables.toArray()).filter((v) => /^depth$/i.test(v.name)).every((v) => v.direction === 'higher'), JSON.stringify([r8.depthAlto]));
 if (failed) { console.log(`${failed} fallo(s)`); process.exit(1); }

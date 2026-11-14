@@ -1,11 +1,14 @@
-// Bloque COMPOSITE PROFILE SCORE: comprobaciones de aceptación de la especificación v0.3 (§4), con datos 100 % sintéticos.
-// Se prueba la lógica pura (composite.js): la media ponderada, las reglas de «No aplicable», los datos que faltan, la altura del Drop Jump
-// y los impulsos relativizados a la masa. Los percentiles en sí los calcula el dashboard y ya tienen sus propias pruebas.
-import { CUALIDADES, UMBRALES_DEFAULT, T, V, claveDesc, calcular, puntuarCualidad, referenciaPosicional, pesosDe, expandirImpulsos, alturaDropJump, dsiNoAplicable, IMPULSOS_REL } from './composite.js';
+// Bloque COMPOSITE PROFILE SCORE: comprobaciones de aceptación de la especificación v0.4 (14/11/2026), con datos 100 % sintéticos.
+// Se prueba la lógica pura (composite.js): la media ponderada con los pesos del documento, los TEXTOS DE ORIENTACIÓN (que han sustituido al
+// antiguo «No aplicable»: ahora las 7 cualidades puntúan siempre que haya datos), la comparación propulsivo / explosivo, los datos que faltan,
+// la altura del Drop Jump y los impulsos relativizados a la masa. Los percentiles en sí los calcula el dashboard y ya tienen sus propias pruebas.
+import { strengthOrientation, ORIENT_ISO_MAX } from './relaciones.js';
+import { CUALIDADES, UMBRALES_DEFAULT, T, V, claveDesc, calcular, puntuarCualidad, referenciaPosicional, pesosDe, expandirImpulsos, alturaDropJump, IMPULSOS_REL, orientacionDe, tendencia, DESC_IMP100, DESC_CPP } from './composite.js';
 
 let fail = 0; const check = (n, ok, d = '') => { console.log((ok ? 'OK   ' : 'FAIL ') + n + (ok ? '' : ' ' + d)); if (!ok) fail = 1; };
 const cual = (id) => CUALIDADES.find((c) => c.id === id);
 const porId = (qs) => Object.fromEntries(qs.map((q) => [q.id, q]));
+const desc = (id, donde, i) => cual(id)[donde][i];
 
 // Percentiles sintéticos: una tabla clave → percentil. Lo que la pantalla construye de la base de datos, aquí se escribe a mano.
 const TODO = {
@@ -27,42 +30,66 @@ const TODO = {
 const medidaDe = (tabla) => (d) => { const p = tabla[claveDesc(d)]; return Number.isFinite(p) ? { pct: p, v: { unit: '' }, partes: [], n: 14 } : null; };
 const sin = (tabla, ...claves) => { const t = { ...tabla }; for (const k of claves) delete t[k]; return t; };
 
-// ---- 1. Un jugador con todos los datos tiene 7 puntuaciones y cada una es la media ponderada calculada a mano.
+// ---- 1. Un jugador con todos los datos tiene 7 puntuaciones y cada una es la media ponderada calculada a mano (pesos de la v0.4).
 const qs = calcular({ medida: medidaDe(TODO) });
 check('siete cualidades, en el orden del documento', qs.length === 7 && qs.map((q) => q.id).join() === 'isometric,dynamic,shortgct,decel,reactivity,propulsive,explosive', qs.map((q) => q.id).join());
 const q = porId(qs);
 check('Isometric = el percentil del Knee Iso-Push (peso único)', q.isometric.score === 60, String(q.isometric.score));
-check('Dynamic = 0,70×80 + 0,15×70 + 0,15×50 = 74', q.dynamic.score === 74, String(q.dynamic.score));
+check('Dynamic = 0,60×80 + 0,20×70 + 0,20×50 = 72', q.dynamic.score === 72, String(q.dynamic.score));
 check('Short GCT = media de Drop Jump (20) y Hop (40) = 30', q.shortgct.score === 30, String(q.shortgct.score));
 check('Deceleration = media de 30, 60 y 90 = 60', q.decel.score === 60, String(q.decel.score));
 check('Reactivity = 0,80×75 + 0,20×55 = 71', q.reactivity.score === 71, String(q.reactivity.score));
-check('Propulsive = 0,80×70 + 0,20×50 = 66 y es aplicable (40 < 70)', q.propulsive.score === 66 && q.propulsive.estado === 'ok', `${q.propulsive.score} ${q.propulsive.estado}`);
-check('Explosive es «No aplicable» (con impulse 100 ms p40 no es mayor que con peak power p70)', q.explosive.estado === 'na' && q.explosive.score === null, JSON.stringify(q.explosive.fallan));
+check('Propulsive = 0,80×70 + 0,20×50 = 66', q.propulsive.score === 66, String(q.propulsive.score));
+check('Explosive / Snappy = 0,80×40 + 0,20×45 = 41', q.explosive.score === 41, String(q.explosive.score));
 check('todas las puntuaciones son enteros de 0 a 100', qs.every((x) => x.score === null || (Number.isInteger(x.score) && x.score >= 0 && x.score <= 100)));
+// Ya NO hay cualidades anuladas: las 7 puntúan siempre que haya datos (decisión del usuario del 14/11/2026).
+check('ninguna cualidad se anula por regla: solo «ok» o «sin-datos»', qs.every((x) => ['ok', 'sin-datos'].includes(x.estado)), qs.map((x) => x.estado).join());
+check('con todos los datos, las 7 puntúan', qs.every((x) => x.estado === 'ok'));
 
-// ---- 2. JH p30 → Reactivity y Explosive «No aplicable»; Dynamic Strength sigue puntuando.
-const bajoJh = porId(calcular({ medida: medidaDe({ ...TODO, [claveDesc({ test: T.cmj, variable: V.jh })]: 30, [claveDesc({ test: T.cmj, variable: V.conImp100, rel: true })]: 90 }) }));
-check('JH p30: Reactivity «No aplicable»', bajoJh.reactivity.estado === 'na' && bajoJh.reactivity.fallan.some((f) => f.clave === 'jh'), JSON.stringify(bajoJh.reactivity.fallan));
-check('JH p30: Explosive «No aplicable»', bajoJh.explosive.estado === 'na' && bajoJh.explosive.fallan.some((f) => f.clave === 'jh'));
-check('JH p30: Dynamic Strength se calcula igual', bajoJh.dynamic.estado === 'ok' && bajoJh.dynamic.score === 0.7 * 30 + 0.15 * 70 + 0.15 * 50, String(bajoJh.dynamic.score));
-check('JH p30: el texto de la regla nombra la variable y el umbral', bajoJh.reactivity.fallan[0].texto === 'jump height p30 (< p35)', bajoJh.reactivity.fallan[0].texto);
-// depth y contraction time por debajo de p10 anulan Reactivity; depth también Explosive
-const bajoDepth = porId(calcular({ medida: medidaDe({ ...TODO, [claveDesc({ test: T.cmj, variable: V.depth })]: 7, [claveDesc({ test: T.cmj, variable: V.conImp100, rel: true })]: 90 }) }));
-check('depth p7: Reactivity y Explosive «No aplicable», Dynamic no', bajoDepth.reactivity.estado === 'na' && bajoDepth.explosive.estado === 'na' && bajoDepth.dynamic.estado === 'ok');
-const bajoCt = porId(calcular({ medida: medidaDe({ ...TODO, [claveDesc({ test: T.cmj, variable: V.ct })]: 5, [claveDesc({ test: T.cmj, variable: V.conImp100, rel: true })]: 90 }) }));
-check('contraction time p5: anula Reactivity pero no Explosive', bajoCt.reactivity.estado === 'na' && bajoCt.explosive.estado === 'ok', `${bajoCt.reactivity.estado} / ${bajoCt.explosive.estado}`);
+// ---- 2. Textos de orientación de la CUALIDAD (sustituyen al «No aplicable»).
+check('Dynamic Strength 72 (> p65) → «Prioritize Power»', q.dynamic.orientacion === 'Prioritize Power', String(q.dynamic.orientacion));
+const dynBajo = porId(calcular({ medida: medidaDe({ ...TODO, [claveDesc({ test: T.cmj, variable: V.jh })]: 20, [claveDesc({ test: T.cmj, variable: V.cpp })]: 30, [claveDesc({ test: T.cmj, variable: V.conImp, rel: true })]: 30 }) }));
+check('Dynamic Strength 24 (< p35) → «Prioritize Strength»', dynBajo.dynamic.score === 24 && dynBajo.dynamic.orientacion === 'Prioritize Strength', `${dynBajo.dynamic.score} ${dynBajo.dynamic.orientacion}`);
+const dynMedio = porId(calcular({ medida: medidaDe({ ...TODO, [claveDesc({ test: T.cmj, variable: V.jh })]: 50, [claveDesc({ test: T.cmj, variable: V.cpp })]: 50, [claveDesc({ test: T.cmj, variable: V.conImp, rel: true })]: 50 }) }));
+check('Dynamic Strength 50: ninguna orientación', dynMedio.dynamic.score === 50 && dynMedio.dynamic.orientacion === null, String(dynMedio.dynamic.orientacion));
+check('las demás cualidades no tienen orientación de cualidad', ['isometric', 'shortgct', 'decel', 'reactivity', 'propulsive', 'explosive'].every((k) => q[k].orientacion === null));
+check('una cualidad sin datos no tiene orientación', porId(calcular({ medida: () => null })).dynamic.orientacion === null);
 
-// ---- 3. Percentiles iguales en los dos impulsos → Propulsive y Explosive «No aplicable» (consecuencia esperada del documento).
-const iguales = porId(calcular({ medida: medidaDe({ ...TODO, [claveDesc({ test: T.cmj, variable: V.conImp100, rel: true })]: 70 }) }));
-check('con impulse 100 ms = con peak power: las dos cualidades «No aplicable»', iguales.propulsive.estado === 'na' && iguales.explosive.estado === 'na');
-check('siempre una de las dos sale «No aplicable»', [40, 70, 95].every((p) => { const x = porId(calcular({ medida: medidaDe({ ...TODO, [claveDesc({ test: T.cmj, variable: V.conImp100, rel: true })]: p }) })); return x.propulsive.estado === 'na' || x.explosive.estado === 'na'; }));
-check('«No aplicable» no cambia las demás cualidades', iguales.dynamic.score === q.dynamic.score && iguales.reactivity.score === q.reactivity.score);
+// ---- 3. Textos de orientación de cada VARIABLE: la primera regla que se cumple, sobre su propio percentil.
+const dKnee = cual('isometric').scores[0], dJhReact = cual('reactivity').interp[2], dDepth = cual('reactivity').interp[3], dCt = cual('reactivity').interp[4];
+check('Knee Iso-Push p30 (< p35) → «Prioritize max isometric strength»', orientacionDe(dKnee, 30) === 'Prioritize max isometric strength');
+check('Knee Iso-Push p60: sin texto', orientacionDe(dKnee, 60) === null, String(orientacionDe(dKnee, 60)));
+check('jump height p30 (< p35) → «Prioritize foundational dynamic strength»', orientacionDe(dJhReact, 30) === 'Prioritize foundational dynamic strength');
+check('jump height p80 (> p35) → «Acceptable output»', orientacionDe(dJhReact, 80) === 'Acceptable output');
+check('depth p8 (< p10) → «Prioritize Dynamic strength depth»', orientacionDe(dDepth, 8) === 'Prioritize Dynamic strength depth');
+check('depth p70 (> p65) → «Propulsive strategy»', orientacionDe(dDepth, 70) === 'Propulsive strategy');
+check('depth p40: sin texto', orientacionDe(dDepth, 40) === null);
+check('contraction time p70 (> p65) → «Propulsive strategy»', orientacionDe(dCt, 70) === 'Propulsive strategy');
+check('contraction time p5 (< p10) → «Prioritize Dynamic strength depth»', orientacionDe(dCt, 5) === 'Prioritize Dynamic strength depth');
+check('sin percentil no hay texto', orientacionDe(dDepth, null) === null && orientacionDe(dDepth, undefined) === null);
+check('una variable sin reglas no tiene texto', orientacionDe(cual('decel').scores[0], 5) === null);
+check('los umbrales se pueden configurar en Ajustes', orientacionDe(dJhReact, 30, { ...UMBRALES_DEFAULT, p35: 20 }) === 'Acceptable output');
+// Interpretativas que miran la puntuación de OTRA cualidad
+check('Reactivity: Dynamic Strength < p35 → «Prioritize Dynamic strength / concentric emphasis»', orientacionDe(cual('reactivity').interp[1], 24) === 'Prioritize Dynamic strength / concentric emphasis' && cual('reactivity').interp[1].id === 'dynamic');
+check('Propulsive: Reactivity > p65 → «Reactive strategy»', orientacionDe(cual('propulsive').interp[0], 71) === 'Reactive strategy' && cual('propulsive').interp[0].id === 'reactivity');
 
-// ---- 4. Knee Iso-Push p70 → la fila del DSI es «No aplicable» y Isometric Strength muestra 70.
+// ---- 4. Comparación propulsivo / explosivo: se decide con PERCENTILES, y ya no anula ninguna cualidad.
+check('con impulse 100 ms p40 < con peak power p70 → tendencia propulsiva', tendencia(medidaDe(TODO)) === 'Propulsive tendency > Explosive tendency', String(tendencia(medidaDe(TODO))));
+check('con impulse 100 ms p90 > con peak power p70 → tendencia explosiva', tendencia(medidaDe({ ...TODO, [claveDesc(DESC_IMP100)]: 90 })) === 'Explosive tendency > Propulsive tendency');
+check('percentiles iguales → se dice que están igualados', tendencia(medidaDe({ ...TODO, [claveDesc(DESC_IMP100)]: 70 })) === 'Explosive = Propulsive tendency');
+check('sin uno de los dos percentiles no hay tendencia', tendencia(medidaDe(sin(TODO, claveDesc(DESC_CPP)))) === null);
+check('la tendencia no cambia ninguna puntuación', porId(calcular({ medida: medidaDe({ ...TODO, [claveDesc(DESC_IMP100)]: 70 }) })).propulsive.score === 66);
+check('las dos filas de la comparación están marcadas en el documento', cual('propulsive').scores[0].tendencia === true && cual('explosive').scores[0].tendencia === true);
+check('la comparación usa CON IMPULSE 100ms/BM y CON PEAK POWER/BM del CMJ', claveDesc(DESC_IMP100) === claveDesc({ test: T.cmj, variable: V.conImp100, rel: true }) && claveDesc(DESC_CPP) === claveDesc({ test: T.cmj, variable: V.cpp }));
+
+// ---- 4 bis. Knee Iso-Push flojo: la orientación del DSI es siempre fuerza isométrica máxima (14/11/2026), y la cualidad sigue puntuando.
 const knee70 = porId(calcular({ medida: medidaDe({ ...TODO, [claveDesc({ test: T.knee, variable: V.kneeRel })]: 70 }) }));
 check('Knee p70: Isometric Strength puntúa 70', knee70.isometric.score === 70 && knee70.isometric.estado === 'ok');
-check('Knee p70: la fila del DSI es «No aplicable»', dsiNoAplicable(70, UMBRALES_DEFAULT) === true && dsiNoAplicable(60, UMBRALES_DEFAULT) === false);
-check('la regla del DSI usa el umbral de Ajustes', dsiNoAplicable(70, { p65: 80 }) === false);
+const evP = (p) => ({ sufficient: true, percentileStat: p, percentilePerf: p, n: 14 });
+check('Knee p30: la orientación del DSI es siempre fuerza isométrica máxima, sea cual sea el ratio', [10, 50, 90].every((dsi) => strengthOrientation('dsi', evP(dsi), [{ label: 'izquierda', ev: evP(30) }]).text === ORIENT_ISO_MAX));
+check('Knee p60: la orientación vuelve a salir del ratio del DSI', strengthOrientation('dsi', evP(10), [{ label: 'izquierda', ev: evP(60) }]).text !== ORIENT_ISO_MAX);
+check('la regla solo afecta al DSI, no al EUR', strengthOrientation('eur', evP(90), [{ label: 'izquierda', ev: evP(10) }]).text !== ORIENT_ISO_MAX);
+check('el umbral del Knee Iso-Push se puede configurar', strengthOrientation('dsi', evP(50), [{ label: 'izquierda', ev: evP(40) }], 50).text === ORIENT_ISO_MAX);
 
 // ---- 5. Datos que faltan (3.8): «—», nunca 0, y reparto del peso entre las que quedan.
 const sinHop = porId(calcular({ medida: medidaDe(sin(TODO, claveDesc({ test: T.hop, variable: V.hopRsi }))) }));
@@ -71,18 +98,21 @@ const sinCmj = porId(calcular({ medida: medidaDe(Object.fromEntries(Object.entri
 check('sin CMJ: Dynamic, Deceleration, Reactivity, Propulsive y Explosive salen «—», nunca 0', ['dynamic', 'decel', 'reactivity', 'propulsive', 'explosive'].every((k) => sinCmj[k].estado === 'sin-datos' && sinCmj[k].score === null), JSON.stringify(['dynamic', 'decel', 'reactivity', 'propulsive', 'explosive'].map((k) => [k, sinCmj[k].estado, sinCmj[k].score])));
 check('sin CMJ: Isometric y Short GCT siguen puntuando', sinCmj.isometric.score === 60 && sinCmj.shortgct.score === 30);
 const sinCpp = porId(calcular({ medida: medidaDe(sin(TODO, claveDesc({ test: T.cmj, variable: V.cpp }))) }));
-check('falta una variable que no es la principal: se reparte su peso', sinCpp.dynamic.estado === 'ok' && sinCpp.dynamic.score === Math.round((0.7 * 80 + 0.15 * 50) / 0.85) && sinCpp.dynamic.usadas === 2, String(sinCpp.dynamic.score));
+check('falta una variable que no es la principal: se reparte su peso', sinCpp.dynamic.estado === 'ok' && sinCpp.dynamic.score === Math.round((0.6 * 80 + 0.2 * 50) / 0.8) && sinCpp.dynamic.usadas === 2, String(sinCpp.dynamic.score));
 check('falta la variable principal (CON PEAK POWER/BM en Propulsive): la cualidad sale «—»', sinCpp.propulsive.estado === 'sin-datos' && sinCpp.propulsive.faltaCritica === true);
-const regla = puntuarCualidad(cual('reactivity'), medidaDe(sin(TODO, claveDesc({ test: T.cmj, variable: V.depth }))), UMBRALES_DEFAULT, {});
-check('una regla sin dato no se evalúa y queda constancia', regla.reglas.find((r) => r.clave === 'depth').evaluada === false && regla.estado === 'ok');
+// Una interpretativa sin dato no impide puntuar: solo deja su fila vacía.
+const sinDepth = puntuarCualidad(cual('reactivity'), medidaDe(sin(TODO, claveDesc({ test: T.cmj, variable: V.depth }))), UMBRALES_DEFAULT, {});
+check('una interpretativa sin dato no cambia la puntuación', sinDepth.estado === 'ok' && sinDepth.score === 71, `${sinDepth.estado} ${sinDepth.score}`);
 
 // ---- 6. Pesos editables en Ajustes (3.10).
-check('los pesos del documento son los de partida', pesosDe(cual('dynamic'), {}).join() === '0.7,0.15,0.15');
+check('los pesos del documento son los de partida', pesosDe(cual('dynamic'), {}).join() === '0.6,0.2,0.2', pesosDe(cual('dynamic'), {}).join());
+check('Reactivity 80 / 20 y Explosive 80 / 20, como el documento', pesosDe(cual('reactivity'), {}).join() === '0.8,0.2' && pesosDe(cual('explosive'), {}).join() === '0.8,0.2');
+check('Propulsive 80 / 20', pesosDe(cual('propulsive'), {}).join() === '0.8,0.2');
 const otros = { dynamic: [0.5, 0.25, 0.25] };
 check('un peso guardado cambia la puntuación', puntuarCualidad(cual('dynamic'), medidaDe(TODO), UMBRALES_DEFAULT, otros).score === Math.round(0.5 * 80 + 0.25 * 70 + 0.25 * 50));
-check('un peso inválido no rompe nada: se usa el del documento', pesosDe(cual('dynamic'), { dynamic: ['x', -3, 0.15] }).join() === '0.7,0.15,0.15');
+check('un peso inválido no rompe nada: se usa el del documento', pesosDe(cual('dynamic'), { dynamic: ['x', -3, 0.2] }).join() === '0.6,0.2,0.2');
 // Referencias posicionales del radar: mismos pesos que la cualidad
-check('la referencia posicional usa los mismos pesos', referenciaPosicional(cual('dynamic'), (d) => ({ [claveDesc({ test: T.cmj, variable: V.jh })]: 60, [claveDesc({ test: T.cmj, variable: V.cpp })]: 40, [claveDesc({ test: T.cmj, variable: V.conImp, rel: true })]: 20 })[claveDesc(d)]) === Math.round(0.7 * 60 + 0.15 * 40 + 0.15 * 20));
+check('la referencia posicional usa los mismos pesos', referenciaPosicional(cual('dynamic'), (d) => ({ [claveDesc({ test: T.cmj, variable: V.jh })]: 60, [claveDesc({ test: T.cmj, variable: V.cpp })]: 40, [claveDesc({ test: T.cmj, variable: V.conImp, rel: true })]: 20 })[claveDesc(d)]) === Math.round(0.6 * 60 + 0.2 * 40 + 0.2 * 20));
 check('sin referencia posicional en ninguna variable, el eje no tiene referencia', referenciaPosicional(cual('dynamic'), () => null) === null);
 
 // ---- 7. Drop Jump: ORZ, una sola altura o empate (3.4).
