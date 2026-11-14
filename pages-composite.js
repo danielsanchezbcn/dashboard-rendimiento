@@ -23,6 +23,7 @@ import { mismoTest } from './nombres.js';
 import { playerLabel } from './jugadores.js';
 
 const FONT = FUENTE_GRAFICOS;
+const lc = (s) => String(s ?? '').trim().toLowerCase();
 const nf = (n, d = 2) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 const pc = (p) => (Number.isFinite(p) ? String(Math.round(p)) : '—');
 const BASES = [['last', 'Latest'], ['pa', 'PA'], ['pb', 'PB']];
@@ -163,16 +164,18 @@ export function CompositeProfile({ player, positionId = null }) {
   for (const [nombre, t] of Object.entries(tests)) {
     const mine = t.refData.sessions.filter((s) => s.playerId === player.id);
     const necesarias = new Set();
-    const recoger = (d) => { if (!d.tipo && (d.orz ? djTests.includes(nombre) : d.test === nombre)) necesarias.add(d.rel ? d.variable + '/BM' : d.variable); };
+    const recoger = (d) => { if (!d.tipo && (d.orz ? djTests.includes(nombre) : mismoTest(d.test, nombre))) necesarias.add(lc(d.rel ? d.variable + '/BM' : d.variable)); };
     for (const c of CUALIDADES) { for (const s of c.scores) { recoger(s); (s.interp ?? []).forEach(recoger); } c.interp.forEach(recoger); for (const r of c.reglas) r.descs.forEach(recoger); }
-    const vars = t.variables.filter((v) => necesarias.has(v.name) && !v.archived);
+    const vars = t.variables.filter((v) => necesarias.has(lc(v.name)) && !v.archived);
     columnas[nombre] = vars.length && mine.length
       ? columnasNormativas({ player, test: t.test, catalog, sessions: mine, refData: t.refData, vars, base, f: {}, positionId: null })
       : [];
   }
 
   // ---- Una medida por descriptor: valor, percentil de La Liga, fecha y, con dos lados, cada pierna por separado (3.6).
-  const colDe = (nombre, varName) => (columnas[nombre] ?? []).find((c) => c.v.name === varName) ?? null;
+  // Los nombres se comparan sin distinguir mayúsculas (y los tests con `mismoTest`), como en el resto de la aplicación: si renombras una
+  // variable cambiando una mayúscula, el bloque tiene que seguir encontrándola (14/11/2026).
+  const colDe = (nombre, varName) => (columnas[nombre] ?? []).find((c) => lc(c.v.name) === lc(varName)) ?? null;
   const medidaCol = (col, nombre) => {
     if (!col) return null;
     const partes = col.sides.map((sd) => {
@@ -240,13 +243,15 @@ export function CompositeProfile({ player, positionId = null }) {
     }).filter((x) => x !== null);
     return out.length ? out.reduce((a, x) => a + x, 0) / out.length : null;
   };
-  const series = [
-    { clave: 'jugador', nombre: 'Player', vals: qs.map((q) => (q.estado === 'ok' ? q.score : null)) },
+  // Una sola lista de referencias para la TABLA y el RADAR: las columnas que se ven en el cuadro son exactamente los polígonos que se dibujan,
+  // así que no pueden contarse cosas distintas (13/11/2026, pedido por el usuario).
+  const referencias = [
     ...(refs.includes('p50') ? [{ clave: 'p50', nombre: 'P50 La Liga', vals: qs.map(() => 50) }] : []),
-    ...(refs.includes('p75') ? [{ clave: 'p75', nombre: 'P75 La Liga', vals: qs.map(() => 75) }] : []),
     ...(refs.includes('p50pos') ? [{ clave: 'p50pos', nombre: `P50 ${posNombre(positions, posActual)}`, vals: CUALIDADES.map((c) => referenciaPosicional(c, (d) => pctPosicional(d, 0.5), pesos)) }] : []),
+    ...(refs.includes('p75') ? [{ clave: 'p75', nombre: 'P75 La Liga', vals: qs.map(() => 75) }] : []),
     ...(refs.includes('p75pos') ? [{ clave: 'p75pos', nombre: `P75 ${posNombre(positions, posActual)}`, vals: CUALIDADES.map((c) => referenciaPosicional(c, (d) => pctPosicional(d, 0.75), pesos)) }] : []),
   ];
+  const series = [{ clave: 'jugador', nombre: 'Player', vals: qs.map((q) => (q.estado === 'ok' ? q.score : null)) }, ...referencias];
   const ejes = qs.map((q) => ({ nombre: q.nombre, valor: q.score, texto: q.estado === 'na' ? 'n/a' : q.estado === 'sin-datos' ? SIN_DATOS : null, gris: q.estado !== 'ok' }));
 
   // N de la referencia: el número de jugadores con los que se ha comparado, que depende de la variable.
@@ -302,13 +307,14 @@ export function CompositeProfile({ player, positionId = null }) {
     </div>
     <${BotonesImagen} rotulo="Tabla" obtener=${() => refTabla.current} nombre=${`composite-${player.id}`} titulo=${`COMPOSITE PROFILE SCORE · ${playerLabel(player)}`} />
     <div ref=${refTabla}><div class="table-wrap"><table class="composite">
-      <thead><tr><th scope="col">Cualidad</th><th scope="col">Puntuación</th></tr></thead>
-      <tbody>${qs.map((q) => html`<tr key=${q.id}><th scope="row">${q.nombre}</th><td><${Puntuacion} q=${q} /></td></tr>`)}</tbody>
+      <thead><tr><th scope="col">Cualidad</th><th scope="col">${BASES.find(([k]) => k === base)[1]}</th>${referencias.map((r) => html`<th scope="col" key=${r.clave}>${r.nombre}</th>`)}</tr></thead>
+      <tbody>${qs.map((q, i) => html`<tr key=${q.id}><th scope="row">${q.nombre}</th><td><${Puntuacion} q=${q} /></td>
+        ${referencias.map((r) => html`<td key=${r.clave} class="ref">${Number.isFinite(r.vals[i]) ? r.vals[i] : SIN_DATOS}</td>`)}</tr>`)}</tbody>
     </table></div>
     <p class="muted">Percentiles sobre N = ${nTexto} jugadores de la base.</p></div>
+    ${qs.map((q) => html`<div key=${q.id}>${desglose(q)}</div>`)}
     <div ref=${refRadar}><${Copiable} nombre=${`composite-radar-${player.id}`}><${RadarCualidades} ejes=${ejes} series=${series} playerName=${playerLabel(player)} svgRef=${refSvg} /><//></div>
     <${BotonesImagen} rotulo="Radar" obtener=${() => refRadar.current} hacerBlob=${() => chartToBlob(refRadar.current)} nombre=${`composite-radar-${player.id}`} />
-    ${qs.map((q) => html`<div key=${q.id}>${desglose(q)}</div>`)}
     <${NotaMetodo} umbrales=${umbrales} minN=${minN} />
   <//>`;
 }

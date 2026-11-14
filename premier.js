@@ -9,6 +9,8 @@ const DJ = ['DL Drop Jump 30 cm', 'DL Drop Jump 45 cm'];
 // [tests, variable del catálogo, métrica de la tabla, factor de unidad (tabla → catálogo), cortes P5..P95, conSigno]
 const R = (tests, variable, metric, scale, cuts, signed = false, abs = false) => ({ tests, variable, metric, scale, cuts, signed, abs });
 
+import { normTestName } from './nombres.js';
+
 export const PREMIER_SEASON = 'In Season 2025-26';
 export const PREMIER_REFERENCES = [
   // Run-Specific Isometrics (ForceDecks)
@@ -73,7 +75,12 @@ export const PREMIER_REFERENCES = [
 
 const lc = (s) => String(s ?? '').trim().toLowerCase();
 // Clave de enlace tolerante: sin mayúsculas, acentos, espacios ni signos, y sin el prefijo «Double-Leg»/«DL» del test (p. ej. «Hop Test» = «Double-Leg Hop Test»).
-const keyTest = (s) => lc(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '').replace(/^(doubleleg|dl)/, '');
+// Comparación de nombres de test: se apoya en `normTestName`, el MISMO normalizador que usa el resto de la aplicación (ignora mayúsculas y
+// acentos, convierte «Single-Leg»/«Double-Leg» en SL/DL y quita el «Run-Specific» del principio), y además ignora la puntuación.
+// Antes tenía su propia regla, que no quitaba «Run-Specific»: renombrar «Run-Specific Knee Iso-Push» a «Knee Iso-Push» dejaba al test sin
+// referencia de la Premier League, sin dar ningún error (comprobado el 14/11/2026). Se conserva la tolerancia con el «DL» del principio,
+// que ya existía: «Hop Test» y «DL Hop Test» son el mismo test a efectos de la tabla de la Premier.
+const keyTest = (s) => normTestName(s).replace(/[^a-z0-9]/g, '').replace(/^dl/, '');
 const keyVar = (s) => lc(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 export const CUT_NAMES = ['P5', 'P25', 'P50 (mediana)', 'P75', 'P95'];
 

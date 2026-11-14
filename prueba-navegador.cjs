@@ -319,6 +319,38 @@ const server = http.createServer((req, res) => {
   check('COMPOSITE: un eje sin puntuación se marca «n/a» o «—» y nunca como 0', cps.marcas.every((m, i) => (cps.filas[i][1] === 'No aplicable' ? m === 'n/a' : cps.filas[i][1] === '—' ? m === '—' : m === cps.filas[i][1])), `${JSON.stringify(cps.marcas)} vs ${JSON.stringify(cps.filas.map((f) => f[1]))}`);
   check('COMPOSITE: línea de contexto con el N de la referencia', /^Percentiles sobre N = [\d–]+ jugadores de la base\.$/.test(cps.nLinea.trim()), cps.nLinea);
   check('COMPOSITE: un desglose por cualidad', cps.desgloses.length === 7, JSON.stringify(cps.desgloses));
+  // Las referencias elegidas salen como columnas del cuadro, con los mismos valores que dibuja el radar (13/11/2026, pedido por el usuario)
+  const cols = await page.evaluate(() => {
+    const cab = [...document.querySelectorAll('table.composite thead th')].map((t) => t.textContent.trim());
+    const fila = [...document.querySelectorAll('table.composite tbody tr')[0].children].map((t) => t.textContent.trim());
+    const radarUltimo = (() => { const card = [...document.querySelectorAll('.card')].find((c) => /COMPOSITE PROFILE SCORE/.test(c.querySelector('h2,h3')?.textContent ?? ''));
+      const svg = card?.querySelector('svg.radar-svg'); const tabla = card?.querySelector('table.composite'); const det = [...card?.querySelectorAll('details') ?? []].filter((d) => /·/.test(d.querySelector('summary')?.textContent ?? ''));
+      return svg && tabla && det.length ? (svg.compareDocumentPosition(tabla) & Node.DOCUMENT_POSITION_PRECEDING) !== 0 && (svg.compareDocumentPosition(det[det.length - 1]) & Node.DOCUMENT_POSITION_PRECEDING) !== 0 : null; })();
+    return { cab, fila, radarUltimo };
+  });
+  check('COMPOSITE: la columna de valor es la del filtro y las referencias elegidas son columnas', cols.cab[1] === 'PA' && cols.cab.slice(2).join() === 'P50 La Liga' && cols.fila.length === 3, JSON.stringify(cols.cab));
+  check('COMPOSITE: el valor de la columna de referencia es el mismo que dibuja el radar', cols.fila[2] === '50', JSON.stringify(cols.fila));
+  check('COMPOSITE: el radar va debajo de la tabla y de los desgloses', cols.radarUltimo === true, String(cols.radarUltimo));
+
+  // Invariante importante: el percentil que usa COMPOSITE para una variable tiene que ser EXACTAMENTE el que muestra «Normative Benchmarking»
+  // de ese test con la misma base. Si algún día se duplica el cálculo, esta prueba lo caza (13/11/2026).
+  const pctComposite = await page.evaluate(() => {
+    const d = [...document.querySelectorAll('details')].filter((x) => /·/.test(x.querySelector('summary')?.textContent ?? ''))[1];
+    d.open = true;
+    const tr = [...d.querySelectorAll('table.composite-det tbody tr')].find((r) => r.children[0].textContent.trim().startsWith('JH (imp-mom)'));
+    return tr ? tr.children[2].textContent.trim() : null;
+  });
+  await go(`#jugador-${P}?t=${t.cmj}&b=fuerza&pn=pa`, 'table.pano.norm');
+  const pctNb = await page.evaluate(() => {
+    const tb = document.querySelector('table.pano.norm');
+    let k = 0;
+    const idx = [...tb.querySelectorAll('thead tr:first-child th')].map((h) => { const o = { n: (h.querySelector('.pano-nm')?.innerText ?? '').trim(), i: k }; k += h.colSpan; return o; }).find((o) => o.n.toLowerCase() === 'jh (imp-mom)');
+    const fila = [...tb.querySelectorAll('tbody tr')].find((r) => /La Liga percentile\)$/.test(r.querySelector('th').innerText.trim()));
+    return idx && fila ? [...fila.querySelectorAll('td')][idx.i].innerText.trim() : null;
+  });
+  check('COMPOSITE: el percentil de una variable es el mismo que muestra Normative Benchmarking', pctComposite !== null && pctNb !== null && pctNb.includes(pctComposite), `composite: ${pctComposite} · normative: ${pctNb}`);
+  await go(`#jugador-${P}?b=composite`, 'table.composite', 4000);
+
   // El desglose: pesos, los dos lados del Knee Iso-Push, la altura del Drop Jump y lo que falta
   const det = await page.evaluate(() => {
     const ds = [...document.querySelectorAll('details')].filter((d) => /·/.test(d.querySelector('summary')?.textContent ?? ''));
@@ -331,13 +363,19 @@ const server = http.createServer((req, res) => {
   check('COMPOSITE: el DSI aparece por lado con su etiqueta de orientación', dIso.filas.filter((f) => /^DSI/.test(f[0])).length === 2 && /strength training/i.test(dIso.filas.find((f) => /^DSI/.test(f[0])).at(-1)), JSON.stringify(dIso.filas.filter((f) => /^DSI/.test(f[0]))));
   check('COMPOSITE: el impulso se usa por kilo (N s/kg), no en N·s absolutos', dDin.filas.some((f) => /CON IMPULSE\/BM/.test(f[0]) && /N s\/kg/.test(f[1])), JSON.stringify(dDin.filas.map((f) => f.slice(0, 2))));
   check('COMPOSITE: el Drop Jump dice de qué altura es cada dato', dGct.filas.filter((f) => /^(30|45) cm · /.test(f[0])).length >= 1, JSON.stringify(dGct.filas.map((f) => f[0])));
-  check('COMPOSITE: una variable de puntuación sin datos se marca y se reparte el peso', /calculado con 1 de 2|Calculado con 1 de 2/i.test(dGct.texto) && dGct.filas.some((f) => /sin dato con esta base/.test(f.at(-1))), dGct.titulo);
+  // Short GCT puntúa con las DOS mitades: Drop Jump (de la altura de la ORZ) y Double-Leg Hop Test. El nombre del Hop Test estaba mal escrito
+  // en el código («Hop Test») y la mitad del Hop se perdía en silencio; esta comprobación es el guardián de ese fallo (14/11/2026).
+  const filaConValor = (f) => f[1] !== '—' && /^\d+$/.test(f[2]);
+  check('COMPOSITE: Short GCT usa el Drop Jump y el Hop Test, los dos con dato y percentil', dGct.filas.some((f) => /^(30|45) cm · RSI/.test(f[0]) && filaConValor(f)) && dGct.filas.some((f) => /^MEAN RSI/.test(f[0]) && filaConValor(f)), JSON.stringify(dGct.filas.map((f) => f.slice(0, 3))));
+  check('COMPOSITE: las interpretativas del Hop Test también traen dato', dGct.filas.some((f) => /^MEAN CONTACT TIME/.test(f[0]) && filaConValor(f)) && dGct.filas.some((f) => /^MEAN JUMP HEIGHT/.test(f[0]) && filaConValor(f)), JSON.stringify(dGct.filas.map((f) => f[0])));
   // Las referencias del radar se activan y desactivan
   const lineasLeyenda = () => page.evaluate(() => [...document.querySelector('svg.radar-svg').querySelectorAll('g > line')].length);
   const antesLeg = await lineasLeyenda();
   await page.evaluate(() => [...document.querySelectorAll('fieldset.modes')].find((f) => /Referencia La Liga/.test(f.querySelector('legend').textContent)).querySelectorAll('input[type="checkbox"]')[2].click());
   await page.waitForTimeout(500);
   check('COMPOSITE: activar el P75 de La Liga añade su polígono al radar', (await lineasLeyenda()) === antesLeg + 1, `${antesLeg} → ${await lineasLeyenda()}`);
+  check('COMPOSITE: y también su columna en el cuadro', (await page.evaluate(() => [...document.querySelectorAll('table.composite thead th')].map((t) => t.textContent.trim()).join())) === 'Cualidad,PA,P50 La Liga,P75 La Liga');
+  if (CAP) await page.locator('.card').filter({ hasText: 'COMPOSITE PROFILE SCORE' }).first().screenshot({ path: path.join(CAP, 'composite2.png') });
   // El filtro de valor cambia tabla, radar y desglose a la vez
   const fechasPA = det[1].filas[0][3];
   await page.evaluate(() => [...document.querySelectorAll('fieldset.modes')].find((f) => /Valor/.test(f.querySelector('legend').textContent)).querySelectorAll('input[type="radio"]')[0].click());

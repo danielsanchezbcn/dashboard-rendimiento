@@ -551,9 +551,10 @@ fieldset.modes.filas > .ref-fila label.check { font-size: .78rem; white-space: n
 .filters label.check { flex-direction: row; align-items: center; gap: .4rem; align-self: end; margin: 0 0 .35rem; }
 
 /* COMPOSITE PROFILE SCORE (13/11/2026): tabla de las 7 cualidades y desglose de cada una. */
-table.composite { margin: .3rem 0 .2rem; max-width: 34rem; }
-table.composite th[scope="row"] { text-align: left; font-weight: 600; }
-table.composite td { text-align: center; width: 9rem; }
+table.composite { margin: .3rem 0 .2rem; max-width: 60rem; }
+table.composite th[scope="row"] { text-align: left; font-weight: 600; white-space: nowrap; }
+table.composite td { text-align: center; min-width: 6rem; }
+table.composite td.ref { color: var(--muted); font-size: .9rem; }
 table.composite-det { font-size: .86rem; }
 table.composite-det th[scope="row"] { text-align: left; font-weight: 500; }
 table.composite-det td.num { text-align: right; }

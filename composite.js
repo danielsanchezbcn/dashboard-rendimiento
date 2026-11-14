@@ -6,7 +6,7 @@
 import { massNearest } from './relaciones.js';
 
 // Nombres de los tests y variables tal como están en el catálogo.
-export const T = { cmj: 'CMJ', knee: 'Run-Specific Knee Iso-Push', hop: 'Hop Test', dj30: 'DL Drop Jump 30 cm', dj45: 'DL Drop Jump 45 cm' };
+export const T = { cmj: 'CMJ', knee: 'Run-Specific Knee Iso-Push', hop: 'Double-Leg Hop Test', dj30: 'DL Drop Jump 30 cm', dj45: 'DL Drop Jump 45 cm' };
 export const V = {
   jh: 'JH (imp-mom)', cpp: 'CON PEAK POWER/BM', conImp: 'CON IMPULSE', conImp100: 'CON IMPULSE 100ms', eccImp: 'ECC DECELERATION IMPULSE',
   eccPp: 'ECC PEAK POWER/BM', eccRfd: 'ECC DECEL RFD', rsiMod: 'RSI MOD', stiff: 'COM STIFFNESS', ct: 'CONTRACTION TIME', depth: 'DEPTH',

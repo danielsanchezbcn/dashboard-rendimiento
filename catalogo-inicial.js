@@ -12,6 +12,8 @@ import { audit } from './db.js';
 import { SW_FACTOR_DEFAULT, testUsage, PERFILES_POR_DEFECTO, pbCriterionOf, sinAsimetriaPorDefecto } from './catalogo.js';
 import { ISO_PAIRS, RM12_TESTS, RM_EST_FACTOR_DEFAULT, pairFactor } from './isohold.js';
 
+import { mismoTest } from './nombres.js';
+
 export const CATALOG_SEED_VERSION = 12;
 
 const BLOCKS = [
@@ -305,7 +307,9 @@ async function ensureDerived(db, ts, counts) {
   const lc = (x) => String(x ?? '').trim().toLowerCase();
   const tests = await db.tests.toArray();
   const mans = await db.manifestations.toArray();
-  const tByName = (n) => tests.find((t) => lc(t.name) === lc(n));
+  // Por NOMBRE NORMALIZADO (`mismoTest`), no letra a letra: si el usuario renombra un test quitándole «Run-Specific» o pasando «Double-Leg» a «DL»,
+  // las futuras actualizaciones del catálogo tienen que seguir encontrándolo (14/11/2026).
+  const tByName = (n) => tests.find((t) => mismoTest(t.name, n));
   const manId = (n) => mans.find((m) => lc(m.name) === lc(n))?.id ?? null;
   let order = (await db.variables.orderBy('order').last())?.order ?? 0;
   const make = async (test, loadName, name, op, manifestation, params = {}, notes = '') => {
@@ -350,7 +354,7 @@ async function ensureGroinAnkle(db, ts, counts) {
   const bump = () => { counts.variablesAnadidas = (counts.variablesAnadidas ?? 0) + 1; counts.variables = (counts.variables ?? 0) + (counts.tests !== undefined ? 1 : 0); };
   for (const [names, single] of [[GROIN_TESTS, true], [ANKLE_TESTS, false], [KNEE_ISO_TESTS, false]]) {
     for (const name of names) {
-      const t = tests.find((x) => lc(x.name) === lc(name));
+      const t = tests.find((x) => mismoTest(x.name, name));
       if (!t) continue;
       const vars = await db.variables.where('testId').equals(t.id).toArray();
       let peak = vars.find((x) => lc(x.name) === 'peak force');
@@ -425,8 +429,10 @@ async function migrateCatalog(db, prev) {
     }
     // 3) Variables y unidades
     let order = (await db.variables.orderBy('order').last())?.order ?? 0;
+    // también por nombre normalizado: un test renombrado por el usuario sigue recibiendo sus variables nuevas (el bloque del duplicado de Ankle,
+    // más arriba, sí compara letra a letra a propósito: «Run-Specific Ankle Iso-Hold 20 s» y «Ankle Iso-Hold 20 s» normalizan igual).
     const apply = async (testName, specs) => {
-      const t = testByName(testName);
+      const t = tests.find((x) => mismoTest(x.name, testName));
       if (!t) return;
       const existing = await db.variables.where('testId').equals(t.id).toArray();
       for (const sp of specs) {
