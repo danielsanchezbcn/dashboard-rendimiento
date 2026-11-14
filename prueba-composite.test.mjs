@@ -61,21 +61,32 @@ check('Knee Iso-Push p30 (< p35) → «Prioritize max isometric strength»', ori
 check('Knee Iso-Push p60: sin texto', orientacionDe(dKnee, 60) === null, String(orientacionDe(dKnee, 60)));
 check('jump height p30 (< p35) → «Prioritize foundational dynamic strength»', orientacionDe(dJhReact, 30) === 'Prioritize foundational dynamic strength');
 check('jump height p80 (> p35) → «Acceptable output»', orientacionDe(dJhReact, 80) === 'Acceptable output');
-check('depth p8 (< p10) → «Prioritize Dynamic strength depth»', orientacionDe(dDepth, 8) === 'Prioritize Dynamic strength depth');
-check('depth p70 (> p65) → «Propulsive strategy»', orientacionDe(dDepth, 70) === 'Propulsive strategy');
-check('depth p40: sin texto', orientacionDe(dDepth, 40) === null);
-check('contraction time p70 (> p65) → «Propulsive strategy»', orientacionDe(dCt, 70) === 'Propulsive strategy');
-check('contraction time p5 (< p10) → «Prioritize Dynamic strength depth»', orientacionDe(dCt, 5) === 'Prioritize Dynamic strength depth');
+// DEPTH y CONTRACTION TIME, corregidos por el usuario el 14/11/2026 por la tarde. Las bandas INCLUYEN su extremo (90-100, 0-35, 65-100).
+check('depth p95 (banda 90-100) → «Prioritize increase depth»', orientacionDe(dDepth, 95) === 'Prioritize increase depth', String(orientacionDe(dDepth, 95)));
+check('depth p90 justo: entra en la banda alta', orientacionDe(dDepth, 90) === 'Prioritize increase depth');
+check('depth p20 (banda 0-35) → «Propulsive strategy»', orientacionDe(dDepth, 20) === 'Propulsive strategy');
+check('depth p35 justo: entra en la banda baja', orientacionDe(dDepth, 35) === 'Propulsive strategy');
+check('depth p70 (entre 35 y 90): sin texto', orientacionDe(dDepth, 70) === null, String(orientacionDe(dDepth, 70)));
+check('depth: ya NO se usa el antiguo p10 ni el texto «Prioritize Dynamic strength depth»', orientacionDe(dDepth, 8) === 'Propulsive strategy' && !JSON.stringify(cual('reactivity')).includes('Prioritize Dynamic strength depth'));
+check('contraction time p70 (banda 65-100) → «Snappy»', orientacionDe(dCt, 70) === 'Snappy', String(orientacionDe(dCt, 70)));
+check('contraction time p65 justo: entra en la banda alta', orientacionDe(dCt, 65) === 'Snappy');
+check('contraction time p20 (banda 0-35) → «Prioritize decrease contraction time»', orientacionDe(dCt, 20) === 'Prioritize decrease contraction time');
+check('contraction time p50 (entre 35 y 65): sin texto', orientacionDe(dCt, 50) === null, String(orientacionDe(dCt, 50)));
+// La corrección vale en TODOS los bloques donde aparecen, no solo en Reactivity.
+const depthEn = ['dynamic', 'reactivity', 'propulsive', 'explosive'].map((id) => [...cual(id).scores.flatMap((x) => x.interp ?? []), ...cual(id).interp].find((x) => x.variable === V.depth));
+check('depth lleva los mismos textos en Dynamic, Reactivity, Propulsive y Explosive', depthEn.every((d) => d && orientacionDe(d, 95) === 'Prioritize increase depth' && orientacionDe(d, 10) === 'Propulsive strategy'), JSON.stringify(depthEn.map((d) => !!d)));
+const ctEn = ['reactivity', 'propulsive'].map((id) => cual(id).interp.find((x) => x.variable === V.ct));
+check('contraction time lleva los mismos textos en Reactivity y Propulsive', ctEn.every((d) => d && orientacionDe(d, 90) === 'Snappy' && orientacionDe(d, 10) === 'Prioritize decrease contraction time'), JSON.stringify(ctEn.map((d) => !!d)));
 check('sin percentil no hay texto', orientacionDe(dDepth, null) === null && orientacionDe(dDepth, undefined) === null);
 check('una variable sin reglas no tiene texto', orientacionDe(cual('decel').scores[0], 5) === null);
-check('los umbrales se pueden configurar en Ajustes', orientacionDe(dJhReact, 30, { ...UMBRALES_DEFAULT, p35: 20 }) === 'Acceptable output');
+check('los umbrales se pueden configurar en Ajustes', orientacionDe(dJhReact, 30, { ...UMBRALES_DEFAULT, p35: 20 }) === 'Acceptable output' && orientacionDe(dDepth, 80, { ...UMBRALES_DEFAULT, p90: 75 }) === 'Prioritize increase depth');
 // Interpretativas que miran la puntuación de OTRA cualidad
 check('Reactivity: Dynamic Strength < p35 → «Prioritize Dynamic strength / concentric emphasis»', orientacionDe(cual('reactivity').interp[1], 24) === 'Prioritize Dynamic strength / concentric emphasis' && cual('reactivity').interp[1].id === 'dynamic');
 check('Propulsive: Reactivity > p65 → «Reactive strategy»', orientacionDe(cual('propulsive').interp[0], 71) === 'Reactive strategy' && cual('propulsive').interp[0].id === 'reactivity');
 
 // ---- 4. Comparación propulsivo / explosivo: se decide con PERCENTILES, y ya no anula ninguna cualidad.
-check('con impulse 100 ms p40 < con peak power p70 → tendencia propulsiva', tendencia(medidaDe(TODO)) === 'Propulsive tendency > Explosive tendency', String(tendencia(medidaDe(TODO))));
-check('con impulse 100 ms p90 > con peak power p70 → tendencia explosiva', tendencia(medidaDe({ ...TODO, [claveDesc(DESC_IMP100)]: 90 })) === 'Explosive tendency > Propulsive tendency');
+check('con impulse 100 ms p40 < con peak power p70 → «Propulsive tendency»', tendencia(medidaDe(TODO)) === 'Propulsive tendency', String(tendencia(medidaDe(TODO))));
+check('con impulse 100 ms p90 > con peak power p70 → «Explosive tendency»', tendencia(medidaDe({ ...TODO, [claveDesc(DESC_IMP100)]: 90 })) === 'Explosive tendency');
 check('percentiles iguales → se dice que están igualados', tendencia(medidaDe({ ...TODO, [claveDesc(DESC_IMP100)]: 70 })) === 'Explosive = Propulsive tendency');
 check('sin uno de los dos percentiles no hay tendencia', tendencia(medidaDe(sin(TODO, claveDesc(DESC_CPP)))) === null);
 check('la tendencia no cambia ninguna puntuación', porId(calcular({ medida: medidaDe({ ...TODO, [claveDesc(DESC_IMP100)]: 70 }) })).propulsive.score === 66);

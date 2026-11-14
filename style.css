@@ -533,8 +533,10 @@ table.asim td.asim-fecha, table.asim thead th { white-space: normal; }
 table.asim td.asim-comp { line-height: 1.2; }
 /* Déficits: 7 columnas (14/11/2026 se añade la comparación con la base). Anchos en % para que quepa todo sin desplazamiento horizontal. */
 table.deficits { width: 100%; table-layout: fixed; }
-table.deficits th, table.deficits td { overflow-wrap: anywhere; white-space: normal; padding: .3rem .35rem; font-size: .82rem; }
-table.deficits thead th { text-transform: none; letter-spacing: normal; line-height: 1.15; }
+/* Cada columna alineada CON SU TÍTULO (14/11/2026): todo centrado, encabezados y celdas, como en el desglose de COMPOSITE. */
+table.deficits th, table.deficits td { overflow-wrap: anywhere; white-space: normal; padding: .3rem .35rem; font-size: .82rem; text-align: center; vertical-align: middle; }
+table.deficits thead th { text-transform: none; letter-spacing: normal; line-height: 1.15; text-align: center; }
+table.deficits td.num { text-align: center; }
 table.deficits th:nth-child(1) { width: 11%; } table.deficits th:nth-child(2) { width: 20%; } table.deficits th:nth-child(3) { width: 20%; } table.deficits th:nth-child(4) { width: 9%; }
 table.deficits th:nth-child(5) { width: 11%; } table.deficits th:nth-child(6) { width: 15%; } table.deficits th:nth-child(7) { width: 14%; }
 

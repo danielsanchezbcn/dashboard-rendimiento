@@ -127,6 +127,8 @@ const server = http.createServer((req, res) => {
   check('Déficits: con Actual el título compara con la sesión anterior', (await cabComp()) === '% change vs previous session', await cabComp());
   const ladoCol = await page.evaluate(() => { const c = (sel) => { const e = document.querySelector(sel); return e ? getComputedStyle(e).color : null; }; return { l: c('table.deficits tbody td.asim-l'), r: c('table.deficits tbody td.asim-r') }; });
   check('Déficits: el lado va en azul (izquierda) y naranja (derecha)', ladoCol.l === 'rgb(49, 179, 254)' && ladoCol.r === 'rgb(252, 145, 47)', JSON.stringify(ladoCol));
+  const alinDef = await page.evaluate(() => { const t = document.querySelector('table.deficits'); const al = (e) => getComputedStyle(e).textAlign; const th = [...t.querySelectorAll('thead th')]; const tr = t.querySelector('tbody tr'); return th.map((h, i) => `${al(h)}/${al(tr.children[i])}`); });
+  check('Déficits: cada columna alineada con su título (todo centrado)', alinDef.every((x) => x === 'center/center'), alinDef.join(' · '));
   const anchoDef = await sinDesborde('table.deficits');
   check('Déficits: cabe a lo ancho a 1840, 1440 y 1280 px, sin desplazamiento horizontal', anchoDef.length === 0, anchoDef.join(' · '));
   await shot('deficits');
@@ -424,11 +426,12 @@ const server = http.createServer((req, res) => {
   check('COMPOSITE: Short GCT usa el Drop Jump y el Hop Test, los dos con dato y percentil', dGct.filas.some((f) => /^(30|45) cm · RSI/.test(f[0]) && filaConValor(f)) && dGct.filas.some((f) => /^MEAN RSI/.test(f[0]) && filaConValor(f)), JSON.stringify(dGct.filas.map((f) => f.slice(0, 3))));
   // Los textos de orientación que sustituyen al «No aplicable»: salen en la columna Orientation y, en Dynamic Strength, también en el título.
   // Textos del documento: los de las variables (v0.4), más los que ya traían el DSI, el EUR y el perfil carga-velocidad desde «Relaciones».
-  const ORIENTS = ['Prioritize max isometric strength', 'Prioritize LML isometric strength', 'Prioritize Dynamic strength depth', 'Propulsive strategy', 'Prioritize foundational dynamic strength', 'Acceptable output', 'Prioritize Power', 'Prioritize Strength', 'Reactive strategy', 'Prioritize Dynamic strength / concentric emphasis', 'tendency', 'Iso max strength training orientation', 'Maximal strength training orientation', 'Ballistic strength training orientation', 'Concurrent strength training', 'Force-deficit', 'Velocity-deficit', 'Well-balanced', 'Explosive = Propulsive'];
+  const ORIENTS = ['Prioritize max isometric strength', 'Prioritize LML isometric strength', 'Prioritize increase depth', 'Propulsive strategy', 'Snappy', 'Prioritize decrease contraction time', 'Prioritize foundational dynamic strength', 'Acceptable output', 'Prioritize Power', 'Prioritize Strength', 'Reactive strategy', 'Prioritize Dynamic strength / concentric emphasis', 'tendency', 'Iso max strength training orientation', 'Maximal strength training orientation', 'Ballistic strength training orientation', 'Concurrent strength training', 'Force-deficit', 'Velocity-deficit', 'Well-balanced'];
   const textosOri = det.flatMap((d) => d.filas.map((f) => f[4])).filter((x) => x && x !== '—' && !/interpretativa|puntuación/.test(x));
   check('COMPOSITE: la columna Orientation trae textos del documento y ninguno inventado', textosOri.length > 0 && textosOri.every((x) => ORIENTS.some((o) => x.includes(o))), JSON.stringify([...new Set(textosOri)]));
   check('COMPOSITE: la orientación de Dynamic Strength sale en el título del desglose', /Prioritize (Power|Strength)/.test(dDin.titulo) === /Prioritize (Power|Strength)/.test(dDin.texto), `${dDin.titulo}`);
   check('COMPOSITE: Propulsive y Explosive dicen qué tendencia domina', det.slice(5).some((d) => /(Explosive|Propulsive) tendency/.test(d.texto)), JSON.stringify(det.slice(5).map((d) => d.titulo)));
+  check('COMPOSITE: la tendencia se enuncia corta, sin el «>» de la versión anterior', !det.some((d) => /tendency >/.test(d.texto)), JSON.stringify(det.flatMap((d) => d.filas.map((f) => f[4])).filter((x) => /tendency/.test(x ?? ''))));
   check('COMPOSITE: las interpretativas del Hop Test también traen dato', dGct.filas.some((f) => /^MEAN CONTACT TIME/.test(f[0]) && filaConValor(f)) && dGct.filas.some((f) => /^MEAN JUMP HEIGHT/.test(f[0]) && filaConValor(f)), JSON.stringify(dGct.filas.map((f) => f[0])));
   // Las referencias del radar se activan y desactivan
   const lineasLeyenda = () => page.evaluate(() => [...document.querySelector('svg.radar-svg').querySelectorAll('g > line')].length);

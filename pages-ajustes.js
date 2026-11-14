@@ -152,9 +152,9 @@ export function CompositeCard() {
         ${c.scores.map((s, i) => html`<label key=${i}>${s.orz ? 'Drop Jump (ORZ) · ' : s.test + ' · '}${s.variable}${s.rel ? '/BM' : ''} <input type="number" min="0" max="100" step="0.1" value=${d.pesos[c.id][i]} onInput=${(e) => setPeso(c.id, i, e.target.value)} /></label>`)}
       </fieldset>`)}
       <fieldset><legend>Umbrales de los textos de orientación (percentil)</legend>
-        <label>Umbral bajo (p35): jump height, Knee Iso-Push, Dynamic Strength y DSI <input type="number" min="0" max="100" value=${d.umbrales.p35} onInput=${(e) => set({ umbrales: { ...d.umbrales, p35: e.target.value } })} /></label>
-        <label>Umbral muy bajo (p10): depth y contraction time <input type="number" min="0" max="100" value=${d.umbrales.p10} onInput=${(e) => set({ umbrales: { ...d.umbrales, p10: e.target.value } })} /></label>
-        <label>Umbral alto (p65): Prioritize Power, Propulsive strategy y Reactive strategy <input type="number" min="0" max="100" value=${d.umbrales.p65} onInput=${(e) => set({ umbrales: { ...d.umbrales, p65: e.target.value } })} /></label>
+        <label>Umbral bajo (p35): jump height, Knee Iso-Push, Dynamic Strength, DSI, depth y contraction time <input type="number" min="0" max="100" value=${d.umbrales.p35} onInput=${(e) => set({ umbrales: { ...d.umbrales, p35: e.target.value } })} /></label>
+        <label>Umbral alto (p65): Prioritize Power, Reactive strategy y «Snappy» (contraction time) <input type="number" min="0" max="100" value=${d.umbrales.p65} onInput=${(e) => set({ umbrales: { ...d.umbrales, p65: e.target.value } })} /></label>
+        <label>Umbral muy alto (p90): depth, «Prioritize increase depth» <input type="number" min="0" max="100" value=${d.umbrales.p90} onInput=${(e) => set({ umbrales: { ...d.umbrales, p90: e.target.value } })} /></label>
       </fieldset>
       <div class="actions"><button type="submit">Guardar</button> <button type="button" class="secondary" onClick=${volver}>Volver a los valores del documento</button></div>
     </form>

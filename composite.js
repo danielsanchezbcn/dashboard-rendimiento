@@ -24,7 +24,9 @@ export const IMPULSOS_REL = [
 ];
 
 // Umbrales de los textos de orientación, editables en Ajustes.
-export const UMBRALES_DEFAULT = { p35: 35, p10: 10, p65: 65 };
+// 14/11/2026 (tarde): el usuario corrige los umbrales de DEPTH y de CONTRACTION TIME. DEPTH usa ahora la banda alta (90–100) y la baja (0–35),
+// coherente con que DEPTH pase a «más alto es mejor»; CONTRACTION TIME usa 65–100 y 0–35. El antiguo p10 deja de usarse.
+export const UMBRALES_DEFAULT = { p35: 35, p65: 65, p90: 90 };
 
 const m = (test, variable, extra = {}) => ({ test, variable, ...extra });
 const relCmj = (name) => ({ test: T.cmj, variable: name, rel: true });
@@ -34,10 +36,14 @@ const orzM = (variable) => ({ orz: true, variable });
 // comparan dos variables («tendencia») o miran la puntuación de otra cualidad. Sustituyen al antiguo «No aplicable»: ahora las 7 cualidades
 // puntúan siempre que haya datos, y el texto dice qué hacer con ese número.
 const o = (op, u, texto) => ({ op, u, texto });
-const TEND_PROP = 'Propulsive tendency > Explosive tendency';
-const TEND_EXPL = 'Explosive tendency > Propulsive tendency';
-const DEPTH_ORI = [o('<', 'p10', 'Prioritize Dynamic strength depth'), o('>', 'p65', 'Propulsive strategy')];
-const CT_ORI = [o('>', 'p65', 'Propulsive strategy'), o('<', 'p10', 'Prioritize Dynamic strength depth')];
+// Los umbrales que el usuario da como BANDA («percentil 90-100», «0-35») incluyen el extremo: por eso llevan «>=» y «<=».
+export const cumple = (op, valor, lim) => (op === '<' ? valor < lim : op === '<=' ? valor <= lim : op === '>=' ? valor >= lim : valor > lim);
+const TEND_PROP = 'Propulsive tendency';
+const TEND_EXPL = 'Explosive tendency';
+// DEPTH (más alto es mejor: percentil alto = baja poco). 90-100 → hay que ganar profundidad; 0-35 (baja mucho) → estrategia propulsiva.
+const DEPTH_ORI = [o('>=', 'p90', 'Prioritize increase depth'), o('<=', 'p35', 'Propulsive strategy')];
+// CONTRACTION TIME (más bajo es mejor: percentil alto = tiempo corto). 65-100 → «Snappy»; 0-35 → hay que acortarlo.
+const CT_ORI = [o('>=', 'p65', 'Snappy'), o('<=', 'p35', 'Prioritize decrease contraction time')];
 const JH_ORI = [o('<', 'p35', 'Prioritize foundational dynamic strength'), o('>', 'p35', 'Acceptable output')];
 
 // ---- Las 7 cualidades, en el orden pedido. `critico`: si esa variable no tiene dato, la cualidad entera sale «—» (3.8).
@@ -56,7 +62,7 @@ export const CUALIDADES = [
       { ...m(T.cmj, V.cpp), peso: 0.2 },
       { ...relCmj(V.conImp), peso: 0.2 },
     ],
-    interp: [{ ...m(T.cmj, V.depth), orient: [o('<', 'p10', 'Prioritize Dynamic strength depth')] }, { tipo: 'fv' }],
+    interp: [{ ...m(T.cmj, V.depth), orient: DEPTH_ORI }, { tipo: 'fv' }],
     orientCualidad: [o('>', 'p65', 'Prioritize Power'), o('<', 'p35', 'Prioritize Strength')],
   },
   {
@@ -130,7 +136,7 @@ export const DESC_CPP = m(T.cmj, V.cpp);
 export function orientacionDe(desc, pct, umbrales = UMBRALES_DEFAULT) {
   if (!desc?.orient?.length || !Number.isFinite(pct)) return null;
   const u = { ...UMBRALES_DEFAULT, ...(umbrales ?? {}) };
-  for (const r of desc.orient) { const lim = u[r.u]; if (r.op === '<' ? pct < lim : pct > lim) return r.texto; }
+  for (const r of desc.orient) { if (cumple(r.op, pct, u[r.u])) return r.texto; }
   return null;
 }
 
@@ -165,7 +171,7 @@ export function puntuarCualidad(cual, medida, umbrales = UMBRALES_DEFAULT, pesos
   if (!faltaCritica && conDato.length && sumaPesos > 0) score = Math.round(conDato.reduce((a, s) => a + s.peso * s.med.pct, 0) / sumaPesos);
   // Las 7 cualidades puntúan siempre que haya datos (14/11/2026): ya no hay reglas que anulen una cualidad, solo textos de orientación.
   const estado = score === null ? 'sin-datos' : 'ok';
-  const orientacion = estado === 'ok' ? (cual.orientCualidad ?? []).map((r) => (r.op === '<' ? score < u[r.u] : score > u[r.u]) ? r.texto : null).find(Boolean) ?? null : null;
+  const orientacion = estado === 'ok' ? (cual.orientCualidad ?? []).map((r) => (cumple(r.op, score, u[r.u]) ? r.texto : null)).find(Boolean) ?? null : null;
   return { id: cual.id, nombre: cual.nombre, estado, score, scoreBruto: score, orientacion, scores, usadas: conDato.length, total: cual.scores.length, faltaCritica };
 }
 
