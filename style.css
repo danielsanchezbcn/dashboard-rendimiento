@@ -433,7 +433,7 @@ main { max-width: 92rem; padding: 1.5rem 1.7rem 4rem; }
 
 /* Botones y campos: principal blanco sobre negro, secundario con borde fino */
 button, .btn { box-shadow: none; }
-button:not(.secondary):not(.tab):not(.chip):not(.test-item):not(.pano-th):not(.danger), .btn { background: #f1f1f1; color: #0a0a0a; border-color: #f1f1f1; }
+button:not(.secondary):not(.tab):not(.chip):not(.test-item):not(.pano-th):not(.danger):not(.fila-abre), .btn { background: #f1f1f1; color: #0a0a0a; border-color: #f1f1f1; }
 button:hover:not(:disabled), .btn:hover { filter: brightness(.9); }
 button:disabled { opacity: .45; }
 button.secondary { background: transparent; border-color: #34343a; color: var(--text); }
@@ -564,9 +564,20 @@ fieldset.modes.filas > .ref-fila label.check { font-size: .78rem; white-space: n
 
 /* COMPOSITE PROFILE SCORE (13/11/2026): tabla de las 7 cualidades y desglose de cada una. */
 table.composite { margin: .3rem 0 .2rem; max-width: 60rem; }
-table.composite th[scope="row"] { text-align: left; font-weight: 600; white-space: nowrap; }
-table.composite td { text-align: center; min-width: 6rem; }
-table.composite td.ref { color: var(--muted); font-size: .9rem; }
+/* Ojo: el desglose va DENTRO de esta tabla, así que todo lo suyo se escribe con «>» para no pisar la tabla anidada. */
+table.composite > thead > tr > th, table.composite > tbody > tr > th[scope="row"] { text-align: left; }
+table.composite > tbody > tr > th[scope="row"] { font-weight: 600; white-space: nowrap; }
+table.composite > tbody > tr > td { text-align: center; min-width: 6rem; }
+table.composite > tbody > tr > td.ref { color: var(--muted); font-size: .9rem; }
+/* El desglose se abre haciendo clic en el NOMBRE de la cualidad (15/11/2026): el nombre es un botón y el desglose entra como una fila más de la tabla. */
+table.composite > tbody > tr > th > button.fila-abre { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; display: flex; align-items: center; gap: .4rem; width: 100%; }
+table.composite button.fila-abre:hover, table.composite button.fila-abre:focus-visible { color: var(--accent); text-decoration: underline; }
+table.composite button.fila-abre .caret { display: inline-block; width: .6rem; border: .3rem solid transparent; border-left-color: currentColor; border-right: 0; transition: transform .12s ease; }
+table.composite button.fila-abre[aria-expanded="true"] .caret { transform: rotate(90deg) translateX(.1rem); }
+table.composite > tbody > tr.abierta > th, table.composite > tbody > tr.abierta > td { border-bottom: 0; }
+table.composite > tbody > tr.fila-det > td { padding: 0 0 .6rem; text-align: left; min-width: 0; }
+table.composite .composite-desglose { padding: .2rem .6rem .1rem; }
+table.composite .composite-desglose .table-wrap { margin: 0; }
 /* Desglose (14/11/2026): SIETE columnas centradas bajo su encabezado —Variable | Percentil La Liga | Valor | % comparación | Orientation | Fecha | Peso—.
    Anchos en % con `table-layout: fixed` y texto a varias líneas: entran todas en pantalla sin desplazamiento horizontal. */
 table.composite-det { font-size: .76rem; width: 100%; table-layout: fixed; }

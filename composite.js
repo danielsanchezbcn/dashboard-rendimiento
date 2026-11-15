@@ -1,5 +1,5 @@
 // composite.js — bloque «COMPOSITE PROFILE SCORE» (encargo del usuario, especificación v0.3 del 13/11/2026): lógica pura, sin DOM ni base de datos.
-// Define las 7 cualidades, sus variables de puntuación (con peso), sus interpretativas, sus textos de orientación y cómo se puntúa.
+// Define las 6 cualidades, sus variables de puntuación (con peso), sus interpretativas, sus textos de orientación y cómo se puntúa.
 // Todo se apoya en el PERCENTIL DE LA LIGA que ya calcula el dashboard (misma función que Normative Benchmarking y Déficits): aquí no se
 // vuelve a decidir cómo se calcula un percentil, solo cómo se combinan. La capa de pantalla (pages-composite.js) resuelve cada descriptor
 // en una medida {pct, value, unit, date, …} y esta la combina; así se puede probar con datos sintéticos sin navegador.
@@ -9,7 +9,7 @@ import { massNearest } from './relaciones.js';
 export const T = { cmj: 'CMJ', knee: 'Run-Specific Knee Iso-Push', hop: 'Double-Leg Hop Test', dj30: 'DL Drop Jump 30 cm', dj45: 'DL Drop Jump 45 cm' };
 export const V = {
   jh: 'JH (imp-mom)', cpp: 'CON PEAK POWER/BM', conImp: 'CON IMPULSE', conImp100: 'CON IMPULSE 100ms', eccImp: 'ECC DECELERATION IMPULSE',
-  eccPp: 'ECC PEAK POWER/BM', eccRfd: 'ECC DECEL RFD', rsiMod: 'RSI MOD', stiff: 'COM STIFFNESS', ct: 'CONTRACTION TIME', depth: 'DEPTH',
+  eccPp: 'ECC PEAK POWER/BM', eccRfd: 'ECC DECEL RFD', eccDur: 'ECC DECEL PHASE DURATION', rsiMod: 'RSI MOD', stiff: 'COM STIFFNESS', ct: 'CONTRACTION TIME', depth: 'DEPTH',
   f0: 'FORCE AT 0 VELOCITY', kneeRel: 'Peak Force relativo (BW)',
   djRsi: 'RSI (FLIGHT TIME / CONTACT TIME)', djCt: 'CONTACT TIME', djJh: 'JUMP HEIGHT (Flight Time - cm)',
   hopRsi: 'MEAN RSI (FLIGHT TIME / CONTACT TIME)', hopCt: 'MEAN CONTACT TIME', hopJh: 'MEAN JUMP HEIGHT (Flight Time) (cm)',
@@ -33,37 +33,88 @@ const relCmj = (name) => ({ test: T.cmj, variable: name, rel: true });
 const orzM = (variable) => ({ orz: true, variable });
 
 // ---- Textos de orientación (especificación del usuario del 14/11/2026). Cada uno se evalúa sobre el percentil de su propia medida, salvo los que
-// comparan dos variables («tendencia») o miran la puntuación de otra cualidad. Sustituyen al antiguo «No aplicable»: ahora las 7 cualidades
+// comparan dos variables («tendencia») o miran la puntuación de otra cualidad. Sustituyen al antiguo «No aplicable»: ahora las 6 cualidades
 // puntúan siempre que haya datos, y el texto dice qué hacer con ese número.
 const o = (op, u, texto) => ({ op, u, texto });
 // Los umbrales que el usuario da como BANDA («percentil 90-100», «0-35») incluyen el extremo: por eso llevan «>=» y «<=».
 export const cumple = (op, valor, lim) => (op === '<' ? valor < lim : op === '<=' ? valor <= lim : op === '>=' ? valor >= lim : valor > lim);
-const TEND_PROP = 'Propulsive tendency';
-const TEND_EXPL = 'Explosive tendency';
-// DEPTH (más alto es mejor: percentil alto = baja poco). 90-100 → hay que ganar profundidad; 0-35 (baja mucho) → estrategia propulsiva.
-const DEPTH_ORI = [o('>=', 'p90', 'Prioritize increase depth'), o('<=', 'p35', 'Propulsive strategy')];
-// CONTRACTION TIME (más bajo es mejor: percentil alto = tiempo corto). 65-100 → «Snappy»; 0-35 → hay que acortarlo.
+// Comparación propulsivo / explosivo. El usuario la enuncia CORTA en Propulsive / Dynamic Strength y LARGA en Explosive / Snappy (documento del 15/11/2026).
+const TEND = {
+  corta: { expl: 'Explosive tendency', prop: 'Propulsive tendency', igual: 'Explosive = Propulsive tendency' },
+  larga: { expl: 'Explosive tendency > Propulsive tendency', prop: 'Propulsive tendency > Explosive tendency', igual: 'Explosive = Propulsive tendency' },
+};
+// DEPTH (más alto es mejor: percentil alto = baja poco). 90-100 → hay que ganar profundidad funcional; 0-35 (baja mucho) → estrategia propulsiva.
+const DEPTH_ORI = [o('>=', 'p90', 'Prioritize increase functional depth'), o('<=', 'p35', 'Propulsive strategy')];
+// CONTRACTION TIME (más bajo es mejor: percentil alto = tiempo corto). 65-100 → «Snappy»; 0-35 → hay que acortarlo. En Energy Storage / Reactivity y en
+// Explosive / Snappy el usuario añade «improve SSC utilization» al segundo texto, porque ahí lo que se discute es el uso del ciclo estiramiento-acortamiento.
 const CT_ORI = [o('>=', 'p65', 'Snappy'), o('<=', 'p35', 'Prioritize decrease contraction time')];
-const JH_ORI = [o('<', 'p35', 'Prioritize foundational dynamic strength'), o('>', 'p35', 'Acceptable output')];
+const CT_ORI_SSC = [o('>=', 'p65', 'Snappy'), o('<=', 'p35', 'Prioritize decrease contraction time, improve SSC utilization')];
+const JH_ORI = [o('<=', 'p35', 'Prioritize foundational dynamic strength'), o('>', 'p35', 'Acceptable output')];
 
-// ---- Las 7 cualidades, en el orden pedido. `critico`: si esa variable no tiene dato, la cualidad entera sale «—» (3.8).
+// ---- Las 6 cualidades, en el orden del documento del usuario (15/11/2026). Dynamic Strength y Propulsive se UNIFICAN en una sola («Propulsive /
+// Dynamic Strength», 55/35/10) por su similitud, y Reactivity pasa a llamarse «Energy Storage / Reactivity».
+// `critico`: si esa variable no tiene dato, la cualidad entera sale «—» (3.8).
 // `interp` dentro de un score son las interpretativas que van debajo de ese score en el desglose; las de la cualidad van al final.
 export const CUALIDADES = [
   {
     id: 'isometric', nombre: 'Isometric Strength',
     scores: [{ ...m(T.knee, V.kneeRel), peso: 1, critico: true, orient: [o('<', 'p35', 'Prioritize max isometric strength')] }],
-    interp: [{ tipo: 'dsi' }, { ...m(T.cmj, V.f0), orient: [o('<', 'p35', 'Prioritize LML isometric strength')] }],
+    interp: [{ tipo: 'dsi' }, { ...m(T.cmj, V.f0), orient: [o('<=', 'p35', 'Prioritize LML isometric strength')] }],
     orientCualidad: [],
   },
   {
-    id: 'dynamic', nombre: 'Dynamic Strength',
+    id: 'propulsive', nombre: 'Propulsive / Dynamic Strength',
     scores: [
-      { ...m(T.cmj, V.jh), peso: 0.6, critico: true },
-      { ...m(T.cmj, V.cpp), peso: 0.2 },
-      { ...relCmj(V.conImp), peso: 0.2 },
+      { ...m(T.cmj, V.jh), peso: 0.55, critico: true },
+      { ...m(T.cmj, V.cpp), peso: 0.35, tendencia: 'corta' },
+      { ...relCmj(V.conImp), peso: 0.1 },
     ],
-    interp: [{ ...m(T.cmj, V.depth), orient: DEPTH_ORI }, { tipo: 'fv' }],
+    interp: [
+      { ...m(T.cmj, V.depth), orient: DEPTH_ORI },
+      { ...m(T.cmj, V.ct), orient: CT_ORI },
+      { tipo: 'cualidad', id: 'reactivity', orient: [o('>', 'p65', 'Reactive strategy')] },
+      { tipo: 'fv' },
+    ],
     orientCualidad: [o('>', 'p65', 'Prioritize Power'), o('<', 'p35', 'Prioritize Strength')],
+  },
+  {
+    id: 'decel', nombre: 'Eccentric Deceleration',
+    scores: [
+      { ...m(T.cmj, V.eccPp), peso: 1 / 3 },
+      { ...relCmj(V.eccImp), peso: 1 / 3 },
+      { ...m(T.cmj, V.eccRfd), peso: 1 / 3 },
+    ],
+    interp: [m(T.cmj, V.eccDur)],
+    orientCualidad: [],
+  },
+  {
+    id: 'reactivity', nombre: 'Energy Storage / Reactivity',
+    scores: [
+      { ...m(T.cmj, V.rsiMod), peso: 0.8, critico: true },
+      { ...m(T.cmj, V.stiff), peso: 0.2 },
+    ],
+    interp: [
+      { tipo: 'eur' },
+      { ...m(T.cmj, V.jh), orient: JH_ORI },
+      { ...m(T.cmj, V.depth), orient: DEPTH_ORI },
+      { ...m(T.cmj, V.ct), orient: CT_ORI_SSC },
+      { tipo: 'cualidad', id: 'propulsive', orient: [o('<=', 'p35', 'Prioritize Dynamic strength / concentric emphasis')] },
+      m(T.cmj, V.eccRfd),
+    ],
+    orientCualidad: [],
+  },
+  {
+    id: 'explosive', nombre: 'Explosive / Snappy',
+    scores: [
+      { ...relCmj(V.conImp100), peso: 0.8, critico: true, tendencia: 'larga' },
+      { ...m(T.cmj, V.ct), peso: 0.2, orient: CT_ORI_SSC },
+    ],
+    interp: [
+      m(T.cmj, V.stiff),
+      { ...m(T.cmj, V.jh), orient: JH_ORI },
+      { ...m(T.cmj, V.depth), orient: DEPTH_ORI },
+    ],
+    orientCualidad: [],
   },
   {
     id: 'shortgct', nombre: 'Short GCT Reactive Strength',
@@ -72,58 +123,6 @@ export const CUALIDADES = [
       { ...m(T.hop, V.hopRsi), peso: 0.5, interp: [m(T.hop, V.hopCt), m(T.hop, V.hopJh)] },
     ],
     interp: [],
-    orientCualidad: [],
-  },
-  {
-    id: 'decel', nombre: 'Deceleration',
-    scores: [
-      { ...m(T.cmj, V.eccPp), peso: 1 / 3 },
-      { ...relCmj(V.eccImp), peso: 1 / 3 },
-      { ...m(T.cmj, V.eccRfd), peso: 1 / 3 },
-    ],
-    interp: [],
-    orientCualidad: [],
-  },
-  {
-    id: 'reactivity', nombre: 'Reactivity',
-    scores: [
-      { ...m(T.cmj, V.rsiMod), peso: 0.8, critico: true },
-      { ...m(T.cmj, V.stiff), peso: 0.2 },
-    ],
-    interp: [
-      { tipo: 'eur' },
-      { tipo: 'cualidad', id: 'dynamic', orient: [o('<', 'p35', 'Prioritize Dynamic strength / concentric emphasis')] },
-      { ...m(T.cmj, V.jh), orient: JH_ORI },
-      { ...m(T.cmj, V.depth), orient: DEPTH_ORI },
-      { ...m(T.cmj, V.ct), orient: CT_ORI },
-    ],
-    orientCualidad: [],
-  },
-  {
-    id: 'propulsive', nombre: 'Propulsive',
-    scores: [
-      { ...m(T.cmj, V.cpp), peso: 0.8, critico: true, tendencia: true },
-      { ...relCmj(V.conImp), peso: 0.2 },
-    ],
-    interp: [
-      { tipo: 'cualidad', id: 'reactivity', orient: [o('>', 'p65', 'Reactive strategy')] },
-      { ...m(T.cmj, V.depth), orient: DEPTH_ORI },
-      { ...m(T.cmj, V.ct), orient: CT_ORI },
-      { tipo: 'fv' },
-    ],
-    orientCualidad: [],
-  },
-  {
-    id: 'explosive', nombre: 'Explosive / Snappy',
-    scores: [
-      { ...relCmj(V.conImp100), peso: 0.8, critico: true, tendencia: true },
-      { ...m(T.cmj, V.ct), peso: 0.2 },
-    ],
-    interp: [
-      m(T.cmj, V.stiff),
-      { ...m(T.cmj, V.jh), orient: JH_ORI },
-      { ...m(T.cmj, V.depth), orient: DEPTH_ORI },
-    ],
     orientCualidad: [],
   },
 ];
@@ -140,11 +139,12 @@ export function orientacionDe(desc, pct, umbrales = UMBRALES_DEFAULT) {
   return null;
 }
 
-// Comparación propulsivo / explosivo, con los percentiles de los dos impulsos.
-export function tendencia(medida) {
+// Comparación propulsivo / explosivo, con los percentiles de los dos impulsos. `variante`: 'corta' en Propulsive / Dynamic Strength, 'larga' en Explosive / Snappy.
+export function tendencia(medida, variante = 'corta') {
   const a = medida(DESC_IMP100)?.pct, b = medida(DESC_CPP)?.pct;
   if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
-  return a > b ? TEND_EXPL : a < b ? TEND_PROP : 'Explosive = Propulsive tendency';
+  const t = TEND[variante] ?? TEND.corta;
+  return a > b ? t.expl : a < b ? t.prop : t.igual;
 }
 
 export const claveDesc = (d) => (d.tipo ? `@${d.tipo}${d.id ? ':' + d.id : ''}` : `${d.orz ? '@orz' : d.test}|${d.variable}${d.rel ? '/BM' : ''}`);
@@ -169,21 +169,21 @@ export function puntuarCualidad(cual, medida, umbrales = UMBRALES_DEFAULT, pesos
   const sumaPesos = conDato.reduce((a, s) => a + s.peso, 0);
   let score = null;
   if (!faltaCritica && conDato.length && sumaPesos > 0) score = Math.round(conDato.reduce((a, s) => a + s.peso * s.med.pct, 0) / sumaPesos);
-  // Las 7 cualidades puntúan siempre que haya datos (14/11/2026): ya no hay reglas que anulen una cualidad, solo textos de orientación.
+  // Las 6 cualidades puntúan siempre que haya datos (14/11/2026): ya no hay reglas que anulen una cualidad, solo textos de orientación.
   const estado = score === null ? 'sin-datos' : 'ok';
   const orientacion = estado === 'ok' ? (cual.orientCualidad ?? []).map((r) => (cumple(r.op, score, u[r.u]) ? r.texto : null)).find(Boolean) ?? null : null;
   return { id: cual.id, nombre: cual.nombre, estado, score, scoreBruto: score, orientacion, scores, usadas: conDato.length, total: cual.scores.length, faltaCritica };
 }
 
 export function calcular({ cualidades = CUALIDADES, medida, umbrales = UMBRALES_DEFAULT, pesos = {} } = {}) {
-  const hechas = [];
-  // Propulsive usa la puntuación de Reactivity como interpretativa: se calculan en orden y se consulta lo ya calculado.
+  // Dos pasadas: las cualidades se miran entre sí (Propulsive lee Energy Storage / Reactivity y Energy Storage lee Propulsive), así que primero se
+  // puntúan todas y después se resuelven las interpretativas que apuntan a otra cualidad. Ninguna puntuación depende de ellas, solo los textos.
+  const base = cualidades.map((c) => puntuarCualidad(c, medida, umbrales, pesos));
   const medidaCon = (d) => {
-    if (d?.tipo === 'cualidad') { const q = hechas.find((x) => x.id === d.id); return q && q.scoreBruto !== null ? { pct: q.scoreBruto } : null; }
+    if (d?.tipo === 'cualidad') { const q = base.find((x) => x.id === d.id); return q && q.scoreBruto !== null ? { pct: q.scoreBruto } : null; }
     return medida(d);
   };
-  for (const c of cualidades) hechas.push(puntuarCualidad(c, medidaCon, umbrales, pesos));
-  return hechas;
+  return cualidades.map((c) => puntuarCualidad(c, medidaCon, umbrales, pesos));
 }
 
 // Referencias del radar (3.9): mismos pesos de la cualidad sobre el percentil de La Liga del P50 (o P75) de la posición del jugador.

@@ -6,7 +6,7 @@ import { useLoad } from './componentes.js';
 import { getSetting } from './db.js';
 import { listCatalog } from './catalogo.js';
 import { MIN_N_DEFAULT } from './percentiles.js';
-import { locate, ratioReferences, G, withReferenceWeights, strengthOrientation, componentQuadrants, quadrantSide } from './relaciones.js';
+import { locate, ratioReferences, G, withReferenceWeights, strengthOrientation, componentQuadrants, quadrantSide, DSI_TESTS, EUR_TESTS, ANKLE_TESTS, HIP_TESTS, DJ_TESTS } from './relaciones.js';
 import { Copiable } from './copiar.js';
 import { playerLabel } from './jugadores.js';
 import { PAL } from './colores.js';
@@ -76,8 +76,6 @@ const Orient = ({ o }) => (!o ? '—' : o.text ? html`<span><strong>${o.text}</s
 // DSI en las pantallas de Knee Iso-Push y SL CMJ; EUR en las de CMJ y Squat Jump (9/11/2026). Detalle y comparación, solo con el cursor.
 // Se compara con `mismoTest`, no letra a letra: si el usuario renombra el test (p. ej. «Run-Specific Knee Iso-Push» → «Knee Iso-Push»),
 // el DSI tiene que seguir apareciendo en su pantalla (14/11/2026).
-export const DSI_TESTS = ['Run-Specific Knee Iso-Push', 'SL CMJ'];
-export const EUR_TESTS = ['CMJ', 'Squat Jump'];
 export function RelacionTest({ player, test }) {
   const name = test.name;
   const isDsi = DSI_TESTS.some((n) => mismoTest(n, name)), isEur = EUR_TESTS.some((n) => mismoTest(n, name));
@@ -101,7 +99,7 @@ function RelacionTestCarga({ player, isDsi }) {
     
       <details class="notas"><summary>Cómo se calcula y cómo se interpreta</summary>
         <p class="muted">SL CMJ «CONCENTRIC PEAK FORCE / BM» (N/kg ÷ ${nf(G, 5)}, en múltiplos del peso) ÷ Knee Iso-Push Peak Force relativo al peso corporal (BW, con la masa medida más cercana a cada sesión o, si no hay ninguna, el peso de referencia). Usa toda la historia del jugador (Personal Average de cada término). Sin unidad; orientativo. El percentil compara cada pierna con las dos piernas de todos los jugadores (un único P50 para ambas); el color indica la posición en La Liga, no «mejor/peor».</p>
-        <p class="muted">Orientación según el percentil del DSI: 0–40 Ballistic strength training orientation · 40–60 Concurrent strength training · 60–100 Maximal strength training orientation. Los cortes son los del usuario, no umbrales de la bibliografía. En la banda 0–40 se avisa si el percentil de Knee Iso-Push Peak Force (BW) de ese lado está por debajo de 40, porque la orientación puede variar.</p></details>
+        <p class="muted">Orientación según el percentil del DSI: 0–40 SSC training orientation · 40–60 Concurrent strength training · 60–100 Max isometric strength training orientation. Los cortes son los del usuario, no umbrales de la bibliografía. Por encima de todo esto: si el Knee Iso-Push de esa pierna está en el percentil 0–35 de La Liga, la orientación es «Iso maximal strength training orientation», sea cual sea el ratio.</p></details>
     </section>`;
   }
   const e = m.eur;
@@ -116,14 +114,12 @@ function RelacionTestCarga({ player, isDsi }) {
   
     <details class="notas"><summary>Cómo se calcula y cómo se interpreta</summary>
       <p class="muted">CMJ Jump Height (JH imp-mom), Personal Average ÷ Squat Jump Jump Height (JH imp-mom), Personal Best. Dividir una media entre un mejor valor sesga el cociente a la baja y no es comparable con los valores de la bibliografía. El color del percentil indica la posición en La Liga, no «mejor/peor».</p>
-      <p class="muted">Orientación según el percentil del EUR: 0–40 Plyometric strength training orientation · 40–60 Concurrent strength training · 60–100 Maximal strength training orientation. Los cortes son los del usuario, no umbrales de la bibliografía. En la banda 60–100 se avisa si el percentil de Knee Iso-Push Peak Force (BW) de alguna pierna está por debajo de 40, porque la orientación puede variar.</p></details>
+      <p class="muted">Orientación según el percentil del EUR: 0–40 SSC training orientation · 40–60 Concurrent strength training · 60–100 Strength training orientation without SSC. Los cortes son los del usuario, no umbrales de la bibliografía. El EUR no tiene la regla del Knee Iso-Push: esa solo existe en el DSI.</p></details>
     </section>`;
 }
 
 // Ratios del Excel del usuario (9/11/2026): Personal Best ÷ Personal Best. Tobillo (inversión÷eversión, izquierda, derecha y asimetría) en las pantallas de inversión y eversión;
 // cadera (aducción 0° ÷ abducción 0°, palanca larga, valor único) en las de aducción 0° y abducción 0°. Color de posición en La Liga (sin dirección «mejor/peor»).
-export const ANKLE_TESTS = ['supine isometric ankle inversion', 'supine isometric ankle eversion'];
-export const HIP_TESTS = ['hip adduction 0° (long lever)', 'hip abduction 0° (long lever)'];
 export function RatioTest({ player, test }) {
   const name = test.name;
   const isAnkle = ANKLE_TESTS.some((n) => mismoTest(n, name)), isHip = HIP_TESTS.some((n) => mismoTest(n, name));
@@ -158,7 +154,6 @@ function RatioTestCarga({ player, isAnkle }) {
 }
 
 // ORZ solo en las pantallas de DL Drop Jump 30 cm y 45 cm (9/11/2026).
-export const DJ_TESTS = ['dl drop jump 30 cm', 'dl drop jump 45 cm'];
 export function OrzTest({ test, player }) {
   if (!DJ_TESTS.some((n) => mismoTest(n, test.name))) return null;
   return html`<${OrzCarga} player=${player} />`;

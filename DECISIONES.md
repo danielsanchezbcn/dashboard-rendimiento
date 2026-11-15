@@ -615,3 +615,22 @@ El usuario corrige el 14/11/2026 por la tarde tres instrucciones que había dado
 
 ## 137. El texto de DEPTH en la banda alta (10e)
 El usuario mantiene las reglas de la decisión 136 y corrige solo el texto: `DEPTH` de percentil **90 a 100** muestra «**Prioritize increase depth**» (antes, «Prioritize Dynamic increase strength depth»). De percentil **0 a 35** sigue mostrando «Propulsive strategy» (el usuario dice «de 1 a 35»; se mantiene el 0 incluido, porque un percentil 0 es el caso más claro de esa banda).
+
+## 138. COMPOSITE v0.6: 6 cualidades, DSI y EUR definitivos y COMPOSITE como bloque de entrada (10f)
+Documento COMPOSITE.pptx del usuario (15/11/2026). Sustituye lo que contradiga de las decisiones 134, 136 y 137.
+- **Dynamic Strength y Propulsive se UNIFICAN** en «Propulsive / Dynamic Strength» (el usuario las considera demasiado parecidas): `JH (imp-mom)` **55 %** (crítica) · `CON PEAK POWER/BM` **35 %** · `CON IMPULSE/BM` **10 %**. Interpretativas: depth, contraction time, puntuación de Energy Storage / Reactivity (> p65 → «Reactive strategy») y perfil carga-velocidad. Orientación de la cualidad: > p65 «Prioritize Power», < p35 «Prioritize Strength».
+- **Reactivity pasa a llamarse «Energy Storage / Reactivity»** y **Deceleration a «Eccentric Deceleration»**. Quedan **6 cualidades**, en este orden: Isometric Strength · Propulsive / Dynamic Strength · Eccentric Deceleration · Energy Storage / Reactivity · Explosive / Snappy · Short GCT Reactive Strength. El radar pasa a 6 ejes.
+- **Interpretativas nuevas, sin texto**: `ECC DECEL PHASE DURATION` en Eccentric Deceleration y `ECC DECEL RFD` en Energy Storage / Reactivity.
+- **Textos**: depth 90–100 → «Prioritize increase **functional** depth». Contraction time 0–35 → «Prioritize decrease contraction time**, improve SSC utilization**» en Energy Storage / Reactivity y en Explosive / Snappy; texto corto en Propulsive / Dynamic Strength. Jump height y force at 0 velocity usan la banda 0–35 con el extremo incluido.
+- **Tendencia**: texto CORTO en Propulsive / Dynamic Strength («Explosive tendency» / «Propulsive tendency», en la fila de peak power) y LARGO en Explosive / Snappy («Explosive tendency > Propulsive tendency» y al revés, en la fila del impulso a 100 ms). Las dos salen de la misma comparación de percentiles.
+- **Las cualidades se miran entre sí** (Propulsive lee Energy Storage y Energy Storage lee Propulsive), así que `calcular` hace **dos pasadas**: primero puntúa las seis y después resuelve las interpretativas que apuntan a otra cualidad. Ninguna puntuación depende de ellas.
+- **DSI (normas definitivas)**: 0–40 «SSC training orientation» · 40–60 «Concurrent strength training» · 60–100 «Max isometric strength training orientation». Knee Iso-Push en el percentil **0–35** (extremo incluido) → «**Iso maximal strength training orientation**», sea cual sea el ratio.
+- **EUR (normas definitivas)**: 0–40 «SSC training orientation» · 40–60 «Concurrent strength training» · 60–100 «Strength training orientation without SSC». Sin regla del Knee Iso-Push.
+- **Desaparece el aviso** «la orientación puede variar» cuando el Knee Iso-Push estaba por debajo del percentil 40: lo sustituye la regla del percentil 35, que decide en vez de avisar.
+- **Al escoger un jugador se abre el bloque COMPOSITE PROFILE SCORE**, no «Manifestaciones de la fuerza».
+
+## 139. El desglose se abre desde el nombre de la cualidad (10g)
+- Las seis pestañas sueltas que había debajo de la tabla desaparecen: el nombre de cada cualidad es ahora un **botón** y su desglose se despliega **como una fila más de la tabla**, justo debajo de la suya (15/11/2026, pedido del usuario). Se abren y cierran de forma independiente y empiezan todas cerradas; `aria-expanded` y `aria-controls` mantienen el teclado y los lectores de pantalla.
+- Como el desglose pasa a estar DENTRO de `table.composite`, todas las reglas CSS y los selectores de las pruebas de esa tabla se escriben ahora con `>` (hijo directo), o pisarían la tabla anidada.
+- La regla general de botones del tema (`button:not(.secondary):not(.tab)…`) pintaba el nombre como un botón con fondo claro: se añade `:not(.fila-abre)`, como ya se hacía con `.tab`, `.chip` y `.pano-th`. Hay una comprobación de navegador que verifica que el nombre se ve como texto (sin fondo, sin borde y del color de la fila).
+- Detalle: «Copy image» de la tabla captura lo que se ve, así que si hay un desglose abierto, saldrá también en el PNG.

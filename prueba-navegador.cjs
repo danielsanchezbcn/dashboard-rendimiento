@@ -25,11 +25,15 @@ const server = http.createServer((req, res) => {
   const shot = async (n) => { if (CAP) await page.screenshot({ path: path.join(CAP, n + '.png') }); };
   const go = async (hash, sel, ms = 1200) => { await page.goto(base + hash); if (sel) await page.waitForSelector(sel, { timeout: 15000 }); await page.waitForTimeout(ms); };
   const texts = (sel) => page.locator(sel).allInnerTexts();
+  // El desglose de COMPOSITE se abre pulsando el nombre de la cualidad. Preact no redibuja dentro de un mismo `evaluate`, así que cada clic lleva su espera.
+  const cualClic = async (i, queremos) => { const hecho = await page.evaluate(([k, q]) => { const b = [...document.querySelectorAll('table.composite button.fila-abre')][k]; if (!b) return false; if ((b.getAttribute('aria-expanded') === 'true') === q) return true; b.click(); return true; }, [i, queremos]); if (hecho) await page.waitForTimeout(220); return hecho; };
+  const cualTodas = async (queremos) => { for (let i = 0; i < 8; i++) if (!(await cualClic(i, queremos))) break; };
   // ¿Caben estas tablas sin desplazamiento horizontal en una pantalla normal? Se mide también a 1440 y 1280 px, no solo en la ventana ancha de la prueba (14/11/2026).
   const sinDesborde = async (sel) => {
     const malas = [];
     for (const w of [...new Set([VW, 1840, 1440, 1280])]) {
       await page.setViewportSize({ width: w, height: 1000 }); await page.waitForTimeout(350);
+      await cualTodas(true);
       const r = await page.evaluate((s2) => { document.querySelectorAll('details').forEach((d) => { d.open = true; }); const ws = [...document.querySelectorAll(s2)].map((t) => t.closest('.table-wrap') ?? t); return { tabla: ws.some((x) => x.scrollWidth > x.clientWidth + 1), pagina: document.documentElement.scrollWidth > window.innerWidth + 1 }; }, sel);
       if (r.tabla || r.pagina) malas.push(`${w}px${r.tabla ? ' tabla' : ''}${r.pagina ? ' página' : ''}`);
     }
@@ -66,6 +70,10 @@ const server = http.createServer((req, res) => {
   const P = ids.players[5], iP = 5; const t = ids.byTest;
 
   // ---- Iso-Hold: Normative Benchmarking arriba del todo, con la carga, el MVIC iso-push, el %PIMA y el %BW/%SW y sus percentiles
+  // Al escoger jugador, sin pedir bloque, se abre COMPOSITE PROFILE SCORE (15/11/2026, decisión del usuario).
+  await go(`#jugador-${P}`, '.tabs [role="tab"]', 2500);
+  const porDefecto = await page.evaluate(() => [...document.querySelectorAll('.tabs [role="tab"]')].find((b) => b.getAttribute('aria-selected') === 'true')?.textContent.trim() ?? '');
+  check('Jugador: el bloque que se abre por defecto es COMPOSITE PROFILE SCORE', porDefecto === 'COMPOSITE PROFILE SCORE', porDefecto);
   await go(`#jugador-${P}?t=${t.khold}&b=fuerza`, '.evo table.pano', 1500);
   await shot('isohold');
   if (CAP) await page.locator('section.panorama').first().screenshot({ path: path.join(CAP, 'isohold-nb.png') });
@@ -343,12 +351,12 @@ const server = http.createServer((req, res) => {
   // ---- COMPOSITE PROFILE SCORE (13/11/2026, especificación v0.3)
   await go(`#jugador-${P}?b=composite`, 'table.composite', 4000);
   const cps = await page.evaluate(() => {
-    const filas = [...document.querySelectorAll('table.composite tbody tr')].map((tr) => [tr.querySelector('th').textContent.trim(), tr.querySelector('td').textContent.trim(), tr.querySelector('td .band')?.className ?? null]);
+    const filas = [...document.querySelectorAll('table.composite > tbody > tr')].map((tr) => [tr.querySelector('th').textContent.trim(), tr.querySelector('td').textContent.trim(), tr.querySelector('td .band')?.className ?? null]);
     const svg = document.querySelector('#bloque-composite svg.radar-svg') ?? document.querySelector('svg.radar-svg');
     const marcas = svg ? [...svg.querySelectorAll('text')].filter((t) => t.getAttribute('font-size') === '26').map((t) => t.textContent) : [];
     const leyenda = svg ? [...svg.querySelectorAll('g > line')].length : 0;
     const nLinea = [...document.querySelectorAll('p.muted')].map((p) => p.textContent).find((t) => /Percentiles sobre N/.test(t)) ?? '';
-    const desgloses = [...document.querySelectorAll('details')].map((d) => d.querySelector('summary')?.textContent.trim()).filter((t) => /·/.test(t ?? ''));
+    const desgloses = [...document.querySelectorAll('table.composite button.fila-abre')].map((b) => b.textContent.trim());
     return { filas, marcas, leyenda, nLinea, desgloses, radar: !!svg, aria: svg?.getAttribute('aria-label') ?? '' };
   });
   if (CAP) { await page.locator('.card').filter({ hasText: 'COMPOSITE PROFILE SCORE' }).first().screenshot({ path: path.join(CAP, 'composite.png') }); await page.locator('svg.radar-svg').first().screenshot({ path: path.join(CAP, 'composite-radar.png') }); }
@@ -356,33 +364,52 @@ const server = http.createServer((req, res) => {
   check('COMPOSITE: por defecto el valor es «Latest»', await page.evaluate(() => { const f = [...document.querySelectorAll('fieldset.modes')].find((x) => /Valor/.test(x.querySelector('legend').textContent)); const r = [...f.querySelectorAll('input[type="radio"]')].findIndex((i) => i.checked); return r === 0 && /Latest/.test(f.querySelectorAll('label.check')[0].textContent); }));
   await page.evaluate(() => [...document.querySelectorAll('fieldset.modes')].find((x) => /Valor/.test(x.querySelector('legend').textContent)).querySelectorAll('input[type="radio"]')[1].click());
   await page.waitForTimeout(700);
-  const NOMBRES = 'Isometric Strength,Dynamic Strength,Short GCT Reactive Strength,Deceleration,Reactivity,Propulsive,Explosive / Snappy';
-  check('COMPOSITE: las 7 cualidades, en el orden del documento', cps.filas.map((f) => f[0]).join() === NOMBRES, cps.filas.map((f) => f[0]).join());
+  // 15/11/2026: 6 cualidades (Dynamic Strength y Propulsive unificadas; Reactivity pasa a Energy Storage / Reactivity).
+  const NOMBRES = 'Isometric Strength,Propulsive / Dynamic Strength,Eccentric Deceleration,Energy Storage / Reactivity,Explosive / Snappy,Short GCT Reactive Strength';
+  check('COMPOSITE: las 6 cualidades, en el orden del documento', cps.filas.map((f) => f[0]).join() === NOMBRES, cps.filas.map((f) => f[0]).join());
   // 14/11/2026: ya no hay «No aplicable»: las 7 cualidades puntúan siempre que haya datos y «—» solo significa que falta el dato.
   check('COMPOSITE: cada puntuación es un entero con su color o «—»', cps.filas.every(([, v, cls]) => (/^\d+$/.test(v) && Number(v) >= 0 && Number(v) <= 100 && /band band-/.test(cls ?? '')) || v === '—'), JSON.stringify(cps.filas));
-  check('COMPOSITE: ninguna cualidad ni fila del desglose sale «No aplicable»', !/No aplicable/.test(await page.evaluate(() => { const card = [...document.querySelectorAll('.card')].find((c) => /COMPOSITE PROFILE SCORE/.test(c.querySelector('h2,h3')?.textContent ?? '')); const ds = [...card.querySelectorAll('details')].filter((d) => /·/.test(d.querySelector('summary')?.textContent ?? '')); ds.forEach((d) => { d.open = true; }); return (card.querySelector('table.composite')?.textContent ?? '') + ds.map((d) => d.textContent).join(' '); })));
-  check('COMPOSITE: el radar tiene los 7 ejes con su marca', cps.radar && cps.marcas.length === 7 && cps.marcas.every((m) => /^\d+$|^—$/.test(m)), JSON.stringify(cps.marcas));
+  await cualTodas(true);
+  check('COMPOSITE: ninguna cualidad ni fila del desglose sale «No aplicable»', !/No aplicable/.test(await page.evaluate(() => document.querySelector('table.composite')?.textContent ?? '')));
+  await cualTodas(false);
+  check('COMPOSITE: el radar tiene los 6 ejes con su marca', cps.radar && cps.marcas.length === 6 && cps.marcas.every((m) => /^\d+$|^—$/.test(m)), JSON.stringify(cps.marcas));
   check('COMPOSITE: un eje sin puntuación se marca «—» y nunca como 0', cps.marcas.every((m, i) => m === cps.filas[i][1]), `${JSON.stringify(cps.marcas)} vs ${JSON.stringify(cps.filas.map((f) => f[1]))}`);
   check('COMPOSITE: línea de contexto con el N de la referencia', /^Percentiles sobre N = [\d–]+ jugadores de la base\.$/.test(cps.nLinea.trim()), cps.nLinea);
-  check('COMPOSITE: un desglose por cualidad', cps.desgloses.length === 7, JSON.stringify(cps.desgloses));
+  check('COMPOSITE: un desglose por cualidad', cps.desgloses.length === 6, JSON.stringify(cps.desgloses));
   // Las referencias elegidas salen como columnas del cuadro, con los mismos valores que dibuja el radar (13/11/2026, pedido por el usuario)
   const cols = await page.evaluate(() => {
-    const cab = [...document.querySelectorAll('table.composite thead th')].map((t) => t.textContent.trim());
-    const fila = [...document.querySelectorAll('table.composite tbody tr')[0].children].map((t) => t.textContent.trim());
+    const cab = [...document.querySelectorAll('table.composite > thead > tr > th')].map((t) => t.textContent.trim());
+    const fila = [...document.querySelectorAll('table.composite > tbody > tr')[0].children].map((t) => t.textContent.trim());
     const radarUltimo = (() => { const card = [...document.querySelectorAll('.card')].find((c) => /COMPOSITE PROFILE SCORE/.test(c.querySelector('h2,h3')?.textContent ?? ''));
-      const svg = card?.querySelector('svg.radar-svg'); const tabla = card?.querySelector('table.composite'); const det = [...card?.querySelectorAll('details') ?? []].filter((d) => /·/.test(d.querySelector('summary')?.textContent ?? ''));
-      return svg && tabla && det.length ? (svg.compareDocumentPosition(tabla) & Node.DOCUMENT_POSITION_PRECEDING) !== 0 && (svg.compareDocumentPosition(det[det.length - 1]) & Node.DOCUMENT_POSITION_PRECEDING) !== 0 : null; })();
+      const svg = card?.querySelector('svg.radar-svg'); const tabla = card?.querySelector('table.composite');
+      return svg && tabla ? (svg.compareDocumentPosition(tabla) & Node.DOCUMENT_POSITION_PRECEDING) !== 0 : null; })();
     return { cab, fila, radarUltimo };
   });
   check('COMPOSITE: la columna de valor es la del filtro y las referencias elegidas son columnas', cols.cab[1] === 'PA' && cols.cab.slice(2).join() === 'P50 La Liga' && cols.fila.length === 3, JSON.stringify(cols.cab));
   check('COMPOSITE: el valor de la columna de referencia es el mismo que dibuja el radar', cols.fila[2] === '50', JSON.stringify(cols.fila));
   check('COMPOSITE: el radar va debajo de la tabla y de los desgloses', cols.radarUltimo === true, String(cols.radarUltimo));
+  // 15/11/2026: el desglose se despliega haciendo clic en el NOMBRE de la cualidad, dentro de la tabla; ya no hay pestañas sueltas debajo.
+  await cualTodas(false);
+  const antesCps = await page.evaluate(() => ({ botones: document.querySelectorAll('table.composite button.fila-abre').length, abiertas: document.querySelectorAll('table.composite > tbody > tr.fila-det').length, sueltas: [...document.querySelectorAll('details')].filter((d) => /·/.test(d.querySelector('summary')?.textContent ?? '')).length }));
+  check('COMPOSITE: cada cualidad tiene su nombre como botón y ninguna pestaña suelta debajo', antesCps.botones === 6 && antesCps.sueltas === 0, JSON.stringify(antesCps));
+  check('COMPOSITE: los desgloses empiezan cerrados', antesCps.abiertas === 0, String(antesCps.abiertas));
+  // El nombre sigue leyéndose como el texto de la fila, no como un botón de colores.
+  const estiloCual = await page.evaluate(() => { const b = document.querySelector('table.composite button.fila-abre'); const cs = getComputedStyle(b); return { bg: cs.backgroundColor, borde: cs.borderTopWidth, sombra: cs.boxShadow, color: cs.color, texto: getComputedStyle(b.closest('th')).color }; });
+  check('COMPOSITE: el nombre de la cualidad se ve como texto, no como un botón', estiloCual.bg === 'rgba(0, 0, 0, 0)' && estiloCual.borde === '0px' && estiloCual.sombra === 'none' && estiloCual.color === estiloCual.texto, JSON.stringify(estiloCual));
+  await page.evaluate(() => [...document.querySelectorAll('table.composite button.fila-abre')].find((x) => /Explosive \/ Snappy/.test(x.textContent)).click());
+  await page.waitForTimeout(300);
+  const abiertoCps = await page.evaluate(() => { const b = [...document.querySelectorAll('table.composite button.fila-abre')].find((x) => /Explosive \/ Snappy/.test(x.textContent)); const fila = b.closest('tr').nextElementSibling; return { n: document.querySelectorAll('table.composite > tbody > tr.fila-det').length, aria: b.getAttribute('aria-expanded'), dentro: !!(fila && fila.classList.contains('fila-det') && fila.querySelector('table.composite-det')) }; });
+  check('COMPOSITE: al pulsar «Explosive / Snappy» se despliega su desglose justo debajo de su fila', abiertoCps.n === 1 && abiertoCps.dentro === true && abiertoCps.aria === 'true', JSON.stringify(abiertoCps));
+  await page.evaluate(() => [...document.querySelectorAll('table.composite button.fila-abre')].find((x) => /Explosive \/ Snappy/.test(x.textContent)).click());
+  await page.waitForTimeout(300);
+  const cerradoCps = await page.evaluate(() => ({ n: document.querySelectorAll('table.composite > tbody > tr.fila-det').length, aria: [...document.querySelectorAll('table.composite button.fila-abre')].find((x) => /Explosive \/ Snappy/.test(x.textContent)).getAttribute('aria-expanded') }));
+  check('COMPOSITE: al pulsarlo otra vez se cierra', cerradoCps.n === 0 && cerradoCps.aria === 'false', JSON.stringify(cerradoCps));
 
   // Invariante importante: el percentil que usa COMPOSITE para una variable tiene que ser EXACTAMENTE el que muestra «Normative Benchmarking»
   // de ese test con la misma base. Si algún día se duplica el cálculo, esta prueba lo caza (13/11/2026).
+  await cualClic(1, true);
   const pctComposite = await page.evaluate(() => {
-    const d = [...document.querySelectorAll('details')].filter((x) => /·/.test(x.querySelector('summary')?.textContent ?? ''))[1];
-    d.open = true;
+    const d = [...document.querySelectorAll('table.composite button.fila-abre')][1].closest('tr').nextElementSibling;
     const tr = [...d.querySelectorAll('table.composite-det tbody tr')].find((r) => r.children[0].textContent.trim().startsWith('JH (imp-mom)'));
     return tr ? tr.children[1].textContent.trim() : null;
   });
@@ -401,12 +428,11 @@ const server = http.createServer((req, res) => {
   await page.waitForTimeout(700);
 
   // El desglose: pesos, los dos lados del Knee Iso-Push, la altura del Drop Jump y lo que falta
+  await cualTodas(true);
   const det = await page.evaluate(() => {
-    const ds = [...document.querySelectorAll('details')].filter((d) => /·/.test(d.querySelector('summary')?.textContent ?? ''));
-    ds.forEach((d) => { d.open = true; });
-    return ds.map((d) => ({ titulo: d.querySelector('summary').textContent.trim(), texto: d.textContent, filas: [...d.querySelectorAll('table.composite-det tbody tr')].map((tr) => [...tr.children].map((c) => c.textContent.trim())) }));
+    return [...document.querySelectorAll('table.composite > tbody > tr.fila-det')].map((d) => ({ titulo: d.previousElementSibling.textContent.trim(), texto: d.textContent, filas: [...d.querySelectorAll('table.composite-det tbody tr')].map((tr) => [...tr.children].map((c) => c.textContent.trim())) }));
   });
-  const dIso = det[0], dDin = det[1], dGct = det[2];
+  const dIso = det[0], dDin = det[1], dGct = det[5];
   // Las columnas del desglose, en el orden pedido por el usuario (14/11/2026), y todas centradas bajo su encabezado. Aquí el bloque está en PA.
   const cabDet = await page.evaluate(() => {
     const t = document.querySelector('table.composite-det');
@@ -415,7 +441,7 @@ const server = http.createServer((req, res) => {
   });
   check('COMPOSITE: el desglose tiene las columnas del documento más la comparación, en orden', cabDet.cab.join() === 'Variable,Percentil La Liga,Valor,% latest session vs Personal Average,Orientation,Fecha,Peso / etiqueta', cabDet.cab.join());
   check('COMPOSITE: las columnas del desglose están centradas bajo su encabezado', cabDet.centradas === true);
-  check('COMPOSITE: el desglose dice el peso de cada variable de puntuación', dDin.filas[0].at(-1) === '60 %' && dDin.filas[1].at(-1) === '20 %' && dDin.filas[2].at(-1) === '20 %', JSON.stringify(dDin.filas.map((f) => f.at(-1))));
+  check('COMPOSITE: el desglose dice el peso de cada variable de puntuación', dDin.filas[0].at(-1) === '55 %' && dDin.filas[1].at(-1) === '35 %' && dDin.filas[2].at(-1) === '10 %', JSON.stringify(dDin.filas.map((f) => f.at(-1))));
   check('COMPOSITE: el Knee Iso-Push muestra las dos piernas', dIso.filas[0][0].includes('izquierda') && dIso.filas[1][0].includes('derecha'), JSON.stringify(dIso.filas.slice(0, 2).map((f) => f[0])));
   check('COMPOSITE: el DSI aparece por lado con su orientación en la columna Orientation', dIso.filas.filter((f) => /^DSI/.test(f[0])).length === 2 && /strength training/i.test(dIso.filas.find((f) => /^DSI/.test(f[0]))[4]), JSON.stringify(dIso.filas.filter((f) => /^DSI/.test(f[0]))));
   check('COMPOSITE: el impulso se usa por kilo (N s/kg), no en N·s absolutos', dDin.filas.some((f) => /CON IMPULSE\/BM/.test(f[0]) && /N s\/kg/.test(f[2])), JSON.stringify(dDin.filas.map((f) => [f[0], f[2]])));
@@ -426,12 +452,12 @@ const server = http.createServer((req, res) => {
   check('COMPOSITE: Short GCT usa el Drop Jump y el Hop Test, los dos con dato y percentil', dGct.filas.some((f) => /^(30|45) cm · RSI/.test(f[0]) && filaConValor(f)) && dGct.filas.some((f) => /^MEAN RSI/.test(f[0]) && filaConValor(f)), JSON.stringify(dGct.filas.map((f) => f.slice(0, 3))));
   // Los textos de orientación que sustituyen al «No aplicable»: salen en la columna Orientation y, en Dynamic Strength, también en el título.
   // Textos del documento: los de las variables (v0.4), más los que ya traían el DSI, el EUR y el perfil carga-velocidad desde «Relaciones».
-  const ORIENTS = ['Prioritize max isometric strength', 'Prioritize LML isometric strength', 'Prioritize increase depth', 'Propulsive strategy', 'Snappy', 'Prioritize decrease contraction time', 'Prioritize foundational dynamic strength', 'Acceptable output', 'Prioritize Power', 'Prioritize Strength', 'Reactive strategy', 'Prioritize Dynamic strength / concentric emphasis', 'tendency', 'Iso max strength training orientation', 'Maximal strength training orientation', 'Ballistic strength training orientation', 'Concurrent strength training', 'Force-deficit', 'Velocity-deficit', 'Well-balanced'];
+  const ORIENTS = ['Prioritize max isometric strength', 'Prioritize LML isometric strength', 'Prioritize increase functional depth', 'Propulsive strategy', 'Snappy', 'Prioritize decrease contraction time', 'Prioritize foundational dynamic strength', 'Acceptable output', 'Prioritize Power', 'Prioritize Strength', 'Reactive strategy', 'Prioritize Dynamic strength / concentric emphasis', 'tendency', 'Iso maximal strength training orientation', 'Max isometric strength training orientation', 'SSC training orientation', 'Strength training orientation without SSC', 'Concurrent strength training', 'Force-deficit', 'Velocity-deficit', 'Well-balanced'];
   const textosOri = det.flatMap((d) => d.filas.map((f) => f[4])).filter((x) => x && x !== '—' && !/interpretativa|puntuación/.test(x));
   check('COMPOSITE: la columna Orientation trae textos del documento y ninguno inventado', textosOri.length > 0 && textosOri.every((x) => ORIENTS.some((o) => x.includes(o))), JSON.stringify([...new Set(textosOri)]));
-  check('COMPOSITE: la orientación de Dynamic Strength sale en el título del desglose', /Prioritize (Power|Strength)/.test(dDin.titulo) === /Prioritize (Power|Strength)/.test(dDin.texto), `${dDin.titulo}`);
-  check('COMPOSITE: Propulsive y Explosive dicen qué tendencia domina', det.slice(5).some((d) => /(Explosive|Propulsive) tendency/.test(d.texto)), JSON.stringify(det.slice(5).map((d) => d.titulo)));
-  check('COMPOSITE: la tendencia se enuncia corta, sin el «>» de la versión anterior', !det.some((d) => /tendency >/.test(d.texto)), JSON.stringify(det.flatMap((d) => d.filas.map((f) => f[4])).filter((x) => /tendency/.test(x ?? ''))));
+  check('COMPOSITE: la orientación de Propulsive / Dynamic Strength sale en el título del desglose', /Prioritize (Power|Strength)/.test(dDin.titulo) === /Prioritize (Power|Strength)/.test(dDin.texto), `${dDin.titulo}`);
+  check('COMPOSITE: Propulsive y Explosive dicen qué tendencia domina', [det[1], det[4]].some((d) => /(Explosive|Propulsive) tendency/.test(d.texto)), JSON.stringify([det[1], det[4]].map((d) => d.titulo)));
+  check('COMPOSITE: la tendencia va corta en Propulsive y larga en Explosive', !/tendency >/.test(det[1].texto) && (!/ tendency/.test(det[4].texto) || /tendency >|Explosive = Propulsive/.test(det[4].texto)), JSON.stringify(det.flatMap((d) => d.filas.map((f) => f[4])).filter((x) => /tendency/.test(x ?? ''))));
   check('COMPOSITE: las interpretativas del Hop Test también traen dato', dGct.filas.some((f) => /^MEAN CONTACT TIME/.test(f[0]) && filaConValor(f)) && dGct.filas.some((f) => /^MEAN JUMP HEIGHT/.test(f[0]) && filaConValor(f)), JSON.stringify(dGct.filas.map((f) => f[0])));
   // Las referencias del radar se activan y desactivan
   const lineasLeyenda = () => page.evaluate(() => [...document.querySelector('svg.radar-svg').querySelectorAll('g > line')].length);
@@ -439,22 +465,23 @@ const server = http.createServer((req, res) => {
   await page.evaluate(() => [...document.querySelectorAll('fieldset.modes')].find((f) => /Referencia La Liga/.test(f.querySelector('legend').textContent)).querySelectorAll('input[type="checkbox"]')[2].click());
   await page.waitForTimeout(500);
   check('COMPOSITE: activar el P75 de La Liga añade su polígono al radar', (await lineasLeyenda()) === antesLeg + 1, `${antesLeg} → ${await lineasLeyenda()}`);
-  const cabP75 = await page.evaluate(() => [...document.querySelectorAll('table.composite thead th')].map((t) => t.textContent.trim()).join());
+  const cabP75 = await page.evaluate(() => [...document.querySelectorAll('table.composite > thead > tr > th')].map((t) => t.textContent.trim()).join());
   check('COMPOSITE: y también su columna en el cuadro', cabP75 === 'Cualidad,PA,P50 La Liga,P75 La Liga', cabP75);
   if (CAP) await page.locator('.card').filter({ hasText: 'COMPOSITE PROFILE SCORE' }).first().screenshot({ path: path.join(CAP, 'composite2.png') });
   // El filtro de valor cambia tabla, radar y desglose a la vez
   const fechasPA = det[1].filas[0][5];
   await page.evaluate(() => [...document.querySelectorAll('fieldset.modes')].find((f) => /Valor/.test(f.querySelector('legend').textContent)).querySelectorAll('input[type="radio"]')[0].click());
   await page.waitForTimeout(600);
+  await cualClic(1, true);
   const trasCps = await page.evaluate(() => {
-    const d = [...document.querySelectorAll('details')].filter((x) => /·/.test(x.querySelector('summary')?.textContent ?? ''))[1];
-    d.open = true;
+    const d = [...document.querySelectorAll('table.composite button.fila-abre')][1].closest('tr').nextElementSibling;
     return { fecha: d.querySelectorAll('table.composite-det tbody tr')[0].children[5].textContent.trim(), comp: [...d.querySelectorAll('table.composite-det thead th')][3].textContent.trim(), aria: document.querySelector('svg.radar-svg').getAttribute('aria-label'), base: [...document.querySelectorAll('fieldset.modes input[type="radio"]')].findIndex((r) => r.checked) };
   });
   check('COMPOSITE: al cambiar a Latest el desglose pasa a la fecha de la última sesión', trasCps.fecha !== fechasPA && !trasCps.fecha.includes('–') && fechasPA.includes('–'), `${fechasPA} → ${trasCps.fecha}`);
-  check('COMPOSITE: el radar sigue hablando de las mismas 7 cualidades', (trasCps.aria.match(/;/g) ?? []).length === 6, trasCps.aria.slice(0, 120));
+  check('COMPOSITE: el radar sigue hablando de las mismas 6 cualidades', (trasCps.aria.match(/;/g) ?? []).length === 5, trasCps.aria.slice(0, 120));
   check('COMPOSITE: al cambiar a Latest la comparación pasa a ser con la sesión anterior', trasCps.comp === '% change vs previous session', trasCps.comp);
-  const compCps = await page.evaluate(() => { const d = [...document.querySelectorAll('details')].filter((x) => /·/.test(x.querySelector('summary')?.textContent ?? ''))[1]; d.open = true; return [...d.querySelectorAll('table.composite-det tbody tr')].map((r) => r.children[3].textContent.trim()); });
+  await cualClic(1, true);
+  const compCps = await page.evaluate(() => [...[...document.querySelectorAll('table.composite button.fila-abre')][1].closest('tr').nextElementSibling.querySelectorAll('table.composite-det tbody tr')].map((r) => r.children[3].textContent.trim()));
   check('COMPOSITE: la columna de comparación trae porcentajes con signo (o «—»)', compCps.length > 0 && compCps.every((x) => /^[+−]?\d+(,\d)? %$|^—$/.test(x)), JSON.stringify(compCps));
   const anchoCps = await sinDesborde('table.composite-det');
   check('COMPOSITE: el desglose cabe a lo ancho a 1840, 1440 y 1280 px, sin desplazamiento horizontal', anchoCps.length === 0, anchoCps.join(' · '));

@@ -450,7 +450,7 @@ export function ResultadosJugador({ player, query = {}, edicion = null, antrop =
     const [targets, positions, hist, fvProfiles] = await Promise.all([db.targets.toArray(), db.positions.toArray(), db.playerPositions.where('playerId').equals(player.id).toArray(), db.fvProfiles.where('playerId').equals(player.id).toArray()]);
     return { catalog, sessions, omitted, targets, positions, fvProfiles, positionId: positionOnDate(hist).principal?.positionId ?? null };
   }, [db, player.id, version, tick]);
-  const block = BLOQUES.some(([k]) => k === query.b) ? query.b : 'fuerza';
+  const block = BLOQUES.some(([k]) => k === query.b) ? query.b : 'composite'; // 15/11/2026: al escoger jugador se abre COMPOSITE PROFILE SCORE (decisión del usuario)
   const testId = query.t ? Number(query.t) : null;
   const setQ = (patch) => replaceQuery(`jugador-${player.id}`, { ...query, ...patch });
   if (error) return html`<p class="status fail">${error}</p>`;

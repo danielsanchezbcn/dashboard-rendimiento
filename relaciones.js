@@ -224,41 +224,33 @@ export function quadrantSide(point, cutX, cutY) {
   return { xHigh: point.x >= cutX, yHigh: point.y >= cutY };
 }
 
-// ---- Orientación del entrenamiento de fuerza (9/11/2026), según el percentil del DSI o del EUR frente a La Liga.
-// Cortes de percentil elegidos por el usuario (0–40 / 40–60 / 60–100); no son umbrales de la bibliografía.
-// Si el percentil de fuerza máxima (Knee Iso-Push Peak Force, BW) está por debajo de 40, se avisa en los casos señalados por el usuario
-// (DSI en la banda baja y EUR en la banda alta), porque la orientación puede variar; no se decide aquí cuál sería.
+// ---- Orientación del entrenamiento de fuerza, según el percentil del DSI o del EUR frente a La Liga.
+// Normas DEFINITIVAS del usuario (documento COMPOSITE.pptx, 15/11/2026): cortes 0–40 / 40–60 / 60–100, que son suyos y no de la bibliografía.
+// Desaparece el aviso de «la orientación puede variar» con el Knee Iso-Push por debajo del percentil 40: lo sustituye la regla del percentil 35,
+// que ya no avisa, decide.
 export const ORIENTATION_CUTS = [40, 60];
 const ORIENT = {
-  dsi: ['Ballistic strength training orientation', 'Concurrent strength training', 'Maximal strength training orientation'],
-  eur: ['Plyometric strength training orientation', 'Concurrent strength training', 'Maximal strength training orientation'],
+  dsi: ['SSC training orientation', 'Concurrent strength training', 'Max isometric strength training orientation'],
+  eur: ['SSC training orientation', 'Concurrent strength training', 'Strength training orientation without SSC'],
 };
-// Umbral del Knee Iso-Push por debajo del cual la orientación del DSI deja de depender del ratio (14/11/2026, decisión del usuario).
+// Banda del Knee Iso-Push (percentil 0–35, extremo incluido) en la que la orientación del DSI deja de depender del ratio.
 export const KNEE_ISO_CUT = 35;
-export const ORIENT_ISO_MAX = 'Iso max strength training orientation';
+export const ORIENT_ISO_MAX = 'Iso maximal strength training orientation';
 
 export function strengthOrientation(kind, ev, kneeEvs = [], cut = KNEE_ISO_CUT) {
   if (!ev) return null;
-  // Con el Knee Iso-Push por debajo del percentil 35 de La Liga, la orientación del DSI es SIEMPRE entrenar fuerza isométrica máxima, sea cual sea
+  // Con el Knee Iso-Push en el percentil 0–35 de La Liga, la orientación del DSI es SIEMPRE entrenar fuerza isométrica máxima, sea cual sea
   // el ratio: el usuario la considera una cualidad de base previa al trabajo de ciclo estiramiento-acortamiento. Vale en todos los sitios donde
   // aparece el DSI, porque la decisión está aquí y no en cada pantalla.
   if (kind === 'dsi') {
     const pct = (k) => (k?.ev?.sufficient ? k.ev.percentilePerf ?? k.ev.percentileStat ?? null : null);
     const conocidos = kneeEvs.filter((k) => pct(k) !== null);
-    if (conocidos.length && conocidos.every((k) => pct(k) < cut)) {
-      return { text: ORIENT_ISO_MAX, band: null, forzadaPorKnee: true, kneeNote: `Knee Iso-Push por debajo del percentil ${cut} de La Liga (${conocidos.map((k) => `${k.label} ${Math.round(pct(k))}`).join(', ')}): fuerza isométrica máxima primero, sea cual sea el DSI.` };
+    if (conocidos.length && conocidos.every((k) => pct(k) <= cut)) {
+      return { text: ORIENT_ISO_MAX, band: null, forzadaPorKnee: true, kneeNote: `Knee Iso-Push en el percentil 0–${cut} de La Liga (${conocidos.map((k) => `${k.label} ${Math.round(pct(k))}`).join(', ')}): fuerza isométrica máxima primero, sea cual sea el DSI.` };
     }
   }
   if (!ev.sufficient || ev.percentileStat === null) return { text: null, reason: 'Sin orientación: muestra insuficiente en La Liga.' };
   const p = ev.percentileStat;
   const band = p < ORIENTATION_CUTS[0] ? 0 : p <= ORIENTATION_CUTS[1] ? 1 : 2;
-  const out = { text: ORIENT[kind][band], band, kneeNote: null };
-  const sensitive = (kind === 'dsi' && band === 0) || (kind === 'eur' && band === 2);
-  if (sensitive) {
-    const known = kneeEvs.filter((k) => k.ev && k.ev.sufficient && k.ev.percentileStat !== null);
-    const low = known.filter((k) => k.ev.percentileStat < 40);
-    if (low.length) out.kneeNote = `Percentil de Knee Iso-Push Peak Force (BW) por debajo de 40 (${low.map((k) => `${k.label} ${Math.round(k.ev.percentileStat)}`).join(', ')}): la orientación puede variar.`;
-    else if (!known.length) out.kneeNote = 'No se ha podido comprobar el percentil de Knee Iso-Push Peak Force (BW): si está por debajo de 40, la orientación puede variar.';
-  }
-  return out;
+  return { text: ORIENT[kind][band], band, kneeNote: null };
 }
