@@ -10,98 +10,112 @@
   h1 { font-size: 1.15rem; margin: 0 0 .25rem; }
   h2 { font-size: 1rem; margin: 1.6rem 0 .4rem; }
   p.sub { color: #9a9a9e; margin: 0 0 1rem; }
-  table { border-collapse: collapse; width: 100%; max-width: 70rem; }
-  th, td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid #2a2a2e; vertical-align: top; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: .3rem .5rem; border-bottom: 1px solid #2a2a2e; vertical-align: top; }
   th { color: #9a9a9e; font-weight: 600; }
   .ok { color: #7ddc8a; } .mal { color: #ff6b6b; } .avi { color: #ecc94b; }
   code { background: #17171a; padding: .1rem .3rem; border-radius: .2rem; word-break: break-all; }
-  #resumen { margin: 1rem 0; padding: .8rem 1rem; border: 1px solid #2a2a2e; border-radius: .4rem; background: #121214; }
+  #resumen { margin: 1rem 0; padding: .9rem 1rem; border: 1px solid #2a2a2e; border-radius: .4rem; background: #121214; font-size: 1.05rem; }
+  #lista { margin: .6rem 0 0; }
   button { font: inherit; padding: .5rem 1rem; border-radius: .4rem; border: 1px solid #3a3a40; background: #1d1d21; color: #ececec; cursor: pointer; }
+  .pill { display: inline-block; padding: 0 .4rem; border-radius: .3rem; background: #17171a; margin: 0 .2rem .2rem 0; }
 </style>
 </head>
 <body>
 <h1>Comprobación del dashboard</h1>
-<p class="sub">Esta página no toca ningún dato: solo mira si están todos los archivos y si la base de datos abre. Déjala en la misma carpeta que <code>index.html</code>.</p>
+<p class="sub">No toca ningún dato. Compara cada archivo publicado con el que debería estar (huella del contenido, no solo el nombre) y comprueba que la base de datos abre. Déjala junto a <code>index.html</code>, con <code>manifiesto.json</code>.</p>
 <div id="resumen">Comprobando…</div>
+<p id="lista"></p>
 <button id="otra">Volver a comprobar</button>
-<h2>Archivos del dashboard</h2>
+<h2>Archivos</h2>
 <table id="tfiles"><thead><tr><th>Archivo</th><th>Estado</th><th>Detalle</th></tr></thead><tbody></tbody></table>
+<h2>Carga real de la aplicación</h2>
+<table id="tcarga"><thead><tr><th>Módulo</th><th>Estado</th><th>Detalle</th></tr></thead><tbody></tbody></table>
 <h2>Base de datos de este navegador</h2>
 <table id="tdb"><thead><tr><th>Comprobación</th><th>Estado</th><th>Detalle</th></tr></thead><tbody></tbody></table>
 
 <script type="module">
-// Módulos que el dashboard carga. Si falta uno, la pantalla se queda en «Cargando…» sin decir nada: esto es lo que lo detecta.
-const MODULOS = [
-  'main.js', 'app.js', 'db.js', 'libs.js', 'context.js', 'componentes.js', 'rutas.js', 'fechas.js', 'nombres.js', 'colores.js',
-  'catalogo.js', 'catalogo-inicial.js', 'jugadores.js', 'posiciones.js', 'antropometria.js', 'evolucion.js', 'percentiles.js',
-  'relativos.js', 'relaciones.js', 'radar.js', 'comparativa.js', 'natera.js', 'premier.js', 'isohold.js', 'composite.js',
-  'alta-manual.js', 'isorack.js', 'targets.js', 'usos.js', 'backup.js', 'copiar.js', 'vald.js', 'asim-ui.js', 'fuentes.js',
-  'pages.js', 'pages-evolucion.js', 'pages-composite.js', 'pages-deficits.js', 'pages-asimetrias.js', 'pages-normativo.js',
-  'pages-percentiles.js', 'pages-relaciones.js', 'pages-asociaciones.js', 'pages-test.js', 'pages-jugadores.js',
-  'pages-catalogo.js', 'pages-ajustes.js', 'pages-isorack.js', 'style.css', 'index.html',
-];
 const fila = (tabla, a, estado, clase, detalle) => {
   const tr = document.createElement('tr');
   const td = (t, c) => { const x = document.createElement('td'); x.textContent = t; if (c) x.className = c; return x; };
   tr.append(td(a), td(estado, clase), td(detalle ?? ''));
   document.querySelector(tabla + ' tbody').append(tr);
 };
+const sha16 = async (buf) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', buf))].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+const sinCache = (u) => fetch(u + '?c=' + Date.now(), { cache: 'no-store' });
 
-async function comprobarArchivos() {
-  const malos = [];
-  for (const m of MODULOS) {
+async function comprobarArchivos(man) {
+  const faltan = [], viejos = [];
+  for (const [a, esperado] of Object.entries(man.archivos)) {
     try {
-      const r = await fetch(m + '?c=' + Date.now(), { cache: 'no-store' });
-      if (!r.ok) { malos.push(m); fila('#tfiles', m, 'NO ESTÁ', 'mal', 'El servidor responde ' + r.status); continue; }
-      const txt = await r.text();
-      if (/^\s*$/.test(txt)) { malos.push(m); fila('#tfiles', m, 'VACÍO', 'mal', '0 bytes'); continue; }
-      fila('#tfiles', m, 'está', 'ok', Math.round(txt.length / 1024) + ' KB');
-    } catch (e) { malos.push(m); fila('#tfiles', m, 'NO SE PUEDE LEER', 'mal', String(e.message || e)); }
+      const r = await sinCache(a);
+      if (!r.ok) { faltan.push(a); fila('#tfiles', a, 'NO ESTÁ', 'mal', 'El servidor responde ' + r.status); continue; }
+      const buf = await r.arrayBuffer();
+      const h = await sha16(buf);
+      if (h === esperado.sha) fila('#tfiles', a, 'al día', 'ok', Math.round(buf.byteLength / 1024) + ' KB');
+      else { viejos.push(a); fila('#tfiles', a, 'DESACTUALIZADO', 'mal', `publicado ${Math.round(buf.byteLength / 1024)} KB, debería ser ${Math.round(esperado.bytes / 1024)} KB`); }
+    } catch (e) { faltan.push(a); fila('#tfiles', a, 'NO SE PUEDE LEER', 'mal', String(e.message || e)); }
   }
-  return malos;
+  for (const a of man.soloExisten ?? []) {
+    try { const r = await fetch(a, { method: 'HEAD', cache: 'no-store' }); fila('#tfiles', a, r.ok ? 'está' : 'NO ESTÁ', r.ok ? 'ok' : 'mal', r.ok ? '(archivo grande: solo se comprueba que esté)' : 'El servidor responde ' + r.status); if (!r.ok) faltan.push(a); }
+    catch { faltan.push(a); fila('#tfiles', a, 'NO SE PUEDE LEER', 'mal', ''); }
+  }
+  return { faltan, viejos };
 }
 
-// Carga de verdad el módulo principal: así salen los errores de sintaxis o los imports rotos que no se ven mirando archivo por archivo.
+// Carga de verdad los módulos: así salen los errores de sintaxis o los imports rotos que no se ven archivo por archivo.
 async function comprobarCarga() {
-  try {
-    const db = await import('./db.js?c=' + Date.now());
-    fila('#tdb', 'Versión del dashboard en db.js', db.APP_VERSION ?? '(no se encuentra)', db.APP_VERSION ? 'ok' : 'avi', '');
-  } catch (e) { fila('#tdb', 'Cargar db.js', 'FALLA', 'mal', String(e.message || e)); return false; }
-  for (const m of ['app.js', 'pages-evolucion.js', 'pages-composite.js', 'pages-isorack.js', 'main.js']) {
-    try { await import('./' + m + '?c=' + Date.now()); fila('#tdb', 'Cargar ' + m, 'ok', 'ok', ''); }
-    catch (e) { fila('#tdb', 'Cargar ' + m, 'FALLA', 'mal', String(e.message || e)); return false; }
+  let bien = true, version = null;
+  for (const m of ['db.js', 'app.js', 'main.js', 'pages-evolucion.js', 'pages-composite.js', 'pages-isorack.js', 'alta-manual.js', 'isorack.js']) {
+    try {
+      const mod = await import('./' + m + '?c=' + Date.now());
+      if (m === 'db.js') version = mod.APP_VERSION ?? null;
+      fila('#tcarga', m, 'carga', 'ok', m === 'db.js' ? 'versión ' + (version ?? '?') : '');
+    } catch (e) { bien = false; fila('#tcarga', m, 'FALLA', 'mal', String(e.message || e)); }
   }
-  return true;
+  return { bien, version };
 }
 
 async function comprobarBase() {
-  if (!('indexedDB' in window)) { fila('#tdb', 'IndexedDB', 'NO DISPONIBLE', 'mal', 'El navegador no permite guardar datos aquí (¿ventana privada?)'); return; }
+  if (!('indexedDB' in window)) { fila('#tdb', 'IndexedDB', 'NO DISPONIBLE', 'mal', '¿ventana privada o datos del sitio bloqueados?'); return; }
   const info = await new Promise((ok) => {
     let bloqueada = false;
     const rq = indexedDB.open('dashboard-rendimiento');
     rq.onblocked = () => { bloqueada = true; };
     rq.onsuccess = () => { const d = rq.result; const r = { version: d.version, tablas: [...d.objectStoreNames] }; d.close(); ok(r); };
     rq.onerror = () => ok({ error: rq.error?.message ?? 'no se pudo abrir' });
-    setTimeout(() => ok({ error: bloqueada ? 'bloqueada por otra pestaña del dashboard' : 'no responde (sigue abriendo)' }), 6000);
+    setTimeout(() => ok({ error: bloqueada ? 'bloqueada por otra pestaña del dashboard' : 'no responde' }), 6000);
   });
   if (info.error) { fila('#tdb', 'Abrir la base', 'FALLA', 'mal', info.error); return; }
-  fila('#tdb', 'Abrir la base', 'ok', 'ok', 'Versión interna ' + info.version + ' (esquema ' + (info.version / 10) + ')');
-  fila('#tdb', 'Tablas', String(info.tablas.length), info.tablas.length >= 21 ? 'ok' : 'avi', info.tablas.join(', '));
-  fila('#tdb', 'Tabla isoRack (esquema 7)', info.tablas.includes('isoRack') ? 'está' : 'todavía no', info.tablas.includes('isoRack') ? 'ok' : 'avi', info.tablas.includes('isoRack') ? '' : 'Se crea al abrir el dashboard con la versión nueva');
+  fila('#tdb', 'Abrir la base', 'ok', 'ok', 'esquema ' + (info.version / 10));
+  fila('#tdb', 'Tabla isoRack (esquema 7)', info.tablas.includes('isoRack') ? 'está' : 'todavía no', info.tablas.includes('isoRack') ? 'ok' : 'avi', info.tablas.includes('isoRack') ? '' : 'se crea al abrir el dashboard actualizado');
   const n = await new Promise((ok) => { const rq = indexedDB.open('dashboard-rendimiento'); rq.onsuccess = () => { const d = rq.result; if (!d.objectStoreNames.contains('players')) { d.close(); return ok(null); } const c = d.transaction('players').objectStore('players').count(); c.onsuccess = () => { d.close(); ok(c.result); }; c.onerror = () => { d.close(); ok(null); }; }; rq.onerror = () => ok(null); });
-  fila('#tdb', 'Jugadores guardados', n === null ? '?' : String(n), n ? 'ok' : 'avi', n ? 'Tus datos están ahí' : '');
+  fila('#tdb', 'Jugadores guardados', n === null ? '?' : String(n), n ? 'ok' : 'avi', n ? 'tus datos están ahí' : '');
+  const s = await new Promise((ok) => { const rq = indexedDB.open('dashboard-rendimiento'); rq.onsuccess = () => { const d = rq.result; if (!d.objectStoreNames.contains('sessions')) { d.close(); return ok(null); } const c = d.transaction('sessions').objectStore('sessions').count(); c.onsuccess = () => { d.close(); ok(c.result); }; c.onerror = () => { d.close(); ok(null); }; }; rq.onerror = () => ok(null); });
+  fila('#tdb', 'Sesiones guardadas', s === null ? '?' : String(s), s ? 'ok' : 'avi', '');
 }
 
 async function todo() {
   document.querySelectorAll('tbody').forEach((t) => t.replaceChildren());
   document.getElementById('resumen').textContent = 'Comprobando…';
-  const malos = await comprobarArchivos();
+  document.getElementById('lista').textContent = '';
+  let man;
+  try { const r = await sinCache('manifiesto.json'); if (!r.ok) throw new Error('responde ' + r.status); man = await r.json(); }
+  catch (e) { document.getElementById('resumen').innerHTML = '<strong class="mal">Falta <code>manifiesto.json</code></strong> (' + e.message + '). Súbelo junto a esta página: es la lista de archivos con los que se compara.'; return; }
+  const { faltan, viejos } = await comprobarArchivos(man);
   const carga = await comprobarCarga();
   await comprobarBase();
-  const r = document.getElementById('resumen');
-  if (malos.length) r.innerHTML = '<strong class="mal">Faltan ' + malos.length + ' archivo(s):</strong> <code>' + malos.join('</code>, <code>') + '</code>. Vuelve a descomprimir el zip en esta carpeta, sustituyendo los archivos.';
-  else if (!carga) r.innerHTML = '<strong class="mal">Están todos los archivos, pero uno falla al cargarse.</strong> Mira el detalle en rojo de la tabla de abajo: ahí está la causa.';
-  else r.innerHTML = '<strong class="ok">Todos los archivos están y cargan bien.</strong> Si el dashboard sigue en «Cargando…», hazme una foto de esta pantalla entera.';
+  const r = document.getElementById('resumen'); const l = document.getElementById('lista');
+  const pills = (xs) => xs.map((x) => '<span class="pill">' + x + '</span>').join(' ');
+  if (faltan.length || viejos.length) {
+    r.innerHTML = '<strong class="mal">Hay ' + (faltan.length + viejos.length) + ' archivo(s) que no están al día.</strong> Súbelos de nuevo al repositorio y vuelve a comprobar.';
+    l.innerHTML = (faltan.length ? '<strong>No están:</strong> ' + pills(faltan) + '<br>' : '') + (viejos.length ? '<strong>Desactualizados:</strong> ' + pills(viejos) : '');
+  } else if (!carga.bien) {
+    r.innerHTML = '<strong class="mal">Los archivos están al día, pero alguno falla al cargarse.</strong> Mira el detalle en rojo de «Carga real de la aplicación».';
+  } else {
+    r.innerHTML = '<strong class="ok">Todo correcto: los ' + Object.keys(man.archivos).length + ' archivos están al día y la aplicación carga.</strong> Versión publicada: <code>' + (carga.version ?? '?') + '</code> (esperada: <code>' + man.version + '</code>).';
+    if (carga.version && man.version && carga.version !== man.version) r.innerHTML += ' <span class="avi">Ojo: las dos versiones no coinciden.</span>';
+  }
 }
 document.getElementById('otra').addEventListener('click', todo);
 todo();
