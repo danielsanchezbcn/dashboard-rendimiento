@@ -2,6 +2,7 @@ import { parseHash } from './rutas.js';
 import { VistaTest } from './pages-test.js';
 import { Relaciones } from './pages-asociaciones.js';
 import { ConfiguracionIsoRack } from './pages-isorack.js';
+import { DsiEurTodos } from './pages-dsieur.js';
 import { html, useState, useEffect, useCallback } from './libs.js';
 import { AppContext } from './context.js';
 import { getLocal, getSetting, APP_VERSION } from './db.js';
@@ -47,6 +48,7 @@ const routeFromHash = () => {
   if (t) return { id: 'catalogo', param: Number(t[1]), query };
   const v = /^test-(\d+)$/.exec(h); // vista comparativa de un test (fase 5b)
   if (v) return { id: 'fuerza', view: 'test', param: Number(v[1]), query };
+  if (h === 'dsi-eur') return { id: 'jugadores', view: 'dsieur', param: null, query }; // DSI y EUR de toda la plantilla (16/11/2026)
   return { id: NAV.some((n) => n.id === h) ? h : 'inicio', param: null, query };
 };
 
@@ -61,6 +63,7 @@ function Contenido({ route }) {
     case 'inicio':
       return html`<${Copias} />`; // Inicio = Copias de seguridad con el resumen dentro
     case 'jugadores':
+      if (route.view === 'dsieur') return html`<${DsiEurTodos} query=${route.query} />`;
       return route.param ? html`<${PerfilJugador} id=${route.param} query=${route.query} />` : html`<${Jugadores} />`;
     case 'fuerza':
       if (route.view === 'test') return html`<${VistaTest} id=${route.param} query=${route.query} />`;

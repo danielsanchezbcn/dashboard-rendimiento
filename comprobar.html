@@ -66,7 +66,7 @@ async function comprobarArchivos(man) {
 // Carga de verdad los módulos: así salen los errores de sintaxis o los imports rotos que no se ven archivo por archivo.
 async function comprobarCarga() {
   let bien = true, version = null;
-  for (const m of ['db.js', 'app.js', 'main.js', 'pages-evolucion.js', 'pages-composite.js', 'pages-isorack.js', 'alta-manual.js', 'isorack.js']) {
+  for (const m of ['db.js', 'app.js', 'main.js', 'pages-evolucion.js', 'pages-composite.js', 'pages-isorack.js', 'alta-manual.js', 'isorack.js', 'pages-dsieur.js', 'dsieur.js']) {
     try {
       const mod = await import('./' + m + '?c=' + Date.now());
       if (m === 'db.js') version = mod.APP_VERSION ?? null;
@@ -99,6 +99,11 @@ async function todo() {
   document.querySelectorAll('tbody').forEach((t) => t.replaceChildren());
   document.getElementById('resumen').textContent = 'Comprobando…';
   document.getElementById('lista').textContent = '';
+  // Abierta con doble clic desde el ordenador (file://) el navegador no deja leer los archivos de al lado: hay que abrirla desde la web publicada.
+  if (location.protocol === 'file:') {
+    document.getElementById('resumen').innerHTML = '<strong class="avi">Has abierto esta página desde tu ordenador.</strong> Así el navegador no deja leer los archivos de al lado y no se puede comprobar nada. Ábrela <strong>desde la web publicada</strong>: la dirección del dashboard terminada en <code>/comprobar.html</code>.';
+    return;
+  }
   let man;
   try { const r = await sinCache('manifiesto.json'); if (!r.ok) throw new Error('responde ' + r.status); man = await r.json(); }
   catch (e) { document.getElementById('resumen').innerHTML = '<strong class="mal">Falta <code>manifiesto.json</code></strong> (' + e.message + '). Súbelo junto a esta página: es la lista de archivos con los que se compara.'; return; }

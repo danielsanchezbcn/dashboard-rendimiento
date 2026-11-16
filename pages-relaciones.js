@@ -90,6 +90,7 @@ function RelacionTestCarga({ player, isDsi }) {
   if (isDsi) {
     const sides = [['L', 'Izquierda', r.dsiL, r.kneeL], ['R', 'Derecha', r.dsiR, r.kneeR]];
     return html`<section class="refs"><h4>DSI (Dynamic Strength Index) y orientación de fuerza</h4>
+      <p><a class="button" href=${`#dsi-eur?j=${player.id}`}>Ver todos los jugadores</a></p>
       <div class="table-wrap"><table><thead><tr><th scope="col">Lado</th><th scope="col" class="num">DSI</th><th scope="col">Percentil</th><th scope="col">Orientación de fuerza</th></tr></thead><tbody>
         ${sides.map(([k, nm, ev, kev]) => { const d = m.dsi[k]; const det = d.defined ? `SL ${nf(d.slBW)} BW (${d.slSessions} ses.) ÷ Knee ${nf(d.kneeBW)} BW (${d.kneeSessions} ses.)${d.omittedKnee ? ` · ${d.omittedKnee} sesión(es) de Knee sin masa previa, omitidas` : ''}` : d.reason;
           return html`<tr key=${k}><th scope="row">${nm}</th><td class="num" title=${det}>${d.defined ? nf(d.value) : html`<span class="muted" title=${det}>—</span>`}</td><td><${Chip} ev=${ev} detail=${det} /></td><td><${Orient} o=${d.defined ? strengthOrientation('dsi', ev, [{ label: nm.toLowerCase(), ev: kev }]) : null} /></td></tr>`; })}
@@ -105,6 +106,7 @@ function RelacionTestCarga({ player, isDsi }) {
   const e = m.eur;
   const det = e.defined ? `CMJ ${nf(e.cmjPA)} cm (Personal Average) ÷ SJ ${nf(e.sjPB)} cm (Personal Best)` : e.reason;
   return html`<section class="refs"><h4>EUR (Eccentric Utilization Ratio) y orientación de fuerza</h4>
+    <p><a class="button" href=${`#dsi-eur?j=${player.id}`}>Ver todos los jugadores</a></p>
     <div class="table-wrap"><table><thead><tr><th scope="col" class="num">EUR</th><th scope="col">Percentil</th><th scope="col">Orientación de fuerza</th></tr></thead><tbody>
       <tr><td class="num" title=${det}>${e.defined ? nf(e.value) : html`<span class="muted" title=${det}>—</span>`}</td><td><${Chip} ev=${r.eur} detail=${det} /></td>
         <td><${Orient} o=${e.defined ? strengthOrientation('eur', r.eur, [{ label: 'izquierda', ev: r.kneeL }, { label: 'derecha', ev: r.kneeR }]) : null} /></td></tr>

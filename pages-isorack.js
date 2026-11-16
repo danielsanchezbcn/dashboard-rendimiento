@@ -33,7 +33,8 @@ export function ConfiguracionIsoRack() {
     const k = `${p.id}:${t.key}`;
     const altura = borrador[k] ?? r.altura;
     const soltar = () => setBorrador((b) => { const { [k]: _, ...resto } = b; return resto; });
-    return html`<td key=${t.key} class="rack-celda">
+    // La altura y el calzado van dentro de un contenedor flexible (16/11/2026): así se reparten el ancho de la columna y la tabla entera cabe en pantalla.
+    return html`<td key=${t.key} class="rack-celda"><div class="rack-par">
       <label class="sr" for=${`alt-${p.id}-${t.key}`}>${t.label}: altura del rack para ${baseName(p)}</label>
       <input id=${`alt-${p.id}-${t.key}`} class="rack-altura" inputmode="decimal" placeholder="Altura" value=${altura}
         onInput=${(e) => setBorrador((b) => ({ ...b, [k]: e.target.value }))}
@@ -41,7 +42,7 @@ export function ConfiguracionIsoRack() {
       <label class="sr" for=${`cal-${p.id}-${t.key}`}>${t.label}: calzado para ${baseName(p)}</label>
       <select id=${`cal-${p.id}-${t.key}`} class="rack-calzado" value=${r.calzado} onChange=${(e) => { guardar(p.id, t.key, { altura, calzado: e.target.value }); soltar(); }}>
         ${CALZADO.map(([c, n]) => html`<option key=${c} value=${c}>${n}</option>`)}
-      </select></td>`;
+      </select></div></td>`;
   };
 
   return html`<h2 class="page-title">Configuración ISO-rack</h2>

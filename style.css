@@ -589,13 +589,32 @@ table.composite-det thead th { text-transform: none; letter-spacing: normal; lin
 table.composite-det th:nth-child(1) { width: 19%; } table.composite-det th:nth-child(2) { width: 11%; } table.composite-det th:nth-child(3) { width: 11%; }
 table.composite-det th:nth-child(4) { width: 13%; } table.composite-det th:nth-child(5) { width: 20%; } table.composite-det th:nth-child(6) { width: 15%; } table.composite-det th:nth-child(7) { width: 11%; }
 
-/* Configuración ISO-rack (15/11/2026): una fila por jugador, con la altura del rack y el calzado de cada iso-push. */
-table.isorack { width: 100%; }
-table.isorack th[scope="row"] { text-align: left; font-weight: 600; white-space: nowrap; }
+/* Configuración ISO-rack (15/11/2026): una fila por jugador, con la altura del rack y el calzado de cada iso-push.
+   Anchos en % con `table-layout: fixed` (16/11/2026): la tabla cabe siempre en el ancho disponible, sin desplazamiento horizontal. La altura del rack
+   y el calzado se reparten el ancho de su columna, y el nombre del jugador parte en dos líneas en vez de ensanchar la tabla. */
+table.isorack { width: 100%; table-layout: fixed; }
+table.isorack th, table.isorack td { padding: .3rem .35rem; font-size: .82rem; vertical-align: middle; }
+table.isorack thead th { text-transform: none; letter-spacing: normal; line-height: 1.15; white-space: normal; text-align: center; }
+table.isorack thead th:nth-child(1) { text-align: left; }
+table.isorack th:nth-child(1) { width: 20%; } table.isorack th:nth-child(2) { width: 11%; }
+table.isorack th:nth-child(n+3) { width: 23%; }
+table.isorack th[scope="row"] { text-align: left; font-weight: 600; white-space: normal; overflow-wrap: anywhere; }
 table.isorack td.rack-altura-jugador { text-align: center; white-space: nowrap; }
 table.isorack td.rack-celda { white-space: nowrap; }
-table.isorack input.rack-altura { width: 6.5rem; margin-right: .4rem; }
-table.isorack select.rack-calzado { width: 9.5rem; }
+table.isorack .rack-par { display: flex; align-items: center; gap: .35rem; }
+table.isorack input.rack-altura { flex: 0 1 5.5rem; min-width: 3rem; margin: 0; }
+table.isorack select.rack-calzado { flex: 1 1 auto; min-width: 0; width: auto; }
 /* Déficits: separador entre grupos (mismo test y variable) para que se lean como bloques (16/11/2026). */
 table.deficits tbody tr.grupo-ini > td { border-top: 1px solid var(--line); }
 table.deficits tbody tr:first-child > td { border-top: 0; }
+
+/* DSI y EUR de todos los jugadores (16/11/2026). Anchos en % con `table-layout: fixed` para que la tabla quepa a lo ancho sin desplazamiento horizontal.
+   Cada casilla lleva el valor y su percentil en una línea y la orientación de fuerza debajo. */
+table.dsieur { width: 100%; table-layout: fixed; }
+table.dsieur th, table.dsieur td { vertical-align: top; }
+table.dsieur th:nth-child(1) { width: 22%; }
+table.dsieur th:nth-child(n+2) { width: 26%; }
+table.dsieur th[scope="row"] { text-align: left; font-weight: 600; white-space: normal; overflow-wrap: anywhere; }
+.dsieur-celda { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+.dsieur-val { font-variant-numeric: tabular-nums; }
+.dsieur-ori { flex-basis: 100%; line-height: 1.25; color: var(--muted); font-size: .82rem; }

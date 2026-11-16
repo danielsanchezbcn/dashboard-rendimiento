@@ -28,6 +28,9 @@ const lc = (s) => String(s ?? '').trim().toLowerCase();
 const nf = (n, d = 2) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 const pc = (p) => (Number.isFinite(p) ? String(Math.round(p)) : '—');
 const BASES = [['last', 'Latest'], ['pa', 'PA'], ['pb', 'PB']];
+// 16/11/2026: el radar puede dibujar Latest, Personal Average y Personal Best A LA VEZ, cada una con su propio polígono. Es un selector APARTE
+// del de «Valor»: ese sigue mandando sobre la tabla de cualidades y sobre el desglose, que solo pueden mostrar una base a la vez.
+const CAPAS = [['last', 'Latest'], ['pa', 'Personal Average'], ['pb', 'Personal Best']];
 // 15/11/2026: el usuario deja SOLO las referencias posicionales. Los polígonos regulares de P50 y P75 de La Liga (que en un radar de percentiles
 // no aportan nada que no diga ya el propio eje) desaparecen del selector, de la tabla y del radar.
 const REFS = [['p50pos', 'P50 posicional'], ['p75pos', 'P75 posicional']];
@@ -37,7 +40,8 @@ const SIN_DATOS = '—';
 // ---- Radar de las 6 cualidades (3.9): los ejes YA son percentiles, así que la escala es 0–100 fija y no se normaliza por el P50.
 // Mismo estilo que el radar del CMJ (negro, Agency FB, jugador en blanco y referencias en amarillo), pero gráfico aparte: el del CMJ no se toca.
 const W = 1000, CX = 500, CY = 300, RREF = 190, R0 = 0;
-const LINEAS = { jugador: { color: PAL.jugador, w: 5, dash: null }, p50: { color: PAL.laLiga, w: 4, dash: null }, p75: { color: PAL.laLiga, w: 3, dash: [10, 6] }, p50pos: { color: PAL.laLiga, w: 3, dash: [14, 6, 2, 6] }, p75pos: { color: PAL.laLiga, w: 2, dash: [2, 6] } };
+// Las tres capas del jugador van en blanco (la paleta reserva el color para izquierda y derecha): se distinguen por el trazo, como en el resto del dashboard.
+const LINEAS = { 'jug-last': { color: PAL.jugador, w: 5, dash: null }, 'jug-pa': { color: PAL.jugador, w: 4, dash: [14, 8] }, 'jug-pb': { color: PAL.jugador, w: 3, dash: [3, 7] }, p50: { color: PAL.laLiga, w: 4, dash: null }, p75: { color: PAL.laLiga, w: 3, dash: [10, 6] }, p50pos: { color: PAL.laLiga, w: 3, dash: [14, 6, 2, 6] }, p75pos: { color: PAL.laLiga, w: 2, dash: [2, 6] } };
 function wrap(label, max = 15) {
   if (label.length <= max || !label.includes(' ')) return [label];
   const words = label.split(' '); const out = []; let cur = '';
@@ -45,7 +49,7 @@ function wrap(label, max = 15) {
   if (cur) out.push(cur);
   return out;
 }
-export function RadarCualidades({ ejes, series, playerName, svgRef }) {
+export function RadarCualidades({ ejes, series, playerName, svgRef, pie = '' }) {
   const n = ejes.length;
   const ang = (i) => ((-90 + (i * 360) / n) * Math.PI) / 180;
   const rOf = (p) => R0 + (Math.max(0, Math.min(100, p)) / 100) * (RREF - R0);
@@ -81,7 +85,9 @@ export function RadarCualidades({ ejes, series, playerName, svgRef }) {
   const dibujadas = series.filter((sr) => sr.vals.some((v) => Number.isFinite(v)));
   const filas = Math.ceil(dibujadas.length / 2);
   const yLeg = yEtiq + 34;
-  const HH = Math.round(yLeg + Math.max(0, filas - 1) * 26 + 18);
+  // Con más de un polígono del jugador hay que decir de cuál son los números de los ejes, igual que hace el radar de cada test (16/11/2026).
+  const yPie = yLeg + Math.max(0, filas - 1) * 26 + 30;
+  const HH = Math.round((pie ? yPie + 14 : yLeg + Math.max(0, filas - 1) * 26 + 18));
   return html`<svg ref=${svgRef} xmlns="http://www.w3.org/2000/svg" viewBox=${`0 0 ${W} ${HH}`} width="100%" role="img" class="radar-svg"
       aria-label=${`Composite profile radar for ${playerName}: ${ejes.map((e) => `${e.nombre} ${e.texto ?? pc(e.valor)}`).join('; ')}`}>
     <rect width=${W} height=${HH} fill="#000" />
@@ -99,6 +105,7 @@ export function RadarCualidades({ ejes, series, playerName, svgRef }) {
         return fila.map((sr) => { const st = LINEAS[sr.clave]; const x0 = x; x += ancho(sr) + GAP;
           return html`<g key=${sr.clave}><line x1=${x0} x2=${x0 + 60} y1=${y} y2=${y} stroke=${st.color} stroke-width=${st.w} stroke-dasharray=${st.dash?.join(' ') ?? null} /><text x=${x0 + 72} y=${y + 6} fill=${st.color}>${sr.nombre}</text></g>`; }); });
     })()}</g>
+    ${pie ? html`<text x=${CX} y=${yPie} text-anchor="middle" font-family=${FONT} font-size="18" fill="#8a8a8a">${pie}</text>` : null}
   </svg>`;
 }
 
@@ -116,6 +123,8 @@ export function CompositeProfile({ player, positionId = null }) {
   const [abiertas, setAbiertas] = useState([]);
   const alternar = (id) => setAbiertas((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]));
   const [refs, setRefs] = useState(['p50pos']);
+  // Capas del radar: por defecto solo «Latest», como hasta ahora. Siempre queda al menos una marcada.
+  const [capas, setCapas] = useState(['last']);
   const refTabla = useRef(null), refSvg = useRef(null), refRadar = useRef(null);
   const { data, error } = useLoad(async () => {
     const catalog = await listCatalog(db);
@@ -164,6 +173,10 @@ export function CompositeProfile({ player, positionId = null }) {
     : dj.motivo === 'empate' ? 'Empate exacto de RSI entre 30 y 45 cm: no hay ORZ, se usa la media de los percentiles de las dos alturas'
     : dj.motivo === 'unica' ? `Solo hay una altura testada (${dj.alturas[0]} cm): se usa esa` : 'Sin sesiones de Drop Jump';
 
+  // ---- Un perfil completo calculado con UNA base. Desde el 16/11/2026 el radar puede dibujar Latest, PA y PB a la vez, así que esto se calcula
+  // una vez por base pedida (la de «Valor» para la tabla y el desglose, y una por cada capa marcada del radar); cada una se guarda en `perfiles`
+  // para no repetir el trabajo si la misma base sale en los dos sitios.
+  const perfilDe = (b) => {
   // ---- Columnas (valores y percentiles) de cada test, con la base elegida. positionId = null: el percentil del jugador es SIEMPRE el de La Liga completa.
   const columnas = {};
   for (const [nombre, t] of Object.entries(tests)) {
@@ -174,7 +187,7 @@ export function CompositeProfile({ player, positionId = null }) {
     recoger(DESC_IMP100); recoger(DESC_CPP); // la comparación propulsivo / explosivo necesita los dos percentiles
     const vars = t.variables.filter((v) => necesarias.has(lc(v.name)) && !v.archived);
     columnas[nombre] = vars.length && mine.length
-      ? columnasNormativas({ player, test: t.test, catalog, sessions: mine, refData: t.refData, vars, base, f: {}, positionId: null })
+      ? columnasNormativas({ player, test: t.test, catalog, sessions: mine, refData: t.refData, vars, base: b, f: {}, positionId: null })
       : [];
   }
 
@@ -236,6 +249,12 @@ export function CompositeProfile({ player, positionId = null }) {
 
   const qs = calcular({ medida, umbrales, pesos });
   const porId = Object.fromEntries(qs.map((q) => [q.id, q]));
+    return { columnas, colDe, medida, qs, porId };
+  };
+  const perfiles = new Map();
+  const perfil = (b) => { if (!perfiles.has(b)) perfiles.set(b, perfilDe(b)); return perfiles.get(b); };
+  // La tabla de cualidades y el desglose siguen una sola base: la de «Valor».
+  const { colDe, medida, qs, porId } = perfil(base);
 
   // ---- Referencias del radar: P50 y P75 de La Liga son polígonos regulares; las posicionales se combinan con los mismos pesos (3.9).
   const pctPosicional = (d, p) => {
@@ -260,15 +279,26 @@ export function CompositeProfile({ player, positionId = null }) {
     ...(refs.includes('p50pos') ? [{ clave: 'p50pos', nombre: `P50 ${posNombre(positions, posActual)}`, vals: CUALIDADES.map((c) => referenciaPosicional(c, (d) => pctPosicional(d, 0.5), pesos)) }] : []),
     ...(refs.includes('p75pos') ? [{ clave: 'p75pos', nombre: `P75 ${posNombre(positions, posActual)}`, vals: CUALIDADES.map((c) => referenciaPosicional(c, (d) => pctPosicional(d, 0.75), pesos)) }] : []),
   ];
-  const series = [{ clave: 'jugador', nombre: 'Player', vals: qs.map((q) => (q.estado === 'ok' ? q.score : null)) }, ...referencias];
+  // Un polígono del jugador por capa marcada, en el orden fijo Latest → PA → PB (16/11/2026). Las referencias posicionales se calculan con la base
+  // de «Valor», que es la que enseña la tabla: así las columnas del cuadro y los polígonos amarillos siguen diciendo lo mismo.
+  const capasOrden = CAPAS.filter(([k]) => capas.includes(k));
+  const series = [
+    ...capasOrden.map(([k, n]) => ({ clave: 'jug-' + k, nombre: n, vals: perfil(k).qs.map((q) => (q.estado === 'ok' ? q.score : null)) })),
+    ...referencias,
+  ];
+  // Los números junto a cada eje son los de la PRIMERA capa marcada; con más de una, el pie del gráfico dice cuál es.
+  const qsEjes = capasOrden.length ? perfil(capasOrden[0][0]).qs : qs;
+  const pieRadar = capasOrden.length > 1 ? `Axis values: ${capasOrden[0][1]}` : '';
   // Un eje solo deja hueco cuando FALTA el dato (14/11/2026): ya no hay cualidades anuladas por regla.
-  const ejes = qs.map((q) => ({ nombre: q.nombre, valor: q.score, texto: q.estado === 'ok' ? null : SIN_DATOS, gris: q.estado !== 'ok' }));
+  const ejes = qsEjes.map((q) => ({ nombre: q.nombre, valor: q.score, texto: q.estado === 'ok' ? null : SIN_DATOS, gris: q.estado !== 'ok' }));
 
   // N de la referencia: el número de jugadores con los que se ha comparado, que depende de la variable.
   const enes = qs.flatMap((q) => q.scores.map((s) => s.med?.n).filter((x) => Number.isFinite(x) && x > 0));
   const nTexto = enes.length ? (Math.min(...enes) === Math.max(...enes) ? `${Math.max(...enes)}` : `${Math.min(...enes)}–${Math.max(...enes)}`) : '0';
 
   const toggleRef = (k) => setRefs(refs.includes(k) ? refs.filter((x) => x !== k) : [...refs, k]);
+  // Nunca se quedan las tres sin marcar: un radar sin ningún polígono del jugador no diría nada.
+  const toggleCapa = (k) => setCapas(capas.includes(k) ? (capas.length > 1 ? capas.filter((x) => x !== k) : capas) : [...capas, k]);
   const etiquetaVar = (d, med) => (d.tipo === 'dsi' ? 'DSI' : d.tipo === 'eur' ? 'EUR' : d.tipo === 'fv' ? 'Back Squat load–velocity profile' : d.tipo === 'cualidad' ? porId[d.id]?.nombre ?? d.id : `${d.orz ? (med?.varias ? '30 + 45 cm' : `${dj.alturas[0] ?? '—'} cm`) + ' · ' : ''}${d.variable}${d.rel ? '/BM' : ''}`);
 
   // ---- Comparación propulsivo / explosivo (14/11/2026): se decide con los percentiles de los dos impulsos, no con los valores.
@@ -341,6 +371,7 @@ export function CompositeProfile({ player, positionId = null }) {
   return html`<${Card} titulo="COMPOSITE PROFILE SCORE">
     <div class="filters">
       <fieldset class="modes"><legend>Valor</legend>${BASES.map(([k, n]) => html`<label class="check" key=${k}><input type="radio" name="cps-base" checked=${base === k} onChange=${() => setBase(k)} /> ${n}</label>`)}</fieldset>
+      <fieldset class="modes"><legend>Capas del radar</legend>${CAPAS.map(([k, n]) => { const sola = capas.length === 1 && capas.includes(k); return html`<label class="check" key=${k} title=${sola ? 'Tiene que quedar al menos una capa marcada.' : ''}><input type="checkbox" name="cps-capa" disabled=${sola} checked=${capas.includes(k)} onChange=${() => toggleCapa(k)} /> ${n}</label>`; })}</fieldset>
       <fieldset class="modes"><legend>Referencia posicional de La Liga (radar)</legend>${REFS.map(([k, n]) => { const off = posActual == null; return html`<label class="check" key=${k} title=${off ? 'El jugador no tiene posición principal.' : ''}><input type="checkbox" disabled=${off} checked=${!off && refs.includes(k)} onChange=${() => toggleRef(k)} /> ${n}</label>`; })}
         ${posActual == null ? html`<p class="muted" data-ancla="sin-posicion">Sin posición principal no hay referencia: asígnasela en su ficha.</p>` : null}</fieldset>
     </div>
@@ -360,7 +391,7 @@ export function CompositeProfile({ player, positionId = null }) {
       })}</tbody>
     </table></div>
     <p class="muted">Percentiles sobre N = ${nTexto} jugadores de la base.</p></div>
-    <div ref=${refRadar}><${Copiable} nombre=${`composite-radar-${player.id}`}><${RadarCualidades} ejes=${ejes} series=${series} playerName=${playerLabel(player)} svgRef=${refSvg} /><//></div>
+    <div ref=${refRadar}><${Copiable} nombre=${`composite-radar-${player.id}`}><${RadarCualidades} ejes=${ejes} series=${series} playerName=${playerLabel(player)} svgRef=${refSvg} pie=${pieRadar} /><//></div>
     <${BotonesImagen} rotulo="Radar" obtener=${() => refRadar.current} hacerBlob=${() => chartToBlob(refRadar.current)} nombre=${`composite-radar-${player.id}`} />
     <${NotaMetodo} umbrales=${umbrales} minN=${minN} />
   <//>`;
@@ -372,5 +403,6 @@ const NotaMetodo = ({ umbrales, minN }) => html`<${Desplegable} titulo="Cómo se
   <p class="muted">Cada cualidad es la media ponderada de los percentiles de rendimiento de La Liga de sus variables de puntuación, redondeada a entero. Los percentiles son los mismos que muestra «Normative Benchmarking» de cada test: la referencia excluye al propio jugador y a los sintéticos, y hace falta un mínimo de ${minN} jugadores. Las variables interpretativas nunca puntúan: están para leer el número.</p>
   <p class="muted">Las 6 cualidades puntúan siempre que haya datos: ninguna regla anula una cualidad; el texto de la columna «Orientation» dice qué hacer con ese número. Jump height de p${umbrales.p35} para abajo → «Prioritize foundational dynamic strength», por encima → «Acceptable output»; depth de p${umbrales.p90} para arriba → «Prioritize increase functional depth», y de p${umbrales.p35} para abajo → «Propulsive strategy»; contraction time de p${umbrales.p65} para arriba → «Snappy», y de p${umbrales.p35} para abajo → «Prioritize decrease contraction time, improve SSC utilization»; cada una de las dos cualidades propulsiva y reactiva lee la puntuación de la otra y dice si esa característica está bien o mal; Propulsive / Dynamic Strength por encima de p${umbrales.p65} → «Prioritize Power», y por debajo de p${umbrales.p35} → «Prioritize Strength». En Propulsive y en Explosive / Snappy se compara además el percentil de con impulse 100 ms con el de con peak power: si el primero es mayor, tendencia explosiva; si es menor, propulsiva. Con el Knee Iso-Push en el percentil 0–${umbrales.p35} de La Liga, la orientación del DSI es siempre «Iso maximal strength training orientation», sea cual sea el ratio. «${SIN_DATOS}» significa que no hay datos suficientes para puntuar, y nunca se muestra como 0.</p>
   <p class="muted">Los impulsos (con impulse, con impulse 100 ms y ecc deceleration impulse) llegan de VALD en N·s absolutos y aquí se usan divididos por la masa corporal (N·s/kg), también en la referencia de La Liga: comparar un valor relativo con una referencia absoluta sería un error. La masa es la medida más cercana a la fecha de la sesión (la misma regla que el resto del dashboard); sin masa utilizable, esa sesión no tiene impulso relativo. En el Drop Jump se usa la altura de la ORZ, y las interpretativas son de esa misma altura. Los tests de Groin, Hip y Ankle no entran en este bloque.</p>
+  <p class="muted">El radar puede dibujar a la vez Latest, Personal Average y Personal Best: son tres polígonos blancos que se distinguen por el trazo (continuo, a rayas y de puntos), y la leyenda dice cuál es cada uno. Esas capas son independientes del selector «Valor», que manda sobre la tabla de cualidades y sobre el desglose, porque esos solo pueden enseñar una base a la vez. Los números junto a cada eje son los de la primera capa marcada; con más de una, el pie del gráfico lo dice.</p>
   <p class="muted">El radar tiene los ejes en percentil 0–100 (el centro es 0) y no normaliza por el P50, porque los ejes ya son percentiles. Las referencias son posicionales: para cada variable, el percentil de La Liga del P50 (o P75) de la posición del jugador, combinado con los mismos pesos de la cualidad. Sin posición principal no hay referencia que dibujar. Un eje sin puntuación deja un hueco en el polígono; nunca se dibuja como 0.</p>
 <//>`;

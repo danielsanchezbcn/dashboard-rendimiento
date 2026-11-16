@@ -1,5 +1,5 @@
 {
-"version": "10i-0.1.0",
+"version": "10i-0.3.0",
 "archivos": {
 "alta-manual.js": {
 "bytes": 3994,
@@ -58,8 +58,8 @@
 "sha": "4fda6bedae300b70"
 },
 "app.js": {
-"bytes": 7324,
-"sha": "89d97ba0a06b6f4d"
+"bytes": 7596,
+"sha": "661d4bc2db15deb6"
 },
 "asim-ui.js": {
 "bytes": 502,
@@ -110,8 +110,8 @@
 "sha": "70ba44a73f3ae3f0"
 },
 "comprobar.html": {
-"bytes": 8857,
-"sha": "7d377128052339d0"
+"bytes": 9425,
+"sha": "d19ec5744bf6101c"
 },
 "context.js": {
 "bytes": 154,
@@ -123,7 +123,11 @@
 },
 "db.js": {
 "bytes": 7185,
-"sha": "ea622f5dde486c43"
+"sha": "7d004631f9c9d98a"
+},
+"dsieur.js": {
+"bytes": 4174,
+"sha": "4d43605eb8344e82"
 },
 "estadistica.js": {
 "bytes": 3834,
@@ -242,12 +246,16 @@
 "sha": "7d49ff711e7cfd2f"
 },
 "pages-composite.js": {
-"bytes": 31826,
-"sha": "5214ceb5438dcd4a"
+"bytes": 35544,
+"sha": "1adfc2f3d7610ef5"
 },
 "pages-deficits.js": {
 "bytes": 11554,
 "sha": "6149b272c87a26f9"
+},
+"pages-dsieur.js": {
+"bytes": 6939,
+"sha": "bfb3cb52b2898d56"
 },
 "pages-evolucion.js": {
 "bytes": 59046,
@@ -266,8 +274,8 @@
 "sha": "e4280a87dea7f3ba"
 },
 "pages-isorack.js": {
-"bytes": 4978,
-"sha": "e5e79a81a3332036"
+"bytes": 5163,
+"sha": "93477001c795ee1c"
 },
 "pages-jugadores.js": {
 "bytes": 24934,
@@ -286,8 +294,8 @@
 "sha": "70caf583e160d54c"
 },
 "pages-relaciones.js": {
-"bytes": 16921,
-"sha": "6fc9cbbc147562fa"
+"bytes": 17105,
+"sha": "2d1034f464527b78"
 },
 "pages-test.js": {
 "bytes": 28464,
@@ -330,8 +338,8 @@
 "sha": "88eb500272001f21"
 },
 "style.css": {
-"bytes": 54717,
-"sha": "26f6711b491a6d94"
+"bytes": 56390,
+"sha": "5b2d532f276c574f"
 },
 "targets.js": {
 "bytes": 4652,
