@@ -20,7 +20,7 @@ import { BotonesImagen } from './copiar.js';
 import { playerLabel } from './jugadores.js';
 
 const nf = (n, d = 2) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
-const BASES = [['pa', 'Personal Average'], ['pb', 'Personal Best'], ['last', 'Latest']];
+const BASES = [['last', 'Latest'], ['pa', 'Personal Average'], ['pb', 'Personal Best']];
 
 // El formato de la variación y el rótulo de lo que compara cada base viven en evolucion.js (definición única: la comparten este cuadro,
 // Asimetrías, Déficits y COMPOSITE). Se re-exporta para no romper lo que ya los importaba de aquí.
@@ -81,7 +81,7 @@ export function columnasNormativas({ player, test, catalog, sessions, refData, v
       const x = valorBase(sessions, v, sd, base, f);
       const act = valorBase(sessions, v, sd, 'last', f);
       const prev = valorPrevio(sessions, v, sd, f);
-      // «Actual» se compara con la sesión previa; con Personal Average / Personal Best, el resultado de la última sesión se compara con ese valor.
+      // «Latest» se compara con la sesión previa; con Personal Average / Personal Best, el resultado de la última sesión se compara con ese valor.
       const vari = act ? variacionPct(act.value, base === 'last' ? prev?.value : x?.value) : null;
       const pbReason = base === 'pb' && !x && act ? personalBestFor(sessions, v, sd, f).reason ?? null : null;
       lado[sd] = { x, act, prev, vari, pbReason, ev: x ? ctx.evalValor(x.value, base, positionId) : null, pl: x && ctx.plRef ? placeAgainstPremier(ctx.plRef, x.value) : null, nat: nat && x ? classifyNatera(nat, x.value) : null };
@@ -113,7 +113,7 @@ export function NormativeBenchmarking({ player, test, catalog, sessions, refData
   if (!vars.length) return null;
   const puedePB = (v) => !!v.pbCriterion || v.direction === 'higher' || v.direction === 'lower';
   const bases = vars.some(puedePB) ? BASES : BASES.filter(([k]) => k !== 'pb'); // sin criterio ni dirección en ninguna variable no hay «mejor»: sin Personal Best
-  const base = bases.some(([k]) => k === q.pn) ? q.pn : 'pa';
+  const base = bases.some(([k]) => k === q.pn) ? q.pn : 'last';
   const cols = columnasNormativas({ player, test, catalog, sessions, refData, vars, base, f, positionId });
   const tienePl = cols.some((c) => c.hayPl), tieneNat = cols.some((c) => c.nat), tieneLR = cols.some((c) => c.sides.length === 2);
   const tieneEvAsim = cols.some((c) => c.evAsim);
@@ -152,7 +152,9 @@ export function NormativeBenchmarking({ player, test, catalog, sessions, refData
   const selCol = cols.find((c) => c.v.id === selectedId) ?? cols[0];
   const plRef = selCol?.ctx.plRef ?? null, natSel = selCol?.nat ?? null, unitSel = selCol?.v.unit ?? '', uSel = unitSel ? ` ${unitSel}` : '';
   const posName = positionId === null ? 'all positions' : positions.find((p) => p.id === positionId)?.name ?? 'deleted position';
-  return html`<section class="panorama" aria-label=${`${dn(test.name)}: Normative Benchmarking`}>
+  // «data-ancla»: al elegir un test, la pantalla baja hasta aquí (15/11/2026). Se localiza por la marca y no por una referencia al nodo, porque el
+  // cuadro se vuelve a crear al cambiar de test.
+  return html`<section class="panorama" data-ancla="normativo" aria-label=${`${dn(test.name)}: Normative Benchmarking`}>
     <h4 class="sec-titulo">Normative Benchmarking</h4>
     <div class="filters">
       <fieldset class="modes"><legend>Value shown</legend>${bases.map(([k, n]) => html`<label class="check" key=${k}><input type="radio" name="pano-base" checked=${base === k} onChange=${() => setQ({ pn: k })} /> ${etq(k, n)}</label>`)}</fieldset>

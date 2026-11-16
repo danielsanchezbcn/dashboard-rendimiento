@@ -9,7 +9,7 @@ import { positionOnDate } from './posiciones.js';
 import { buildSeries, personalAverage, personalBestFor } from './evolucion.js';
 import { playerLabel } from './jugadores.js';
 
-export const MODES = [['pa', 'Personal Average'], ['pb', 'Personal Best'], ['last', 'Última sesión válida'], ['hist', 'Histórico completo']];
+export const MODES = [['pa', 'Personal Average'], ['pb', 'Personal Best'], ['last', 'Latest'], ['hist', 'Histórico completo']];
 export const NONE_KEY = 'none';
 
 const timeKey = (p) => p.date + (p.time || '');

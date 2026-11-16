@@ -1,7 +1,7 @@
 // pages-asimetrias.js — bloque «Asimetrías» del perfil del jugador (10/11/2026): todas las asimetrías del jugador organizadas por bloque → subcategoría → test → variable.
 // Cada fila lleva una barra desde el eje central: hacia la izquierda y azul si domina Left, hacia la derecha y naranja si domina Right. Longitud proporcional a la magnitud, con una escala común.
 // Variables por lado (L y R): asimetría D25 = (R − L) ÷ máx × 100; en grados (ángulos) = R − L en °, con su propia escala. Variables «ASYM» de VALD (un valor con signo, %): se usan tal cual.
-// Valores de la base elegida (Personal Average, Personal Best o Actual), calculados con las mismas funciones que el resto del perfil. Las variables relativas (BW/SW) no se repiten.
+// Valores de la base elegida (Latest, Personal Average o Personal Best), calculados con las mismas funciones que el resto del perfil. Las variables relativas (BW/SW) no se repiten.
 import { html } from './libs.js';
 import { orderVars, isViewable, hasData, isRelative } from './relativos.js';
 import { isAsymVariable, asymText, esGrados, asimetriaLR, testExcluidoDeAsimetrias, variableExcluidaDeAsimetrias } from './catalogo.js';
@@ -14,7 +14,7 @@ import { Desplegable } from './componentes.js';
 // Variables de asimetría (VALD) del catálogo de un test en las que este jugador no tiene ningún valor.
 export const asimSinDatos = (test, catalog, tsess) => orderVars(candidatas(test, catalog).filter((v) => isAsymVariable(v) && isViewable(v) && !hasData(v, tsess)));
 export const BLOQUES_ASIM = [['fuerza', 'Manifestaciones de la fuerza'], ['perimetros', 'Datos antropométricos'], ['nme', 'NME']];
-const BASES = [['pa', 'Personal Average'], ['pb', 'Personal Best'], ['last', 'Actual']];
+const BASES = [['last', 'Latest'], ['pa', 'Personal Average'], ['pb', 'Personal Best']];
 const nf = (n, d = 1) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 
 // Valor y fecha de un jugador en una variable y lado, según la base (definición única: valorBase en evolucion.js).
@@ -61,7 +61,7 @@ function Barra({ pct, lim }) {
 }
 
 export function PanelAsimetrias({ catalog, sessions, q, setQ }) {
-  const base = BASES.some(([k]) => k === q.am) ? q.am : 'pa';
+  const base = BASES.some(([k]) => k === q.am) ? q.am : 'last';
   const mName = (t) => catalog.manifestations.find((m) => m.id === t.manifestationId)?.name ?? null;
   const zName = (t) => catalog.zones.find((z) => z.id === t.zoneId)?.name ?? null;
   const rank = (t) => { const z = (zName(t) ?? '').toLowerCase(); return z.startsWith('ankle') ? 0 : z.startsWith('knee') ? 1 : z.startsWith('hip') ? 2 : z.startsWith('groin') ? 3 : 4; };
@@ -77,7 +77,7 @@ export function PanelAsimetrias({ catalog, sessions, q, setQ }) {
   return html`<section class="asimetrias" aria-label="Asimetrías del jugador">
     <fieldset class="modes"><legend>Valor mostrado</legend>${BASES.map(([k, n]) => html`<label class="check" key=${k}><input type="radio" name="asim-base" checked=${base === k} onChange=${() => setQ({ am: k })} /> ${n}</label>`)}</fieldset>
     ${!bloques.length ? html`<p class="muted">Este jugador aún no tiene asimetrías calculables (hacen falta tests con valores por lado —izquierda y derecha— o variables de asimetría de VALD).</p>` : html`
-      <${Desplegable} titulo="Cómo leer las barras"><p class="muted">Barra hacia la izquierda y <span class="asim-l">azul</span>: domina Left. Hacia la derecha y <span class="asim-r">naranja</span>: domina Right. Escala común de ±${limPct} % (la barra llena = ese valor o más)${hayDeg ? `; las medidas en grados (°) usan su propia escala de ±${limDeg} °` : ''}. Asimetría = |R − L| ÷ máx × 100 con el valor del lado más alto. La columna «${rotuloComp(base)}» compara, en cada lado, el valor de la última sesión con la base elegida (con «Actual», con la sesión válida anterior): es la misma comparación que muestra el cuadro «Normative Benchmarking» de cada test.</p><//>
+      <${Desplegable} titulo="Cómo leer las barras"><p class="muted">Barra hacia la izquierda y <span class="asim-l">azul</span>: domina Left. Hacia la derecha y <span class="asim-r">naranja</span>: domina Right. Escala común de ±${limPct} % (la barra llena = ese valor o más)${hayDeg ? `; las medidas en grados (°) usan su propia escala de ±${limDeg} °` : ''}. Asimetría = |R − L| ÷ máx × 100 con el valor del lado más alto. La columna «${rotuloComp(base)}» compara, en cada lado, el valor de la última sesión con la base elegida (con «Latest», con la sesión válida anterior): es la misma comparación que muestra el cuadro «Normative Benchmarking» de cada test.</p><//>
       ${bloques.map((b) => html`<div class="asim-bloque" key=${b.key}><h3 class="asim-h-bloque">${b.nombre}</h3>
         ${b.grupos.map((g) => html`<div key=${g.g ?? '-'}>${g.g ? html`<h4 class="asim-h-sub">${g.g}</h4>` : null}
           ${g.tests.map(({ t, rows, falta }) => html`<div class="table-wrap asim-test" key=${t.id}><table class="asim"><caption><strong>${dn(t.name)}</strong>${zName(t) ? html` <span class="muted">· ${zName(t)}</span>` : null}</caption>

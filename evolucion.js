@@ -97,7 +97,7 @@ export function valorBase(sessions, variable, side, base, filters = {}) {
   return a.defined ? { value: a.value, date: a.to, from: a.from, reps: a.reps, sessions: a.sessions } : null;
 }
 
-// Sesión válida inmediatamente anterior a la última (misma serie, mismos filtros): sirve para la variación % de «Actual» en Normative Benchmarking.
+// Sesión válida inmediatamente anterior a la última (misma serie, mismos filtros): sirve para la variación % de «Latest» en Normative Benchmarking.
 export function valorPrevio(sessions, variable, side, filters = {}) {
   const pts = buildSeries(sessions, variable.id, side, filters).valid;
   if (pts.length < 2) return null;
@@ -131,7 +131,7 @@ export function fmtPuntos(p) {
   return `${r > 0 ? (p > 0 ? '+' : '−') : ''}${r.toLocaleString('es-ES', { maximumFractionDigits: 1 })} p.p.`;
 }
 
-// % de la última sesión frente a la base mostrada (con «Actual», frente a la sesión anterior). Misma definición que usa `columnasNormativas`.
+// % de la última sesión frente a la base mostrada (con «Latest», frente a la sesión anterior). Misma definición que usa `columnasNormativas`.
 export function variacionBase(sessions, variable, side, base, filters = {}) {
   const act = valorBase(sessions, variable, side, 'last', filters);
   if (!act) return null;

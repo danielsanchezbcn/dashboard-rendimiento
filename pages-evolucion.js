@@ -5,6 +5,7 @@ import { useApp } from './context.js';
 import { Card, Desplegable, Msg, useLoad, useRunner, agruparFiltros, SelectorVariable } from './componentes.js';
 import { fmtDay, todayIso } from './fechas.js';
 import { addManualLoad, LOAD_VARIABLE_NAMES } from './isohold.js';
+import { addManualSession, admiteAltaManual, variablesAltaManual } from './alta-manual.js';
 import { listCatalog, SIDES } from './catalogo.js';
 import { replaceQuery, buildHash } from './rutas.js';
 import { Migas, KEEP, NotaRelativa } from './pages-test.js';
@@ -231,7 +232,7 @@ function TargetPanel({ player, variable, sides, targets, positions, positionId, 
   }, 'Target guardado.');
   const remove = (t) => run(async () => { await deleteTarget(db, t.id); setForm({ ...form, ...(t.scope === 'player' ? { own: {}, ownNote: '' } : { pos: {}, posNote: '' }) }); reload(); }, 'Target eliminado.');
   return html`<section class="targets"><h4>Target</h4>
-    ${rows.length ? html`<div class="table-wrap"><table><caption>Target aplicable a ${playerLabel(player)} en ${dn(variable.name)}</caption><thead><tr><th>Lado</th><th class="num">Target</th><th>Origen</th><th>Resultado actual</th><th>Personal Average</th></tr></thead>
+    ${rows.length ? html`<div class="table-wrap"><table><caption>Target aplicable a ${playerLabel(player)} en ${dn(variable.name)}</caption><thead><tr><th>Lado</th><th class="num">Target</th><th>Origen</th><th>Latest</th><th>Personal Average</th></tr></thead>
       <tbody>${rows.map((r) => html`<tr key=${r.sd}><th scope="row">${sideName[r.sd]}</th><td class="num">${nf(r.t.value)}${u}</td><td>${r.t.origin}${r.t.note ? html` <span class="muted">· ${r.t.note}</span>` : null}</td>
         <td>${r.cur ? html`<span title=${`${fmtDay(r.cur.date)} · frente al target: ${fmt(distanceToTarget(r.cur.value, r.t.value, variable.direction))}`} tabindex="0">${nf(r.cur.value)}${u}</span>` : '—'}</td><td>${r.pa.defined ? html`<span title=${`frente al target: ${fmt(distanceToTarget(r.pa.value, r.t.value, variable.direction))}`} tabindex="0">${nf(r.pa.value)}${u}</span>` : '—'}</td></tr>`)}</tbody></table></div>
       ${variable.direction !== 'higher' && variable.direction !== 'lower' ? html`<p class="muted">Esta variable no tiene dirección «más alto» ni «más bajo» en el catálogo: se muestra la distancia, pero no si el target está alcanzado.</p>` : null}`
@@ -434,6 +435,36 @@ function AltaManualCarga({ player, catalog, reload, fixedTest = null }) {
     </form><${Msg} msg=${msg} /><//>`;
 }
 
+// Alta manual de resultados (15/11/2026): tests que no vienen de VALD ni de Excel. Va al final de la pantalla del test, debajo de todo lo demás.
+function AltaManualResultado({ player, test, catalog, reload }) {
+  const { db } = useApp();
+  const { msg, busy, run } = useRunner();
+  const vars = variablesAltaManual(catalog.variables, test.id);
+  const [f, setF] = useState({ date: todayIso(), time: '', valores: {} });
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const setVal = (vid, sd) => (e) => setF({ ...f, valores: { ...f.valores, [vid]: { ...(f.valores[vid] ?? {}), [sd]: e.target.value } } });
+  const save = run(async () => {
+    await addManualSession(db, { playerId: player.id, testId: test.id, date: f.date, time: f.time, valores: f.valores });
+    setF({ date: f.date, time: '', valores: {} }); reload();
+  }, 'Resultado guardado.');
+  const campo = (v, sd, etiqueta) => html`<label key=${`${v.id}-${sd}`}>${etiqueta}${v.unit ? html` <span class="muted">(${v.unit})</span>` : null}
+    <input inputmode="decimal" value=${f.valores[v.id]?.[sd] ?? ''} onInput=${setVal(v.id, sd)} /></label>`;
+  return html`<${Card} titulo="Alta manual de resultados" id="alta-manual-resultado">
+    <p class="muted">Este test no se importa: escribe aquí el resultado del jugador. Se guarda como una sesión más, con su fecha, y entra en los percentiles, las asimetrías y los déficits como cualquier otra. Las casillas que dejes en blanco no se guardan; si te equivocas, corrígelo en la tabla de sesiones.</p>
+    ${vars.length === 0 ? html`<p class="status warn" role="status">Este test todavía no tiene variables. Créalas en «Catálogo de tests» y vuelve aquí.</p>` : html`
+    <form onSubmit=${save} aria-label="Alta manual de resultados">
+      <div class="fields">
+        <label>Fecha <input type="date" value=${f.date} onInput=${set('date')} required /></label>
+        <label>Hora (opcional) <input type="time" value=${f.time} onInput=${set('time')} /></label>
+      </div>
+      <div class="fields alta-manual-vars">${vars.flatMap((v) => (v.sides === 'LR'
+        ? [campo(v, 'L', html`${dn(v.name)} · izquierda`), campo(v, 'R', html`${dn(v.name)} · derecha`)]
+        : [campo(v, 'S', dn(v.name))]))}</div>
+      <button type="submit" disabled=${busy}>Guardar resultado</button>
+    </form>`}
+    <${Msg} msg=${msg} /><//>`;
+}
+
 const BLOQUES = [['edicion', 'Edición'], ['fuerza', 'Manifestaciones de la fuerza'], ['perimetros', 'Datos antropométricos'], ['nme', 'NME'], ['asimetrias', 'Asimetrías'], ['deficits', 'Déficits'], ['composite', 'COMPOSITE PROFILE SCORE']];
 
 // Edición y Datos antropométricos llegan ya hechos desde la ficha (`edicion`, `antrop`); el perfil carga-velocidad (`fv`) solo se muestra en los tests de perfil F–V.
@@ -453,6 +484,19 @@ export function ResultadosJugador({ player, query = {}, edicion = null, antrop =
   const block = BLOQUES.some(([k]) => k === query.b) ? query.b : 'composite'; // 15/11/2026: al escoger jugador se abre COMPOSITE PROFILE SCORE (decisión del usuario)
   const testId = query.t ? Number(query.t) : null;
   const setQ = (patch) => replaceQuery(`jugador-${player.id}`, { ...query, ...patch });
+  // Al elegir un test, la pantalla baja sola hasta «Normative Benchmarking» (15/11/2026, pedido del usuario): es lo primero que se mira del test.
+  // Se espera a que el cuadro del test nuevo esté dibujado y se busca por su marca, no por una referencia al nodo, porque se vuelve a crear entero.
+  const elegirTest = (id) => {
+    setQ({ t: id, v: undefined, va: undefined });
+    if (typeof document === 'undefined') return;
+    let intentos = 0;
+    const baja = () => {
+      const nodo = document.querySelector('[data-ancla="normativo"]');
+      if (nodo) nodo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else if (++intentos < 12) setTimeout(baja, 120);
+    };
+    setTimeout(baja, 120);
+  };
   if (error) return html`<p class="status fail">${error}</p>`;
   if (!data) return html`<p>Cargando…</p>`;
   const { catalog, sessions, omitted, targets, positions, fvProfiles, positionId } = data;
@@ -464,7 +508,7 @@ export function ResultadosJugador({ player, query = {}, edicion = null, antrop =
   const vbtTest = (t) => /velocity profile/i.test(t.name); // perfiles fuerza–velocidad: el perfil carga-velocidad se introduce aquí
   const angTest = (t) => t.name === 'Jurdan Test'; // test de ángulos: se mide a partir de fotografías (herramienta integrada)
   const conDatos = (t) => hasSessions(t) || hasFv(t);
-  const selectable = (t) => hasSessions(t) || loadTest(t) || vbtTest(t) || angTest(t);
+  const selectable = (t) => hasSessions(t) || loadTest(t) || vbtTest(t) || angTest(t) || admiteAltaManual(t); // los de alta manual se abren aunque aún no tengan nada
   const allOf = (b) => catalog.tests.filter((t) => (t.blockKey ?? 'fuerza') === b && !t.archived);
   const tests = allOf(block);
   const test = tests.find((t) => t.id === testId && selectable(t)) ?? tests.find(hasSessions) ?? null;
@@ -474,13 +518,14 @@ export function ResultadosJugador({ player, query = {}, edicion = null, antrop =
   const rank = (t) => { const z = (zName(t) ?? '').toLowerCase(); return z.startsWith('ankle') ? 0 : z.startsWith('knee') ? 1 : z.startsWith('hip') ? 2 : z.startsWith('groin') ? 3 : 4; }; // Ankle, Knee, Hip, Groin; sin zona al final
   const ordered = (g) => tests.filter((t) => mName(t) === g).map((t, i) => [t, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([t]) => t);
   const cuerpoTest = () => !test ? html`<p class="muted">Elige un test de la lista.</p>` : html`
-      <div class="test-sticky"><span class="muted">${playerLabel(player)} ·</span> <h3>${dn(test.name)}</h3>${hasSessions(test) ? html`<a class="button sticky-link" href=${buildHash(`test-${test.id}`, { ...KEEP(query), m: query.m ?? 'pa', j: player.id })}>Ver todos los jugadores en este test</a>` : null}</div>
+      <div class="test-sticky"><span class="muted">${playerLabel(player)} ·</span> <h3>${dn(test.name)}</h3>${hasSessions(test) ? html`<a class="button sticky-link" href=${buildHash(`test-${test.id}`, { ...KEEP(query), m: query.m ?? 'last', j: player.id })}>Ver todos los jugadores en este test</a>` : null}</div>
       ${hasSessions(test) ? html`<${PanelTest} key=${test.id} player=${player} test=${test} catalog=${catalog} sessions=${sessions.filter((s) => s.testId === test.id)} omitted=${omitted} reload=${reload} q=${query} setQ=${setQ} targets=${targets} positions=${positions} positionId=${positionId} />` : vbtTest(test) ? null : html`<p class="muted">Este jugador aún no tiene sesiones de este test.</p>`}
       ${loadTest(test) ? html`<${AltaManualCarga} key=${'am' + test.id} player=${player} catalog=${catalog} reload=${reload} fixedTest=${test} />` : null}
       ${vbtTest(test) ? (typeof fv === 'function' ? fv(test) : fv) : null}
-      ${angTest(test) ? html`<${Card} titulo="Medir ángulos con fotografías"><p class="muted">Carga las dos fotos, revisa los puntos y guarda: las medidas se añaden a este jugador.</p><${Angulos} key=${'ang' + player.id} jugadorId=${player.id} /><//>` : null}`;
+      ${angTest(test) ? html`<${Card} titulo="Medir ángulos con fotografías"><p class="muted">Carga las dos fotos, revisa los puntos y guarda: las medidas se añaden a este jugador.</p><${Angulos} key=${'ang' + player.id} jugadorId=${player.id} /><//>` : null}
+      ${admiteAltaManual(test) ? html`<${AltaManualResultado} key=${'amr' + test.id} player=${player} test=${test} catalog=${catalog} reload=${reload} />` : null}`;
   const listaTests = () => !tests.length ? html`<p class="muted">Bloque sin tests definidos.</p>` : html`
-      <div class=${`test-list cols-${Math.min(5, groups.length)}`}>${groups.map((g) => html`<div key=${g}>${g === 'Sin manifestación' ? null : html`<h3>${g}</h3>`}<div class="test-items">${ordered(g).map((t) => { const ok = selectable(t); return html`<button type="button" key=${t.id} disabled=${!ok} title=${!ok ? 'Sin sesiones de este test' : sinAsignar(t) ? 'Tiene un perfil sin test asignado: ábrelo y asígnalo' : conDatos(t) ? t.name : 'Aún sin datos: pulsa para añadirlos'} class=${(test && t.id === test.id ? 'test-item on' : 'test-item') + (!conDatos(t) && ok ? ' vacio' : '')} aria-pressed=${!!test && t.id === test.id} onClick=${() => setQ({ t: t.id, v: undefined, va: undefined })}>${zName(t) ? zName(t) + ' · ' : ''}${dn(t.name)}${!conDatos(t) && ok ? html` <span class="sin-datos">· sin datos aún</span>` : null}</button>`; })}</div></div>`)}</div>
+      <div class=${`test-list cols-${Math.min(5, groups.length)}`}>${groups.map((g) => html`<div key=${g}>${g === 'Sin manifestación' ? null : html`<h3>${g}</h3>`}<div class="test-items">${ordered(g).map((t) => { const ok = selectable(t); return html`<button type="button" key=${t.id} disabled=${!ok} title=${!ok ? 'Sin sesiones de este test' : sinAsignar(t) ? 'Tiene un perfil sin test asignado: ábrelo y asígnalo' : conDatos(t) ? t.name : 'Aún sin datos: pulsa para añadirlos'} class=${(test && t.id === test.id ? 'test-item on' : 'test-item') + (!conDatos(t) && ok ? ' vacio' : '')} aria-pressed=${!!test && t.id === test.id} onClick=${() => elegirTest(t.id)}>${zName(t) ? zName(t) + ' · ' : ''}${dn(t.name)}${!conDatos(t) && ok ? html` <span class="sin-datos">· sin datos aún</span>` : null}</button>`; })}</div></div>`)}</div>
       ${cuerpoTest()}`;
   return html`<${Card} titulo="Resultados por bloque">
     ${test ? html`<${Migas} items=${[{ label: 'Jugadores', href: '#jugadores' }, { label: playerLabel(player) }, { label: dn(test.name) }]} />` : null}

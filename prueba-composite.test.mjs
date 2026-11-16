@@ -70,9 +70,8 @@ check('depth p70 (entre 35 y 90): sin texto', orientacionDe(dDepth, 70) === null
 check('contraction time p70 y p65 (banda 65-100) → «Snappy»', orientacionDe(dCtReact, 70) === 'Snappy' && orientacionDe(dCtReact, 65) === 'Snappy');
 check('contraction time p50 (entre 35 y 65): sin texto', orientacionDe(dCtReact, 50) === null, String(orientacionDe(dCtReact, 50)));
 // El texto de la banda baja del contraction time lleva «improve SSC utilization» SOLO donde lo pide el documento.
-check('contraction time 0-35 en Energy Storage / Reactivity → «… , improve SSC utilization»', orientacionDe(dCtReact, 20) === 'Prioritize decrease contraction time, improve SSC utilization', String(orientacionDe(dCtReact, 20)));
-check('contraction time 0-35 en Explosive / Snappy → «… , improve SSC utilization»', orientacionDe(cual('explosive').scores[1], 20) === 'Prioritize decrease contraction time, improve SSC utilization');
-check('contraction time 0-35 en Propulsive / Dynamic Strength → texto corto', orientacionDe(dCtProp, 20) === 'Prioritize decrease contraction time', String(orientacionDe(dCtProp, 20)));
+// 16/11/2026: el mismo texto en las TRES cualidades donde sale (antes Propulsive llevaba uno más corto).
+check('contraction time 0-35 → «… , improve SSC utilization» en las tres cualidades', [dCtReact, cual('explosive').scores[1], dCtProp].every((d) => orientacionDe(d, 20) === 'Prioritize decrease contraction time, improve SSC utilization'), String(orientacionDe(dCtProp, 20)));
 // Los mismos textos en TODOS los bloques donde aparece la variable.
 const depthEn = ['propulsive', 'reactivity', 'explosive'].map((id) => [...cual(id).scores.flatMap((x) => x.interp ?? []), ...cual(id).interp].find((x) => x.variable === V.depth));
 check('depth lleva los mismos textos en las tres cualidades donde aparece', depthEn.every((d) => d && orientacionDe(d, 95) === 'Prioritize increase functional depth' && orientacionDe(d, 10) === 'Propulsive strategy'), JSON.stringify(depthEn.map((d) => !!d)));
@@ -86,8 +85,11 @@ check('Eccentric Deceleration incluye ecc decel phase duration como interpretati
 check('Energy Storage / Reactivity incluye ecc decel RFD como interpretativa', cual('reactivity').interp.some((d) => d.variable === V.eccRfd && !d.orient));
 // Interpretativas que miran la puntuación de OTRA cualidad (se miran entre sí: hace falta calcular las dos antes de resolverlas).
 const dCualProp = cual('reactivity').interp[4], dCualReact = cual('propulsive').interp[2];
-check('Energy Storage lee Propulsive / Dynamic Strength: 0-35 → «Prioritize Dynamic strength / concentric emphasis»', dCualProp.id === 'propulsive' && orientacionDe(dCualProp, 35) === 'Prioritize Dynamic strength / concentric emphasis', String(orientacionDe(dCualProp, 35)));
-check('Propulsive lee Energy Storage / Reactivity: > p65 → «Reactive strategy»', dCualReact.id === 'reactivity' && orientacionDe(dCualReact, 71) === 'Reactive strategy');
+// 16/11/2026: cada cualidad lee la puntuación de la otra en las dos bandas, no solo en una.
+check('Energy Storage lee Propulsive: 0-35 → «Poor propulsive characteristics…»', dCualProp.id === 'propulsive' && orientacionDe(dCualProp, 35) === 'Poor propulsive characteristics. Prioritize Dynamic strength / concentric emphasis', String(orientacionDe(dCualProp, 35)));
+check('Energy Storage lee Propulsive: 65-100 → «Good propulsive characteristics»', orientacionDe(dCualProp, 65) === 'Good propulsive characteristics' && orientacionDe(dCualProp, 50) === null);
+check('Propulsive lee Energy Storage: 0-35 → «Poor reactive characteristics»', dCualReact.id === 'reactivity' && orientacionDe(dCualReact, 20) === 'Poor reactive characteristics');
+check('Propulsive lee Energy Storage: 65-100 → «Good reactive characteristics»', orientacionDe(dCualReact, 71) === 'Good reactive characteristics' && orientacionDe(dCualReact, 50) === null);
 const cruz = calcular({ medida: medidaDe(TODO) });
 const resolver = (d) => { const x = cruz.find((c) => c.id === d.id); return x ? x.scoreBruto : null; };
 check('las dos referencias cruzadas se resuelven, aunque se miren entre sí', resolver(dCualProp) === 74 && resolver(dCualReact) === 71, `${resolver(dCualProp)} / ${resolver(dCualReact)}`);
@@ -95,11 +97,11 @@ check('las dos referencias cruzadas se resuelven, aunque se miren entre sí', re
 // ---- 4. Comparación propulsivo / explosivo: se decide con PERCENTILES. Texto CORTO en Propulsive y LARGO en Explosive (documento del 15/11/2026).
 check('con impulse 100 ms p40 < con peak power p70 → «Propulsive tendency»', tendencia(medidaDe(TODO)) === 'Propulsive tendency', String(tendencia(medidaDe(TODO))));
 check('con impulse 100 ms p90 > con peak power p70 → «Explosive tendency»', tendencia(medidaDe({ ...TODO, [claveDesc(DESC_IMP100)]: 90 })) === 'Explosive tendency');
-check('en Explosive / Snappy el texto es el largo', tendencia(medidaDe(TODO), 'larga') === 'Propulsive tendency > Explosive tendency' && tendencia(medidaDe({ ...TODO, [claveDesc(DESC_IMP100)]: 90 }), 'larga') === 'Explosive tendency > Propulsive tendency');
-check('percentiles iguales → se dice que están igualados, con las dos variantes', tendencia(medidaDe({ ...TODO, [claveDesc(DESC_IMP100)]: 70 })) === 'Explosive = Propulsive tendency' && tendencia(medidaDe({ ...TODO, [claveDesc(DESC_IMP100)]: 70 }), 'larga') === 'Explosive = Propulsive tendency');
+check('el mismo texto en las dos cualidades: ya no hay variante larga', cual('propulsive').scores[1].tendencia === cual('explosive').scores[0].tendencia);
+check('percentiles iguales → se dice que están igualados', tendencia(medidaDe({ ...TODO, [claveDesc(DESC_IMP100)]: 70 })) === 'Explosive = Propulsive tendency');
 check('sin uno de los dos percentiles no hay tendencia', tendencia(medidaDe(sin(TODO, claveDesc(DESC_CPP)))) === null);
 check('la tendencia no cambia ninguna puntuación', porId(calcular({ medida: medidaDe({ ...TODO, [claveDesc(DESC_IMP100)]: 70 }) })).propulsive.score === 74);
-check('la comparación va en la fila de peak power (Propulsive) y en la del impulso a 100 ms (Explosive)', cual('propulsive').scores[1].tendencia === 'corta' && cual('propulsive').scores[1].variable === V.cpp && cual('explosive').scores[0].tendencia === 'larga');
+check('la comparación va en la fila de peak power (Propulsive) y en la del impulso a 100 ms (Explosive)', !!cual('propulsive').scores[1].tendencia && cual('propulsive').scores[1].variable === V.cpp && !!cual('explosive').scores[0].tendencia);
 check('la comparación usa CON IMPULSE 100ms/BM y CON PEAK POWER/BM del CMJ', claveDesc(DESC_IMP100) === claveDesc({ test: T.cmj, variable: V.conImp100, rel: true }) && claveDesc(DESC_CPP) === claveDesc({ test: T.cmj, variable: V.cpp }));
 
 // ---- 4 bis. DSI y EUR: normas definitivas del 15/11/2026.

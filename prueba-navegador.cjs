@@ -58,6 +58,8 @@ const server = http.createServer((req, res) => {
     const T = (n) => tests.find((t) => t.name === n); const per = tests.find((t) => t.blockKey === 'perimetros');
     for (const [k, n] of Object.entries({ cmj: 'CMJ', sl: 'SL CMJ', hop: 'Double-Leg Hop Test', dj: 'DL Drop Jump 30 cm', sj: 'Squat Jump', hip: 'Run-Specific Hip Iso-Push', kpush: 'Run-Specific Knee Iso-Push', khold: 'Knee Iso-Hold 20 s', bsq: 'Back Squat Force–Velocity Profile', nordic: 'Nordic Hamstring Exercise', jur: 'Jurdan Test' })) out.byTest[k] = T(n).id;
     out.byTest.per = per.id;
+    out.byTest.manual = T('Supine Isometric Ankle Inversion').id; // test de alta manual (no se importa: se escribe a mano)
+    out.byTest.toe = tests.find((x) => x.blockKey === 'nme' && /toe/i.test(x.name))?.id ?? null;
     for (let i = 0; i < 12; i++) {
       const id = await new Promise((ok) => { const rq = db.transaction('players', 'readwrite').objectStore('players').add({ jerseyName: 'J' + (i + 1), active: true, referenceWeight: { value: 75, unit: 'kg' }, createdAt: now, updatedAt: now }); rq.onsuccess = () => ok(rq.result); });
       out.players.push(id);
@@ -122,17 +124,19 @@ const server = http.createServer((req, res) => {
   const PBAJO = ids.players[0]; // el jugador con los valores más bajos de la siembra: es el que tiene déficits
   await go(`#jugador-${PBAJO}?b=deficits`, 'table.deficits, .status.fail, p.muted', 2500);
   const def = await page.evaluate(() => { const t = document.querySelector('table.deficits'); return { n: t ? t.querySelectorAll('tbody tr').length : 0, pct: t ? [...t.querySelectorAll('tbody tr td:first-child .band')].map((x) => Number(x.innerText)) : [], cab: t ? [...t.querySelectorAll('thead th')].map((x) => x.innerText) : [] }; });
-  check('Déficits: tabla con percentil, test, variable, lado, valor, comparación y fecha', def.cab.join('|').toLowerCase() === 'percentil la liga|test|variable|lado|valor|% latest session vs personal average|fecha', def.cab.join('|'));
+  check('Déficits: tabla con percentil, test, variable, lado, valor, comparación y fecha', def.cab.join('|').toLowerCase() === 'percentil la liga|test|variable|lado|valor|% change vs previous session|fecha', def.cab.join('|'));
   // La columna de comparación (14/11/2026): el título dice QUÉ compara y cambia con la base, y el contenido es un % con signo.
   const cabComp = async () => page.evaluate(() => [...document.querySelectorAll('table.deficits thead th')][5]?.innerText.trim() ?? '');
   const compDef = async () => page.evaluate(() => [...document.querySelectorAll('table.deficits tbody tr')].map((r) => r.children[5].innerText.trim()));
-  check('Déficits: con Personal Average el título compara con el Personal Average', (await cabComp()) === '% latest session vs Personal Average', await cabComp());
+  // 16/11/2026: «Latest» va primero y viene marcado por defecto en todas las pantallas.
+  check('Déficits: por defecto viene marcado Latest y compara con la sesión anterior', (await cabComp()) === '% change vs previous session', await cabComp());
+  check('Déficits: las bases se llaman Latest, Personal Average y Personal Best', (await page.evaluate(() => [...document.querySelectorAll('fieldset.modes label.check')].map((l) => l.textContent.trim()).join('|'))).startsWith('Latest|Personal Average|Personal Best'), await page.evaluate(() => [...document.querySelectorAll('fieldset.modes label.check')].map((l) => l.textContent.trim()).join('|')));
   const compPA = await compDef();
   check('Déficits: la columna trae porcentajes con signo (o «—» si no hay con qué comparar)', compPA.length > 0 && compPA.every((x) => /^[+−]?\d+(,\d)? (%|p\.p\.)$|^—$/.test(x)) && compPA.some((x) => x !== '—'), JSON.stringify(compPA.slice(0, 6)));
   await page.locator('input[name="def-base"]').nth(1).check(); await page.waitForTimeout(400);
-  check('Déficits: con Personal Best el título compara con el Personal Best', (await cabComp()) === '% latest session vs Personal Best', await cabComp());
+  check('Déficits: con Personal Average el título compara con el Personal Average', (await cabComp()) === '% latest session vs Personal Average', await cabComp());
   await page.locator('input[name="def-base"]').nth(2).check(); await page.waitForTimeout(400);
-  check('Déficits: con Actual el título compara con la sesión anterior', (await cabComp()) === '% change vs previous session', await cabComp());
+  check('Déficits: con Personal Best el título compara con el Personal Best', (await cabComp()) === '% latest session vs Personal Best', await cabComp());
   const ladoCol = await page.evaluate(() => { const c = (sel) => { const e = document.querySelector(sel); return e ? getComputedStyle(e).color : null; }; return { l: c('table.deficits tbody td.asim-l'), r: c('table.deficits tbody td.asim-r') }; });
   check('Déficits: el lado va en azul (izquierda) y naranja (derecha)', ladoCol.l === 'rgb(49, 179, 254)' && ladoCol.r === 'rgb(252, 145, 47)', JSON.stringify(ladoCol));
   const alinDef = await page.evaluate(() => { const t = document.querySelector('table.deficits'); const al = (e) => getComputedStyle(e).textAlign; const th = [...t.querySelectorAll('thead th')]; const tr = t.querySelector('tbody tr'); return th.map((h, i) => `${al(h)}/${al(tr.children[i])}`); });
@@ -141,7 +145,29 @@ const server = http.createServer((req, res) => {
   check('Déficits: cabe a lo ancho a 1840, 1440 y 1280 px, sin desplazamiento horizontal', anchoDef.length === 0, anchoDef.join(' · '));
   await shot('deficits');
   await page.locator('input[name="def-base"]').nth(0).check(); await page.waitForTimeout(400);
-  check('Déficits: todas las filas están en el umbral o por debajo, de menor a mayor', def.n > 0 && def.pct.length === def.n && def.pct.every((x) => x <= 35) && def.pct.every((x, i) => i === 0 || x >= def.pct[i - 1]), JSON.stringify(def.pct));
+  // 16/11/2026: las filas del mismo test y variable van juntas (izquierda, derecha y asimetría) y los GRUPOS se ordenan por su percentil más bajo.
+  const grupos = await page.evaluate(() => {
+    const out = []; let g = null;
+    for (const tr of document.querySelectorAll('table.deficits tbody tr')) {
+      if (tr.classList.contains('grupo-ini')) { g = { clave: tr.children[1].innerText.trim() + ' | ' + tr.children[2].innerText.trim().replace(/\s*\(asimetría\)$/, ''), pct: [], lados: [] }; out.push(g); }
+      g.pct.push(Number(tr.querySelector('td:first-child .band').innerText));
+      g.lados.push(tr.children[3].innerText.trim() + (/asimetría/.test(tr.children[2].innerText) ? ' (asimetría)' : ''));
+      if (!tr.classList.contains('grupo-ini')) { if (tr.children[1].innerText.trim() !== '' || tr.children[2].innerText.trim().replace(/\s*\(asimetría\)$/, '') !== '') g.repetido = true; }
+    }
+    return out;
+  });
+  // 16/11/2026: los textos ocupan el ancho del cuadro; antes se cortaban a 70 caracteres y alargaban las pantallas.
+  const anchoTexto = await page.evaluate(() => {
+    const ps = [...document.querySelectorAll('.card p')].filter((x) => x.innerText.trim().length > 200);
+    const card = document.querySelector('.card');
+    return { n: ps.length, max: ps.length ? Math.round(Math.max(...ps.map((x) => x.getBoundingClientRect().width))) : 0, card: Math.round(card.getBoundingClientRect().width) };
+  });
+  check('los textos largos ocupan el ancho del cuadro, no una columna estrecha', anchoTexto.n > 0 && anchoTexto.max > anchoTexto.card - 150 && anchoTexto.max > 1000, JSON.stringify(anchoTexto));
+  check('Déficits: todas las filas están en el umbral o por debajo', def.n > 0 && def.pct.length === def.n && def.pct.every((x) => x <= 35), JSON.stringify(def.pct));
+  check('Déficits: el test y la variable se escriben una sola vez por grupo', grupos.length > 0 && !grupos.some((g) => g.repetido), JSON.stringify(grupos.filter((g) => g.repetido).slice(0, 2)));
+  check('Déficits: los grupos van del percentil más bajo al más alto', grupos.map((g) => Math.min(...g.pct)).every((x, i, a) => i === 0 || x >= a[i - 1]), JSON.stringify(grupos.map((g) => Math.min(...g.pct))));
+  check('Déficits: dentro del grupo, izquierda, derecha y asimetría en ese orden', grupos.every((g) => { const r = g.lados.map((l) => (/asimetría/.test(l) ? 2 : /Izquierda/.test(l) ? 0 : /Derecha/.test(l) ? 1 : 3)); return r.every((x, i) => i === 0 || x >= r[i - 1]); }), JSON.stringify(grupos.filter((g) => g.lados.length > 1).slice(0, 2)));
+  check('Déficits: cuando una variable se repite por lado, sus filas van juntas', grupos.some((g) => g.lados.length > 1), JSON.stringify(grupos.slice(0, 3)));
   await page.locator('input[type=number]').first().fill('10');
   await page.waitForTimeout(600);
   const def10 = await page.evaluate(() => [...document.querySelectorAll('table.deficits tbody tr td:first-child .band')].map((x) => Number(x.innerText)));
@@ -161,22 +187,73 @@ const server = http.createServer((req, res) => {
 
   // ---- Menú y pestañas
   await go('#inicio', '.tabs-nav');
-  check('menú: 5 entradas', (await texts('nav.nav a')).join('|') === 'Inicio|Jugadores|Relaciones entre variables|Catálogo de tests|Importar', (await texts('nav.nav a')).join('|'));
+  check('menú: 6 entradas, con «Configuración ISO-rack» detrás de «Relaciones entre variables»', (await texts('nav.nav a')).join('|') === 'Inicio|Jugadores|Relaciones entre variables|Configuración ISO-rack|Catálogo de tests|Importar', (await texts('nav.nav a')).join('|'));
   check('Inicio: pestañas Copias de seguridad y Configuración (sin Resumen)', (await texts('.tabs-nav a')).join('|').toLowerCase() === 'copias de seguridad|configuración'); // innerText ya aplica las mayúsculas del CSS
   check('Inicio muestra el resumen dentro de Copias de seguridad', (await texts('h2')).some((x) => /Copia de seguridad/.test(x)) && (await texts('h3')).concat(await texts('h2')).some((x) => /Estado de la base/.test(x)));
   await go('#copias', '.tabs-nav'); check('#copias sigue funcionando y marca la pestaña Copias de seguridad', (await texts('.tabs-nav a.on')).join('').toLowerCase() === 'copias de seguridad');
   await go('#nme', '.tabs-nav'); check('Catálogo de tests agrupa Manifestaciones, NME, Datos antropométricos y Catálogo', (await texts('.tabs-nav a')).join('|').toLowerCase() === 'manifestaciones de la fuerza|nme|datos antropométricos|catálogo y edición' && (await texts('nav.nav a.active')).join('') === 'Catálogo de tests');
 
+  // ---- Al elegir un test, la pantalla baja sola hasta «Normative Benchmarking» (15/11/2026)
+  await go(`#jugador-${P}?b=fuerza`, '.test-items button');
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(250);
+  const arriba = await page.evaluate(() => window.scrollY);
+  await page.locator('.test-items button.test-item').filter({ hasText: /^cmj$/i }).first().click();
+  await page.waitForTimeout(1400);
+  const bajada = await page.evaluate(() => { const n = document.querySelector('[data-ancla="normativo"]'); return { y: window.scrollY, top: n ? Math.round(n.getBoundingClientRect().top) : null }; });
+  check('al elegir un test, la pantalla baja hasta Normative Benchmarking', arriba === 0 && bajada.y > 100 && bajada.top !== null && Math.abs(bajada.top) < 160, JSON.stringify({ arriba, ...bajada }));
+
+  // ---- Configuración ISO-rack (15/11/2026): registro permanente, sin fecha, editable y que sobrevive a recargar.
+  await go('#isorack', 'table.isorack');
+  if (CAP) await page.screenshot({ path: path.join(CAP, 'isorack.png'), fullPage: false });
+  const rack = await page.evaluate(() => ({
+    cab: [...document.querySelectorAll('table.isorack thead th')].map((t) => t.textContent.trim()),
+    filas: document.querySelectorAll('table.isorack tbody tr').length,
+    jugadores: [...document.querySelectorAll('table.isorack tbody th')].map((t) => t.textContent.trim()),
+    calzados: [...document.querySelectorAll('table.isorack tbody tr:first-child select')].map((sel) => [...sel.options].map((o) => o.textContent.trim()).join('/')),
+  }));
+  check('ISO-rack: cuatro columnas, la altura del jugador y los tres iso-push', rack.cab.join('|') === 'Jugador|Altura del jugador|Knee iso-push|Ankle iso-push|Seated calf raise iso-push', rack.cab.join('|'));
+  check('ISO-rack: una fila por jugador, por orden alfabético', rack.filas === 12 && rack.jugadores.join() === [...rack.jugadores].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base', numeric: true })).join(), rack.jugadores.join());
+  check('ISO-rack: en cada iso-push se elige descalzo o con zapatillas', rack.calzados.length === 3 && rack.calzados.every((c) => c === '—/Descalzo/Con zapatillas'), JSON.stringify(rack.calzados));
+  check('ISO-rack: no se pide ninguna fecha', (await page.locator('table.isorack input[type="date"]').count()) === 0);
+  await page.locator('table.isorack tbody tr').first().locator('input.rack-altura').first().fill('7');
+  await page.locator('table.isorack tbody tr').first().locator('select.rack-calzado').first().selectOption('descalzo');
+  await page.waitForTimeout(600);
+  await go('#isorack', 'table.isorack');
+  const rack2 = await page.evaluate(() => { const tr = document.querySelector('table.isorack tbody tr'); return { alt: tr.querySelector('input.rack-altura').value, cal: tr.querySelector('select.rack-calzado').value }; });
+  check('ISO-rack: lo escrito se guarda y sigue ahí al volver a entrar', rack2.alt === '7' && rack2.cal === 'descalzo', JSON.stringify(rack2));
+
+  // ---- Alta manual de resultados en un test que no se importa (15/11/2026)
+  await go(`#jugador-${P}?t=${t.manual}&b=fuerza`, '#alta-manual-resultado');
+  const am = await page.evaluate(() => {
+    const card = document.getElementById('alta-manual-resultado');
+    const ult = [...document.querySelectorAll('#alta-manual-resultado, section.panorama, .card')].pop();
+    return { hay: !!card, fecha: !!card.querySelector('input[type="date"]'), campos: card.querySelectorAll('input[inputmode="decimal"]').length, ultimo: ult === card || card.contains(ult) };
+  });
+  if (CAP) await page.locator('#alta-manual-resultado').screenshot({ path: path.join(CAP, 'alta-manual.png') });
+  check('alta manual: el formulario aparece en la pantalla del test', am.hay && am.fecha && am.campos > 0, JSON.stringify(am));
+  check('alta manual: va abajo del todo de la pantalla', am.ultimo, String(am.ultimo));
+  const sesionesAntes = await page.evaluate(() => document.querySelectorAll('table tbody tr').length);
+  await page.locator('#alta-manual-resultado input[inputmode="decimal"]').first().fill('123');
+  await page.locator('#alta-manual-resultado button[type="submit"]').click();
+  await page.waitForTimeout(900);
+  const guardado = await page.evaluate(() => (document.getElementById('alta-manual-resultado')?.textContent ?? '') + (document.querySelector('.status')?.textContent ?? ''));
+  check('alta manual: al guardar, el resultado se registra', /Resultado guardado/.test(guardado) || sesionesAntes > 0, guardado.slice(0, 80));
+  await go(`#jugador-${P}?t=${t.manual}&b=fuerza`, '#alta-manual-resultado');
+  check('alta manual: el test pasa a tener datos y aparece su cuadro Normative Benchmarking', (await page.locator('section.panorama').count()) > 0);
+  await go(`#jugador-${P}?t=${t.cmj}&b=fuerza`, 'table.pano');
+  check('alta manual: NO aparece en los tests que sí se importan (CMJ)', (await page.locator('#alta-manual-resultado').count()) === 0);
+
   // ---- Perímetros: orden de filas y percentil de asimetría
   await go(`#jugador-${P}?t=${t.per}&b=perimetros`, 'table.pano');
-  check('Perímetros: filas Value · La Liga percentile · Asymmetry · percentil de asimetría', (await texts('table.pano tbody th')).join('|') === 'Value (% latest session vs Personal Average)|Value (La Liga percentile)|Asymmetry|Asymmetry (La Liga percentile)', (await texts('table.pano tbody th')).join('|'));
+  check('Perímetros: filas Value · La Liga percentile · Asymmetry · percentil de asimetría', (await texts('table.pano tbody th')).join('|') === 'Value (% change vs previous session)|Value (La Liga percentile)|Asymmetry|Asymmetry (La Liga percentile)', (await texts('table.pano tbody th')).join('|'));
   check('Perímetros: 5 variables y texto de asimetría en color', (await page.locator('table.pano thead tr:first-child th').count()) === 5 && (await page.locator('table.pano tbody tr').nth(2).locator('.asim-l, .asim-r').count()) >= 1);
   check('Perímetros: percentil de asimetría con valores o «n<»', (await texts('table.pano tbody tr:nth-child(4) td')).every((x) => /^(\d+|n<\d+)$/.test(x.trim())), (await texts('table.pano tbody tr:nth-child(4) td')).join(','));
   await shot('perimetros');
 
   // ---- Jurdan Test: L y R lado a lado, percentil de cada lado, asimetría en grados
   await go(`#jugador-${P}?t=${t.jur}&b=nme`, 'table.pano');
-  check('Jurdan: filas Value · La Liga percentile · Asymmetry (°), sin percentil de asimetría', (await texts('table.pano tbody th')).join('|') === 'Value (% latest session vs Personal Average)|Value (La Liga percentile)|Asymmetry', (await texts('table.pano tbody th')).join('|'));
+  check('Jurdan: filas Value · La Liga percentile · Asymmetry (°), sin percentil de asimetría', (await texts('table.pano tbody th')).join('|') === 'Value (% change vs previous session)|Value (La Liga percentile)|Asymmetry', (await texts('table.pano tbody th')).join('|'));
   check('Jurdan: 4 variables, con L y R por separado (izquierda a la izquierda) en valor y percentil', (await page.locator('table.pano thead tr:first-child th').count()) === 4 && (await page.locator('table.pano thead tr.lados th').allInnerTexts()).join('') === 'LRLRLRLR' && (await page.locator('table.pano tbody tr:nth-child(1) td').count()) === 8 && (await page.locator('table.pano tbody tr:nth-child(2) td').count()) === 8);
   check('Jurdan: asimetría en grados con letra de lado y color', (await texts('table.pano tbody tr:nth-child(3) td')).every((x) => /^\d+(,\d+)? ° [LR]$|^0 °$/.test(x.trim())) && (await page.locator('table.pano tbody tr:nth-child(3) .asim-l, table.pano tbody tr:nth-child(3) .asim-r').count()) >= 1, (await texts('table.pano tbody tr:nth-child(3) td')).join(','));
   check('Jurdan: sin opción Personal Best (ángulos sin dirección)', !(await texts('section.panorama fieldset.modes label')).some((x) => /Personal Best/.test(x)));
@@ -385,8 +462,13 @@ const server = http.createServer((req, res) => {
       return svg && tabla ? (svg.compareDocumentPosition(tabla) & Node.DOCUMENT_POSITION_PRECEDING) !== 0 : null; })();
     return { cab, fila, radarUltimo };
   });
-  check('COMPOSITE: la columna de valor es la del filtro y las referencias elegidas son columnas', cols.cab[1] === 'PA' && cols.cab.slice(2).join() === 'P50 La Liga' && cols.fila.length === 3, JSON.stringify(cols.cab));
-  check('COMPOSITE: el valor de la columna de referencia es el mismo que dibuja el radar', cols.fila[2] === '50', JSON.stringify(cols.fila));
+  // 15/11/2026: solo quedan las referencias POSICIONALES; los polígonos regulares de P50 y P75 de La Liga desaparecen.
+  // Este jugador sintético no tiene posición principal: entonces no hay referencia posicional y NO se añade una columna de guiones.
+  check('COMPOSITE: sin posición principal, la tabla se queda en Cualidad y el valor', cols.cab.join() === 'Cualidad,PA' && cols.fila.length === 2, JSON.stringify(cols.cab));
+  const sinPos = await page.evaluate(() => { const f = [...document.querySelectorAll('fieldset.modes')].find((x) => /Referencia posicional/.test(x.querySelector('legend').textContent)); return { aviso: !!f.querySelector('[data-ancla="sin-posicion"]'), apagadas: [...f.querySelectorAll('input[type="checkbox"]')].every((c) => c.disabled) }; });
+  check('COMPOSITE: sin posición se explica por qué y las casillas están apagadas', sinPos.aviso && sinPos.apagadas, JSON.stringify(sinPos));
+  const refsCps = await page.evaluate(() => [...[...document.querySelectorAll('fieldset.modes')].find((f) => /Referencia posicional/.test(f.querySelector('legend').textContent)).querySelectorAll('label.check')].map((l) => l.textContent.trim()));
+  check('COMPOSITE: el selector solo ofrece P50 y P75 posicionales', refsCps.join('|') === 'P50 posicional|P75 posicional', refsCps.join('|'));
   check('COMPOSITE: el radar va debajo de la tabla y de los desgloses', cols.radarUltimo === true, String(cols.radarUltimo));
   // 15/11/2026: el desglose se despliega haciendo clic en el NOMBRE de la cualidad, dentro de la tabla; ya no hay pestañas sueltas debajo.
   await cualTodas(false);
@@ -462,11 +544,7 @@ const server = http.createServer((req, res) => {
   // Las referencias del radar se activan y desactivan
   const lineasLeyenda = () => page.evaluate(() => [...document.querySelector('svg.radar-svg').querySelectorAll('g > line')].length);
   const antesLeg = await lineasLeyenda();
-  await page.evaluate(() => [...document.querySelectorAll('fieldset.modes')].find((f) => /Referencia La Liga/.test(f.querySelector('legend').textContent)).querySelectorAll('input[type="checkbox"]')[2].click());
-  await page.waitForTimeout(500);
-  check('COMPOSITE: activar el P75 de La Liga añade su polígono al radar', (await lineasLeyenda()) === antesLeg + 1, `${antesLeg} → ${await lineasLeyenda()}`);
-  const cabP75 = await page.evaluate(() => [...document.querySelectorAll('table.composite > thead > tr > th')].map((t) => t.textContent.trim()).join());
-  check('COMPOSITE: y también su columna en el cuadro', cabP75 === 'Cualidad,PA,P50 La Liga,P75 La Liga', cabP75);
+  check('COMPOSITE: sin posición, el radar dibuja al jugador y ninguna referencia', antesLeg === 1, String(antesLeg));
   if (CAP) await page.locator('.card').filter({ hasText: 'COMPOSITE PROFILE SCORE' }).first().screenshot({ path: path.join(CAP, 'composite2.png') });
   // El filtro de valor cambia tabla, radar y desglose a la vez
   const fechasPA = det[1].filas[0][5];
@@ -517,21 +595,21 @@ const server = http.createServer((req, res) => {
   check('Asimetrías: 6 columnas y Asimetría · Valores · Comparación · Fecha centrados bajo su título', centr);
   // La columna de comparación (14/11/2026): título que dice qué compara, y por lado.
   const cabAsim = async () => page.evaluate(() => [...document.querySelectorAll('table.asim thead th')][4]?.innerText.trim() ?? '');
-  check('Asimetrías: con Personal Average el título compara con el Personal Average', (await cabAsim()) === '% latest session vs Personal Average', await cabAsim());
+  check('Asimetrías: por defecto viene marcado Latest', (await cabAsim()) === '% change vs previous session', await cabAsim());
   const compAsim = await texts('table.asim tbody td.asim-comp');
   check('Asimetrías: la comparación sale por lado (L y R) o en puntos porcentuales en las variables ASYM de VALD', compAsim.length > 0 && compAsim.every((x) => /^L .+ · R .+$|p\.p\.$|^—$/.test(x.replace(/\s+/g, ' ').trim())), JSON.stringify(compAsim.slice(0, 4)));
   const anchoAsim = await sinDesborde('table.asim');
   check('Asimetrías: caben a lo ancho a 1840, 1440 y 1280 px, sin desplazamiento horizontal', anchoAsim.length === 0, anchoAsim.join(' · '));
+  const f3 = await texts('table.asim tbody td.asim-fecha');
+  check('Asimetrías con Latest: la columna muestra la fecha de cada asimetría', f3.length > 0 && f3.every((x) => /^\d{2}\/\d{2}\/\d{4}$/.test(x.trim())), f3.slice(0, 2).join('|'));
+  await page.locator('input[name="asim-base"]').nth(1).check(); await page.waitForTimeout(300);
+  check('Asimetrías: con Personal Average el título de la comparación cambia', (await cabAsim()) === '% latest session vs Personal Average', await cabAsim());
   const f1 = await texts('table.asim tbody td.asim-fecha');
   check('Asimetrías con Personal Average: la columna indica PA y su periodo', f1.length > 0 && f1.every((x) => /^PA · /.test(x)), f1.slice(0, 2).join('|'));
-  await page.locator('input[name="asim-base"]').nth(1).check(); await page.waitForTimeout(300);
+  await page.locator('input[name="asim-base"]').nth(2).check(); await page.waitForTimeout(300);
   check('Asimetrías: con Personal Best el título de la comparación cambia', (await cabAsim()) === '% latest session vs Personal Best', await cabAsim());
   const f2 = await texts('table.asim tbody td.asim-fecha');
   check('Asimetrías con Personal Best: la columna indica PB y la fecha', f2.length > 0 && f2.every((x) => /^PB · \d/.test(x)), f2.slice(0, 2).join('|'));
-  await page.locator('input[name="asim-base"]').nth(2).check(); await page.waitForTimeout(300);
-  check('Asimetrías: con Actual la comparación es con la sesión anterior', (await cabAsim()) === '% change vs previous session', await cabAsim());
-  const f3 = await texts('table.asim tbody td.asim-fecha');
-  check('Asimetrías con Actual: la columna muestra la fecha de cada asimetría', f3.length > 0 && f3.every((x) => /^\d{2}\/\d{2}\/\d{4}$/.test(x.trim())), f3.slice(0, 2).join('|'));
   await page.locator('input[name="asim-base"]').nth(0).check(); await page.waitForTimeout(300);
   check('Asimetrías: barras azules (L) y naranjas (R) y texto coloreado', (await page.locator('.asim-svg .bar-l').count()) > 0 && (await page.locator('.asim-svg .bar-r').count()) > 0 && (await page.locator('table.asim td .asim-r').count()) > 0 && (await page.locator('table.asim td .asim-l').count()) > 0);
   check('Asimetrías: encabezados de bloque y subbloque en mayúscula', (await page.locator('.asim-h-bloque').first().evaluate((e) => getComputedStyle(e).textTransform)) === 'uppercase' && (await page.locator('.asim-h-sub').first().evaluate((e) => getComputedStyle(e).textTransform)) === 'uppercase');

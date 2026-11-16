@@ -34,7 +34,8 @@ main:focus { outline: none; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
 .card h2 { font-size: 1.05rem; margin: 0 0 .5rem; }
 .card h3 { font-size: .98rem; margin: 1.25rem 0 .25rem; }
-.card p { max-width: 70ch; }
+/* 16/11/2026: los textos ocupan el ancho del cuadro. Antes se cortaban a 70 caracteres y las pantallas salían mucho más largas de lo necesario. */
+.card p, .card li { max-width: 100%; }
 main a { color: var(--accent); }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 1rem; align-items: start; }
 .grid .card { margin-bottom: 0; }
@@ -587,3 +588,14 @@ table.composite-det td.num, table.composite-det th.num { text-align: center; }
 table.composite-det thead th { text-transform: none; letter-spacing: normal; line-height: 1.15; }
 table.composite-det th:nth-child(1) { width: 19%; } table.composite-det th:nth-child(2) { width: 11%; } table.composite-det th:nth-child(3) { width: 11%; }
 table.composite-det th:nth-child(4) { width: 13%; } table.composite-det th:nth-child(5) { width: 20%; } table.composite-det th:nth-child(6) { width: 15%; } table.composite-det th:nth-child(7) { width: 11%; }
+
+/* Configuración ISO-rack (15/11/2026): una fila por jugador, con la altura del rack y el calzado de cada iso-push. */
+table.isorack { width: 100%; }
+table.isorack th[scope="row"] { text-align: left; font-weight: 600; white-space: nowrap; }
+table.isorack td.rack-altura-jugador { text-align: center; white-space: nowrap; }
+table.isorack td.rack-celda { white-space: nowrap; }
+table.isorack input.rack-altura { width: 6.5rem; margin-right: .4rem; }
+table.isorack select.rack-calzado { width: 9.5rem; }
+/* Déficits: separador entre grupos (mismo test y variable) para que se lean como bloques (16/11/2026). */
+table.deficits tbody tr.grupo-ini > td { border-top: 1px solid var(--line); }
+table.deficits tbody tr:first-child > td { border-top: 0; }

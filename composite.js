@@ -38,17 +38,16 @@ const orzM = (variable) => ({ orz: true, variable });
 const o = (op, u, texto) => ({ op, u, texto });
 // Los umbrales que el usuario da como BANDA («percentil 90-100», «0-35») incluyen el extremo: por eso llevan «>=» y «<=».
 export const cumple = (op, valor, lim) => (op === '<' ? valor < lim : op === '<=' ? valor <= lim : op === '>=' ? valor >= lim : valor > lim);
-// Comparación propulsivo / explosivo. El usuario la enuncia CORTA en Propulsive / Dynamic Strength y LARGA en Explosive / Snappy (documento del 15/11/2026).
-const TEND = {
-  corta: { expl: 'Explosive tendency', prop: 'Propulsive tendency', igual: 'Explosive = Propulsive tendency' },
-  larga: { expl: 'Explosive tendency > Propulsive tendency', prop: 'Propulsive tendency > Explosive tendency', igual: 'Explosive = Propulsive tendency' },
-};
+// Comparación propulsivo / explosivo: el mismo texto corto en las dos cualidades donde sale (documento del 16/11/2026; antes Explosive lo decía largo).
+const TEND = { expl: 'Explosive tendency', prop: 'Propulsive tendency', igual: 'Explosive = Propulsive tendency' };
 // DEPTH (más alto es mejor: percentil alto = baja poco). 90-100 → hay que ganar profundidad funcional; 0-35 (baja mucho) → estrategia propulsiva.
 const DEPTH_ORI = [o('>=', 'p90', 'Prioritize increase functional depth'), o('<=', 'p35', 'Propulsive strategy')];
-// CONTRACTION TIME (más bajo es mejor: percentil alto = tiempo corto). 65-100 → «Snappy»; 0-35 → hay que acortarlo. En Energy Storage / Reactivity y en
-// Explosive / Snappy el usuario añade «improve SSC utilization» al segundo texto, porque ahí lo que se discute es el uso del ciclo estiramiento-acortamiento.
-const CT_ORI = [o('>=', 'p65', 'Snappy'), o('<=', 'p35', 'Prioritize decrease contraction time')];
-const CT_ORI_SSC = [o('>=', 'p65', 'Snappy'), o('<=', 'p35', 'Prioritize decrease contraction time, improve SSC utilization')];
+// CONTRACTION TIME (más bajo es mejor: percentil alto = tiempo corto). 65-100 → «Snappy»; 0-35 → hay que acortarlo y mejorar el uso del ciclo
+// estiramiento-acortamiento. Mismo texto en las tres cualidades donde sale (documento del 16/11/2026).
+const CT_ORI = [o('>=', 'p65', 'Snappy'), o('<=', 'p35', 'Prioritize decrease contraction time, improve SSC utilization')];
+// Cómo lee cada cualidad la puntuación de la otra: mal en la banda baja, bien en la alta.
+const REACT_ORI = [o('<=', 'p35', 'Poor reactive characteristics'), o('>=', 'p65', 'Good reactive characteristics')];
+const PROP_ORI = [o('<=', 'p35', 'Poor propulsive characteristics. Prioritize Dynamic strength / concentric emphasis'), o('>=', 'p65', 'Good propulsive characteristics')];
 const JH_ORI = [o('<=', 'p35', 'Prioritize foundational dynamic strength'), o('>', 'p35', 'Acceptable output')];
 
 // ---- Las 6 cualidades, en el orden del documento del usuario (15/11/2026). Dynamic Strength y Propulsive se UNIFICAN en una sola («Propulsive /
@@ -72,7 +71,7 @@ export const CUALIDADES = [
     interp: [
       { ...m(T.cmj, V.depth), orient: DEPTH_ORI },
       { ...m(T.cmj, V.ct), orient: CT_ORI },
-      { tipo: 'cualidad', id: 'reactivity', orient: [o('>', 'p65', 'Reactive strategy')] },
+      { tipo: 'cualidad', id: 'reactivity', orient: REACT_ORI },
       { tipo: 'fv' },
     ],
     orientCualidad: [o('>', 'p65', 'Prioritize Power'), o('<', 'p35', 'Prioritize Strength')],
@@ -97,8 +96,8 @@ export const CUALIDADES = [
       { tipo: 'eur' },
       { ...m(T.cmj, V.jh), orient: JH_ORI },
       { ...m(T.cmj, V.depth), orient: DEPTH_ORI },
-      { ...m(T.cmj, V.ct), orient: CT_ORI_SSC },
-      { tipo: 'cualidad', id: 'propulsive', orient: [o('<=', 'p35', 'Prioritize Dynamic strength / concentric emphasis')] },
+      { ...m(T.cmj, V.ct), orient: CT_ORI },
+      { tipo: 'cualidad', id: 'propulsive', orient: PROP_ORI },
       m(T.cmj, V.eccRfd),
     ],
     orientCualidad: [],
@@ -106,8 +105,8 @@ export const CUALIDADES = [
   {
     id: 'explosive', nombre: 'Explosive / Snappy',
     scores: [
-      { ...relCmj(V.conImp100), peso: 0.8, critico: true, tendencia: 'larga' },
-      { ...m(T.cmj, V.ct), peso: 0.2, orient: CT_ORI_SSC },
+      { ...relCmj(V.conImp100), peso: 0.8, critico: true, tendencia: 'corta' },
+      { ...m(T.cmj, V.ct), peso: 0.2, orient: CT_ORI },
     ],
     interp: [
       m(T.cmj, V.stiff),
@@ -139,12 +138,11 @@ export function orientacionDe(desc, pct, umbrales = UMBRALES_DEFAULT) {
   return null;
 }
 
-// Comparación propulsivo / explosivo, con los percentiles de los dos impulsos. `variante`: 'corta' en Propulsive / Dynamic Strength, 'larga' en Explosive / Snappy.
-export function tendencia(medida, variante = 'corta') {
+// Comparación propulsivo / explosivo, con los percentiles de los dos impulsos.
+export function tendencia(medida) {
   const a = medida(DESC_IMP100)?.pct, b = medida(DESC_CPP)?.pct;
   if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
-  const t = TEND[variante] ?? TEND.corta;
-  return a > b ? t.expl : a < b ? t.prop : t.igual;
+  return a > b ? TEND.expl : a < b ? TEND.prop : TEND.igual;
 }
 
 export const claveDesc = (d) => (d.tipo ? `@${d.tipo}${d.id ? ':' + d.id : ''}` : `${d.orz ? '@orz' : d.test}|${d.variable}${d.rel ? '/BM' : ''}`);

@@ -24,7 +24,7 @@ const nf = (n, d = 1) => (n === null || n === undefined ? '—' : Number(n).toLo
 const nfv = (n) => nf(n, 2);
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const SIDE = { L: 'Left', R: 'Right', S: 'Value' };
-const BASIS = { pa: 'Personal Average', last: 'Última sesión válida' };
+const BASIS = { pa: 'Personal Average', last: 'Latest' };
 
 export function Banda({ ev }) {
   if (!ev || ev.band === null) return null;
@@ -41,7 +41,7 @@ export function CeldaPercentil({ ev }) {
 
 // G4 completo (aspecto de los informes del usuario: fondo oscuro, azul = izquierda, naranja = derecha): escala MIN–MAX de la referencia de La Liga con las marcas
 // de referencia elegidas (icono de La Liga o de la Premier y «P50»/«P75», también por posición), el target (bandera) y, por cada base elegida del jugador
-// (Resultado actual, Personal Best, Personal Average), una fila de marcadores con su valor; en tests por lado, un corchete con la asimetría D25.
+// (Latest, Personal Best, Personal Average), una fila de marcadores con su valor; en tests por lado, un corchete con la asimetría D25.
 // Si algo cae fuera del rango se amplía la escala y se avisa (provisional, D24).
 function EscalaG4({ filas, refs, unit, target }) {
   const rows0 = filas[0].rows;
@@ -130,7 +130,7 @@ export function refContext({ refData, test, variable, sides, filters, playerId, 
   return { entries: ent, plRef, lines, info, evalValor, minN, histories, playersById };
 }
 
-const BASES = [['last', 'Resultado actual'], ['pb', 'Personal Best'], ['pa', 'Personal Average']];
+const BASES = [['last', 'Latest'], ['pb', 'Personal Best'], ['pa', 'Personal Average']];
 
 // Escala «Benchmark-Contextualized Positioning» de la variable seleccionada. (El cuadro de percentiles es ahora «Normative Benchmarking», en pages-normativo.js.)
 // Con dos lados, la referencia de La Liga es UNA sola (los valores de ambos lados de todos los jugadores juntos), así que hay un único P50.
@@ -159,7 +159,7 @@ export function PercentilesPanel({ player, test, variable, mine, q, setQ, filter
     cell[b + sd] = o && o.value != null ? { ...o, ev: evaluate(pooled[b], { playerId: player.id, value: o.value, direction: variable.direction, minN }), pl: plRef ? placeAgainstPremier(plRef, o.value) : null } : { ...(o ?? {}), value: null };
   }
   if (!BASES.some(([b]) => sides.some((sd) => cell[b + sd].value != null))) return html`<p class="muted">Sin sesiones válidas para calcular percentiles en este periodo.</p>`;
-  // Escala: bases del jugador (Resultado actual, Personal Best, Personal Average) y marcas de referencia, todas opcionales. Por defecto: Personal Average, P50 La Liga y P50 Premier League.
+  // Escala: bases del jugador (Latest, Personal Best, Personal Average) y marcas de referencia, todas opcionales. Por defecto: Latest, P50 La Liga y P50 Premier League (16/11/2026: «Latest» es la base por defecto en todo el dashboard).
   const nat = findNatera(test, variable); // referencias de Natera (solo Iso-Push): tres marcas opcionales y una columna en el cuadro
   const diasActual = [...new Set(sides.map((sd) => current?.[sd]?.date).filter(Boolean))];
   const etiquetaActual = diasActual.length ? diasActual.map(fmtDay).join(' / ') : 'Latest result'; // la fecha del test, como en el cuadro
@@ -170,7 +170,7 @@ export function PercentilesPanel({ player, test, variable, mine, q, setQ, filter
     ['p50pos', `P50 La Liga (${posNom})`, ctxPos?.lines.p50pos ?? null, PAL.laLiga, ICONO_LALIGA, 'P50 pos.', false], ['p75pos', `P75 La Liga (${posNom})`, ctxPos?.lines.p75pos ?? null, PAL.laLiga, ICONO_LALIGA, 'P75 pos.', false],
     ['premier50', 'P50 Premier League', ctx.lines.premier50, PAL.premier, ICONO_PREMIER, 'P50', true], ['premier75', 'P75 Premier League', ctx.lines.premier75, PAL.premier, ICONO_PREMIER, 'P75', true],
     ...(nat ? [['natN', 'Natera · Normal', nat.normal, '#ECC94B', ICONO_NATERA, 'Normal', false], ['natG', 'Natera · Good', nat.good, '#9AE6B4', ICONO_NATERA, 'Good', false], ['natE', 'Natera · Excellent', nat.excellent, '#48BB78', ICONO_NATERA, 'Excellent', false]] : [])];
-  const chosenSm = q.sm === undefined ? ['pa', 'p50', 'premier50'] : String(q.sm).split(',').filter((k) => k && k !== 'none');
+  const chosenSm = q.sm === undefined ? ['last', 'p50', 'premier50'] : String(q.sm).split(',').filter((k) => k && k !== 'none');
   const baseOff = (b) => baseRows(b).length === 0;
   const refOff = (k) => REFS.find((r) => r[0] === k)[2] == null;
   const toggleSm = (k, on) => setQ({ sm: (on ? [...chosenSm, k] : chosenSm.filter((x) => x !== k)).join(',') || 'none' });
@@ -185,7 +185,7 @@ export function PercentilesPanel({ player, test, variable, mine, q, setQ, filter
   const escala = html`<section class="refs"><fieldset class="modes filas"><legend class="sec-titulo">Benchmark-Contextualized Positioning</legend>
       ${vars.length > 1 ? html`<${SelectorVariable} vars=${vars} value=${variable.id} onChange=${(v) => setQ({ v })} ancla="escala" />` : null}
       ${agruparFiltros(filtros).map((fila, i) => html`<div class="ref-fila" key=${'f' + i}>${fila.map((o) => html`<label class="check" key=${o.key} title=${o.why}><input type="checkbox" disabled=${o.off} checked=${!o.off && chosenSm.includes(o.key)} onChange=${(e) => toggleSm(o.key, e.target.checked)} /> ${o.label}</label>`)}</div>`)}</fieldset>
-    ${filas.length ? html`<${EscalaG4} filas=${filas} refs=${refsSel} unit=${unit} target=${sides.map((sd) => targets[sd]).filter(Boolean).filter((t, i, a) => a.findIndex((v) => v.value === t.value) === i)} />` : html`<p class="muted">Marca al menos un marcador del jugador (Resultado actual, Personal Best o Personal Average) para ver la escala.</p>`}
+    ${filas.length ? html`<${EscalaG4} filas=${filas} refs=${refsSel} unit=${unit} target=${sides.map((sd) => targets[sd]).filter(Boolean).filter((t, i, a) => a.findIndex((v) => v.value === t.value) === i)} />` : html`<p class="muted">Marca al menos un marcador del jugador (Latest, Personal Best o Personal Average) para ver la escala.</p>`}
     ${insuf ? html`<p class="status warn">Muestra insuficiente para clasificar: no se dibuja la mediana ni se colorea (N inferior a ${minN}).</p>` : null}</section>`;
   return escala;
 }

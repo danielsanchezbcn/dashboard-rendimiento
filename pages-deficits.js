@@ -20,7 +20,7 @@ import { buildHash } from './rutas.js';
 import { fmtDay } from './fechas.js';
 import { dn } from './nombres.js';
 
-const BASES = [['pa', 'Personal Average'], ['pb', 'Personal Best'], ['last', 'Actual']];
+const BASES = [['last', 'Latest'], ['pa', 'Personal Average'], ['pb', 'Personal Best']]; // «Latest» primero y por defecto en todas las pantallas (16/11/2026)
 const nf = (n, d = 2) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 const LADO = { L: 'Izquierda', R: 'Derecha', S: '' };
 
@@ -58,7 +58,7 @@ export function deficitsDeTest({ player, test, catalog, refData, base, positionI
 
 export function Deficits({ player, positionId = null }) {
   const { db, version } = useApp();
-  const [base, setBase] = useState('pa');
+  const [base, setBase] = useState('last');
   const [umbral, setUmbral] = useState(35);
   const { data, error } = useLoad(async () => {
     const catalog = await listCatalog(db);
@@ -82,8 +82,19 @@ export function Deficits({ player, positionId = null }) {
   if (!data) return html`<p>Calculando déficits…</p>`;
   const { catalog, refs, minN } = data;
   const u = Number.isFinite(Number(umbral)) ? Math.min(99, Math.max(1, Number(umbral))) : 35;
-  const filas = refs.flatMap(([test, refData]) => deficitsDeTest({ player, test, catalog, refData, base, positionId, umbral: u }))
-    .sort((a, b) => a.ev.percentilePerf - b.ev.percentilePerf || dn(a.test.name).localeCompare(dn(b.test.name), 'es'));
+  const filas = refs.flatMap(([test, refData]) => deficitsDeTest({ player, test, catalog, refData, base, positionId, umbral: u }));
+  // Agrupado por test y variable (16/11/2026, pedido del usuario): si la misma variable aparece repetida (izquierda, derecha y asimetría), sus filas
+  // van juntas en lugar de desperdigarse por la lista. Los grupos siguen ordenados por su percentil más bajo, así que lo peor sigue arriba del todo.
+  const ordenLado = (f) => (f.tipo === 'asimetria' ? 2 : f.side === 'L' ? 0 : f.side === 'R' ? 1 : 3);
+  const grupos = (() => {
+    const m = new Map();
+    for (const f of filas) { const k = `${f.test.id}|${f.variable.id}`; if (!m.has(k)) m.set(k, []); m.get(k).push(f); }
+    for (const g of m.values()) g.sort((a, b) => ordenLado(a) - ordenLado(b));
+    const peor = (g) => Math.min(...g.map((f) => f.ev.percentilePerf));
+    return [...m.values()].sort((a, b) => peor(a) - peor(b)
+      || dn(a[0].test.name).localeCompare(dn(b[0].test.name), 'es')
+      || dn(a[0].variable.name).localeCompare(dn(b[0].variable.name), 'es'));
+  })();
   const href = (f) => buildHash(`jugador-${player.id}`, { b: 'fuerza', t: f.test.id, v: f.variable.id, pn: base });
   return html`<${Card} titulo=${`Déficits (${filas.length})`}>
     <div class="filters">
@@ -92,21 +103,21 @@ export function Deficits({ player, positionId = null }) {
     </div>
     ${!filas.length
       ? html`<p class="muted">Ninguna variable de este jugador tiene un percentil de La Liga igual o inferior a ${u} con esta base. Solo se miran las variables con dirección «mejor/peor» y con al menos ${minN} jugadores en la referencia.</p>`
-      : html`<div class="table-wrap"><table class="deficits"><caption>Ordenados del percentil más bajo al más alto</caption>
+      : html`<div class="table-wrap"><table class="deficits"><caption>Del percentil más bajo al más alto, con las filas del mismo test y variable (izquierda, derecha y asimetría) agrupadas</caption>
         <thead><tr><th scope="col">Percentil La Liga</th><th scope="col">Test</th><th scope="col">Variable</th><th scope="col">Lado</th><th scope="col">Valor</th><th scope="col" title=${TIP_COMP[base]}>${rotuloComp(base)}</th><th scope="col">Fecha</th></tr></thead>
-        <tbody>${filas.map((f) => html`<tr key=${`${f.test.id}-${f.variable.id}-${f.tipo}-${f.side ?? ''}`}>
+        <tbody>${grupos.flatMap((g) => g.map((f, i) => html`<tr key=${`${f.test.id}-${f.variable.id}-${f.tipo}-${f.side ?? ''}`} class=${i === 0 ? 'grupo-ini' : ''}>
           <td><${Banda} ev=${f.ev} /></td>
-          <td><a href=${href(f)}>${dn(f.test.name)}</a></td>
-          <td>${dn(f.variable.name)}${f.tipo === 'asimetria' ? html` <span class="muted">(asimetría)</span>` : ''}</td>
+          <td>${i === 0 ? html`<a href=${href(f)}>${dn(f.test.name)}</a>` : null}</td>
+          <td>${i === 0 ? dn(f.variable.name) : null}${f.tipo === 'asimetria' ? html` <span class="muted">(asimetría)</span>` : ''}</td>
           <td class=${f.side === 'L' ? 'asim-l' : f.side === 'R' ? 'asim-r' : ''}>${f.tipo === 'asimetria' ? '—' : LADO[f.side] || '—'}</td>
           <td class="num">${nf(f.value)}${f.unit ? ` ${f.unit}` : ''}</td>
           <td class="num muted" title=${f.tipo === 'asimetria' ? 'La asimetría ya es un porcentaje: su cambio se da en puntos porcentuales.' : TIP_COMP[base]}>${(f.tipo === 'asimetria' ? fmtPuntos(f.variPuntos) : fmtVar(f.vari)) ?? '—'}</td>
           <td>${f.date ? (f.from && f.from !== f.date ? `${fmtDay(f.from)} – ${fmtDay(f.date)}` : fmtDay(f.date)) : '—'}</td>
-        </tr>`)}</tbody></table></div>`}
+        </tr>`))}</tbody></table></div>`}
     <${Desplegable} titulo="Qué entra en esta lista y qué no">
-      <p class="muted">Se recorre cada test con datos del jugador y cada una de sus variables visibles, con el valor de la base elegida (Personal Average, Personal Best o Actual) y el mismo percentil de La Liga que muestra el cuadro «Normative Benchmarking» de ese test: es la misma función de cálculo, no una copia.</p>
-      <p class="muted">La columna «${rotuloComp(base)}» es la misma comparación que muestra el cuadro «Normative Benchmarking»: el valor de la última sesión frente a la base elegida y, con «Actual», frente a la sesión válida anterior. En las filas de asimetría el cambio va en puntos porcentuales (p.p.), porque la asimetría ya es un porcentaje.</p>
-      <p class="muted">Se listan las variables por lado (cada pierna por separado) y, además, las asimetrías: en ellas un percentil bajo significa una asimetría grande comparada con la de los demás jugadores.</p>
+      <p class="muted">Se recorre cada test con datos del jugador y cada una de sus variables visibles, con el valor de la base elegida (Latest, Personal Average o Personal Best) y el mismo percentil de La Liga que muestra el cuadro «Normative Benchmarking» de ese test: es la misma función de cálculo, no una copia.</p>
+      <p class="muted">La columna «${rotuloComp(base)}» es la misma comparación que muestra el cuadro «Normative Benchmarking»: el valor de la última sesión frente a la base elegida y, con «Latest», frente a la sesión válida anterior. En las filas de asimetría el cambio va en puntos porcentuales (p.p.), porque la asimetría ya es un porcentaje.</p>
+      <p class="muted">Las filas del mismo test y variable van juntas, con la izquierda, la derecha y la asimetría seguidas; los grupos se ordenan por su percentil más bajo, así que lo peor sigue arriba. Se listan las variables por lado (cada pierna por separado) y, además, las asimetrías: en ellas un percentil bajo significa una asimetría grande comparada con la de los demás jugadores.</p>
       <p class="muted">No entran: las variables sin dirección «mejor/peor» (ahí el percentil solo dice dónde cae en La Liga, no si es bueno o malo), las que no llegan al mínimo de ${minN} jugadores en la referencia, los valores que el jugador no tiene con esa base, y los tests archivados, las variables marcadas como excluidas en el Catálogo (por defecto Torque del Nordic y Force/RFD at 100 ms) y la medida absoluta cuando existe su relativa al peso con datos (se lista solo la relativa). La referencia nunca incluye al propio jugador ni datos sintéticos.</p>
     <//>
   <//>`;

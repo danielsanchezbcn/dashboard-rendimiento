@@ -28,7 +28,9 @@ const lc = (s) => String(s ?? '').trim().toLowerCase();
 const nf = (n, d = 2) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 const pc = (p) => (Number.isFinite(p) ? String(Math.round(p)) : '—');
 const BASES = [['last', 'Latest'], ['pa', 'PA'], ['pb', 'PB']];
-const REFS = [['p50', 'P50 La Liga'], ['p50pos', 'P50 posicional'], ['p75', 'P75 La Liga'], ['p75pos', 'P75 posicional']];
+// 15/11/2026: el usuario deja SOLO las referencias posicionales. Los polígonos regulares de P50 y P75 de La Liga (que en un radar de percentiles
+// no aportan nada que no diga ya el propio eje) desaparecen del selector, de la tabla y del radar.
+const REFS = [['p50pos', 'P50 posicional'], ['p75pos', 'P75 posicional']];
 const BACK_SQUAT = 'Back Squat Force–Velocity Profile';
 const SIN_DATOS = '—';
 
@@ -113,7 +115,7 @@ export function CompositeProfile({ player, positionId = null }) {
   // Cualidades con el desglose abierto. Se abren y cierran de forma independiente, haciendo clic en su nombre dentro de la tabla.
   const [abiertas, setAbiertas] = useState([]);
   const alternar = (id) => setAbiertas((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]));
-  const [refs, setRefs] = useState(['p50']);
+  const [refs, setRefs] = useState(['p50pos']);
   const refTabla = useRef(null), refSvg = useRef(null), refRadar = useRef(null);
   const { data, error } = useLoad(async () => {
     const catalog = await listCatalog(db);
@@ -253,10 +255,9 @@ export function CompositeProfile({ player, positionId = null }) {
   };
   // Una sola lista de referencias para la TABLA y el RADAR: las columnas que se ven en el cuadro son exactamente los polígonos que se dibujan,
   // así que no pueden contarse cosas distintas (13/11/2026, pedido por el usuario).
-  const referencias = [
-    ...(refs.includes('p50') ? [{ clave: 'p50', nombre: 'P50 La Liga', vals: qs.map(() => 50) }] : []),
+  // Sin posición principal no hay referencia posicional que calcular: no se añade una columna vacía de guiones (15/11/2026).
+  const referencias = posActual == null ? [] : [
     ...(refs.includes('p50pos') ? [{ clave: 'p50pos', nombre: `P50 ${posNombre(positions, posActual)}`, vals: CUALIDADES.map((c) => referenciaPosicional(c, (d) => pctPosicional(d, 0.5), pesos)) }] : []),
-    ...(refs.includes('p75') ? [{ clave: 'p75', nombre: 'P75 La Liga', vals: qs.map(() => 75) }] : []),
     ...(refs.includes('p75pos') ? [{ clave: 'p75pos', nombre: `P75 ${posNombre(positions, posActual)}`, vals: CUALIDADES.map((c) => referenciaPosicional(c, (d) => pctPosicional(d, 0.75), pesos)) }] : []),
   ];
   const series = [{ clave: 'jugador', nombre: 'Player', vals: qs.map((q) => (q.estado === 'ok' ? q.score : null)) }, ...referencias];
@@ -271,7 +272,7 @@ export function CompositeProfile({ player, positionId = null }) {
   const etiquetaVar = (d, med) => (d.tipo === 'dsi' ? 'DSI' : d.tipo === 'eur' ? 'EUR' : d.tipo === 'fv' ? 'Back Squat load–velocity profile' : d.tipo === 'cualidad' ? porId[d.id]?.nombre ?? d.id : `${d.orz ? (med?.varias ? '30 + 45 cm' : `${dj.alturas[0] ?? '—'} cm`) + ' · ' : ''}${d.variable}${d.rel ? '/BM' : ''}`);
 
   // ---- Comparación propulsivo / explosivo (14/11/2026): se decide con los percentiles de los dos impulsos, no con los valores.
-  const textoTendencia = (variante) => tendencia(medida, variante);
+  const textoTendencia = () => tendencia(medida);
 
   // Una fila del desglose: las SEIS columnas pedidas el 14/11/2026 más la comparación con la base, que va justo al lado del valor (14/11/2026, tarde).
   // Variable | Percentil La Liga | Valor | % … | Orientation | Fecha | Peso / etiqueta
@@ -312,7 +313,7 @@ export function CompositeProfile({ player, positionId = null }) {
       percentil: p.ev ? html`<${Banda} ev=${p.ev} />` : null,
       valor: p.x ? `${nf(p.x.value)}${u}` : null,
       comp: fmtVar(p.vari),
-      orientacion: orientacionDe(d, p.pct, umbrales) ?? (d.tendencia && i === 0 ? textoTendencia(d.tendencia) : null),
+      orientacion: orientacionDe(d, p.pct, umbrales) ?? (d.tendencia && i === 0 ? textoTendencia() : null),
       fecha: p.x ? fechaTexto(p.x) : null,
       peso: i === 0 ? pesoTexto(peso) ?? html`<span class="muted">interpretativa</span>` : null,
     }));
@@ -340,7 +341,8 @@ export function CompositeProfile({ player, positionId = null }) {
   return html`<${Card} titulo="COMPOSITE PROFILE SCORE">
     <div class="filters">
       <fieldset class="modes"><legend>Valor</legend>${BASES.map(([k, n]) => html`<label class="check" key=${k}><input type="radio" name="cps-base" checked=${base === k} onChange=${() => setBase(k)} /> ${n}</label>`)}</fieldset>
-      <fieldset class="modes"><legend>Referencia La Liga (radar)</legend>${REFS.map(([k, n]) => { const off = k.endsWith('pos') && posActual == null; return html`<label class="check" key=${k} title=${off ? 'El jugador no tiene posición principal.' : ''}><input type="checkbox" disabled=${off} checked=${!off && refs.includes(k)} onChange=${() => toggleRef(k)} /> ${n}</label>`; })}</fieldset>
+      <fieldset class="modes"><legend>Referencia posicional de La Liga (radar)</legend>${REFS.map(([k, n]) => { const off = posActual == null; return html`<label class="check" key=${k} title=${off ? 'El jugador no tiene posición principal.' : ''}><input type="checkbox" disabled=${off} checked=${!off && refs.includes(k)} onChange=${() => toggleRef(k)} /> ${n}</label>`; })}
+        ${posActual == null ? html`<p class="muted" data-ancla="sin-posicion">Sin posición principal no hay referencia: asígnasela en su ficha.</p>` : null}</fieldset>
     </div>
     <${BotonesImagen} rotulo="Tabla" obtener=${() => refTabla.current} nombre=${`composite-${player.id}`} titulo=${`COMPOSITE PROFILE SCORE · ${playerLabel(player)}`} />
     <p class="muted">Clic en el nombre de una cualidad para desplegar su desglose.</p>
@@ -368,7 +370,7 @@ const posNombre = (positions, id) => (id == null ? 'posición' : positions.find(
 
 const NotaMetodo = ({ umbrales, minN }) => html`<${Desplegable} titulo="Cómo se calcula">
   <p class="muted">Cada cualidad es la media ponderada de los percentiles de rendimiento de La Liga de sus variables de puntuación, redondeada a entero. Los percentiles son los mismos que muestra «Normative Benchmarking» de cada test: la referencia excluye al propio jugador y a los sintéticos, y hace falta un mínimo de ${minN} jugadores. Las variables interpretativas nunca puntúan: están para leer el número.</p>
-  <p class="muted">Las 6 cualidades puntúan siempre que haya datos: ninguna regla anula una cualidad; el texto de la columna «Orientation» dice qué hacer con ese número. Jump height de p${umbrales.p35} para abajo → «Prioritize foundational dynamic strength», por encima → «Acceptable output»; depth de p${umbrales.p90} para arriba → «Prioritize increase functional depth», y de p${umbrales.p35} para abajo → «Propulsive strategy»; contraction time de p${umbrales.p65} para arriba → «Snappy», y de p${umbrales.p35} para abajo → «Prioritize decrease contraction time» (en Energy Storage / Reactivity y en Explosive / Snappy, «… , improve SSC utilization»); Propulsive / Dynamic Strength por encima de p${umbrales.p65} → «Prioritize Power», y por debajo de p${umbrales.p35} → «Prioritize Strength». En Propulsive y en Explosive / Snappy se compara además el percentil de con impulse 100 ms con el de con peak power: si el primero es mayor, tendencia explosiva; si es menor, propulsiva. Con el Knee Iso-Push en el percentil 0–${umbrales.p35} de La Liga, la orientación del DSI es siempre «Iso maximal strength training orientation», sea cual sea el ratio. «${SIN_DATOS}» significa que no hay datos suficientes para puntuar, y nunca se muestra como 0.</p>
+  <p class="muted">Las 6 cualidades puntúan siempre que haya datos: ninguna regla anula una cualidad; el texto de la columna «Orientation» dice qué hacer con ese número. Jump height de p${umbrales.p35} para abajo → «Prioritize foundational dynamic strength», por encima → «Acceptable output»; depth de p${umbrales.p90} para arriba → «Prioritize increase functional depth», y de p${umbrales.p35} para abajo → «Propulsive strategy»; contraction time de p${umbrales.p65} para arriba → «Snappy», y de p${umbrales.p35} para abajo → «Prioritize decrease contraction time, improve SSC utilization»; cada una de las dos cualidades propulsiva y reactiva lee la puntuación de la otra y dice si esa característica está bien o mal; Propulsive / Dynamic Strength por encima de p${umbrales.p65} → «Prioritize Power», y por debajo de p${umbrales.p35} → «Prioritize Strength». En Propulsive y en Explosive / Snappy se compara además el percentil de con impulse 100 ms con el de con peak power: si el primero es mayor, tendencia explosiva; si es menor, propulsiva. Con el Knee Iso-Push en el percentil 0–${umbrales.p35} de La Liga, la orientación del DSI es siempre «Iso maximal strength training orientation», sea cual sea el ratio. «${SIN_DATOS}» significa que no hay datos suficientes para puntuar, y nunca se muestra como 0.</p>
   <p class="muted">Los impulsos (con impulse, con impulse 100 ms y ecc deceleration impulse) llegan de VALD en N·s absolutos y aquí se usan divididos por la masa corporal (N·s/kg), también en la referencia de La Liga: comparar un valor relativo con una referencia absoluta sería un error. La masa es la medida más cercana a la fecha de la sesión (la misma regla que el resto del dashboard); sin masa utilizable, esa sesión no tiene impulso relativo. En el Drop Jump se usa la altura de la ORZ, y las interpretativas son de esa misma altura. Los tests de Groin, Hip y Ankle no entran en este bloque.</p>
-  <p class="muted">El radar tiene los ejes en percentil 0–100 (el centro es 0) y no normaliza por el P50, porque los ejes ya son percentiles: por eso el P50 y el P75 de La Liga son polígonos regulares. Las referencias posicionales son, para cada variable, el percentil de La Liga del P50 (o P75) de la posición del jugador, combinado con los mismos pesos de la cualidad. Un eje sin puntuación deja un hueco en el polígono; nunca se dibuja como 0.</p>
+  <p class="muted">El radar tiene los ejes en percentil 0–100 (el centro es 0) y no normaliza por el P50, porque los ejes ya son percentiles. Las referencias son posicionales: para cada variable, el percentil de La Liga del P50 (o P75) de la posición del jugador, combinado con los mismos pesos de la cualidad. Sin posición principal no hay referencia que dibujar. Un eje sin puntuación deja un hueco en el polígono; nunca se dibuja como 0.</p>
 <//>`;

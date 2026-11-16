@@ -104,7 +104,7 @@ export function VistaTest({ id, query = {} }) {
   const vars = orderVars(catalog.variables.filter((v) => v.testId === id && isViewable(v) && hasData(v, sessions)));
   const variable = vars.find((v) => String(v.id) === String(query.v)) ?? defaultVar(vars, sessions, prefiereRsi(test, catalog));
   const protocols = catalog.protocols.filter((p) => p.testId === id);
-  const mode = MODES.some(([k]) => k === query.m) ? query.m : 'pa';
+  const mode = MODES.some(([k]) => k === query.m) ? query.m : 'last';
   const proto = query.p ?? 'all';
   const protocolId = proto === 'all' ? undefined : proto === 'none' ? null : Number(proto);
   const sort = ['player', 'value', 'date'].includes(query.s) ? query.s : 'player';
