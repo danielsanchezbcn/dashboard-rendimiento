@@ -65,8 +65,32 @@ export function createDb(name = DB_NAME) {
   return db;
 }
 
+// Abre la base. Si el navegador no puede subirla de esquema porque hay OTRA pestaña del dashboard abierta con el esquema anterior, `db.open()` se queda
+// esperando para siempre y la pantalla se queda en «Cargando…» sin ningún error (16/11/2026: le pasó al usuario al actualizar al esquema 7).
+// Por eso: 1) se avisa en cuanto IndexedDB dice que está bloqueada, 2) esta pestaña se aparta sola (cierra su conexión) cuando otra actualiza el esquema,
+// y 3) si a los 4 segundos sigue sin abrir, se levanta un error con instrucciones en vez de dejar la pantalla colgada.
+export class BaseBloqueadaError extends Error {
+  constructor() {
+    super('Hay otra pestaña o ventana del dashboard abierta con la versión anterior, y el navegador no puede actualizar la base mientras siga abierta. Cierra las demás pestañas del dashboard y vuelve a cargar esta. No se ha perdido ningún dato.');
+    this.name = 'BaseBloqueadaError';
+    this.bloqueada = true;
+  }
+}
+
 export async function initDb(db) {
-  await db.open();
+  let avisar = null;
+  // IndexedDB avisa en cuanto el bloqueo ocurre, así que NO hace falta un tiempo de espera: una base grande puede tardar en abrir sin estar bloqueada,
+  // y cortar por tiempo sería peor (abortaría una migración en curso). Se corre la carrera entre abrir y el aviso de bloqueo.
+  const bloqueo = new Promise((_, no) => { avisar = () => no(new BaseBloqueadaError()); });
+  db.on('blocked', () => avisar());
+  // Otra pestaña quiere subir el esquema: esta cierra su conexión para no bloquearla. Al recargar, esta pestaña abrirá ya el esquema nuevo.
+  db.on('versionchange', () => { try { db.close(); } catch { /* ya estaba cerrada */ } });
+  try {
+    await Promise.race([db.open(), bloqueo]);
+  } catch (e) {
+    if (e?.bloqueada || /blocked/i.test(e?.name ?? '')) throw new BaseBloqueadaError();
+    throw e;
+  }
   if (!(await db.meta.get('createdAt'))) {
     await db.meta.put({ key: 'createdAt', value: new Date().toISOString() });
     await audit(db, 'base-creada', { versionApp: APP_VERSION, versionEsquema: db.verno });

@@ -1,0 +1,360 @@
+{
+"version": "10i-0.1.0",
+"archivos": {
+"alta-manual.js": {
+"bytes": 3994,
+"sha": "578d457ba720bbff"
+},
+"angulos-app.js": {
+"bytes": 8450,
+"sha": "42f30ecd050f4a4e"
+},
+"angulos-detector.js": {
+"bytes": 8015,
+"sha": "42f8694ae1563f01"
+},
+"angulos-engine.js": {
+"bytes": 22045,
+"sha": "17f9b432a3c194f8"
+},
+"angulos-exportar.js": {
+"bytes": 7392,
+"sha": "949622325b609c5a"
+},
+"angulos-mapa.js": {
+"bytes": 5121,
+"sha": "90651934e15b743a"
+},
+"angulos-pruebas-geometria.js": {
+"bytes": 21035,
+"sha": "98af0c4b1f88f34f"
+},
+"angulos-pruebas-runner.js": {
+"bytes": 5341,
+"sha": "0b445c36c231ec27"
+},
+"angulos-registry.js": {
+"bytes": 1174,
+"sha": "f936a30bc4992b96"
+},
+"angulos-test-aket.js": {
+"bytes": 999,
+"sha": "c5301bb72d52737e"
+},
+"angulos-test-jurdan.js": {
+"bytes": 804,
+"sha": "aa6997ff8b7f8dd9"
+},
+"angulos-test-pendientes.js": {
+"bytes": 707,
+"sha": "30d80018627a7dfd"
+},
+"angulos-utils.js": {
+"bytes": 5495,
+"sha": "6069f845eecbffb9"
+},
+"antropometria.js": {
+"bytes": 5799,
+"sha": "4fda6bedae300b70"
+},
+"app.js": {
+"bytes": 7324,
+"sha": "89d97ba0a06b6f4d"
+},
+"asim-ui.js": {
+"bytes": 502,
+"sha": "af61f2c204cd984c"
+},
+"asociaciones.js": {
+"bytes": 4992,
+"sha": "9d52520522e97c44"
+},
+"atletas.js": {
+"bytes": 6234,
+"sha": "8976eecd1a27d3d7"
+},
+"backup.js": {
+"bytes": 10662,
+"sha": "d7ca0e135310b91c"
+},
+"cambio.js": {
+"bytes": 4928,
+"sha": "95fde752bb66e04c"
+},
+"cargas-excel.js": {
+"bytes": 5750,
+"sha": "f97918c4dc2e27a8"
+},
+"catalogo-inicial.js": {
+"bytes": 46109,
+"sha": "c6dc26e6739c8643"
+},
+"catalogo.js": {
+"bytes": 26263,
+"sha": "120470663c134b5c"
+},
+"colores.js": {
+"bytes": 1264,
+"sha": "5f759cb4542d3f22"
+},
+"comparativa.js": {
+"bytes": 6119,
+"sha": "9c8f43c4c32ee9ea"
+},
+"componentes.js": {
+"bytes": 5902,
+"sha": "0bd4df12f07e48b5"
+},
+"composite.js": {
+"bytes": 14259,
+"sha": "70ba44a73f3ae3f0"
+},
+"comprobar.html": {
+"bytes": 8857,
+"sha": "7d377128052339d0"
+},
+"context.js": {
+"bytes": 154,
+"sha": "34b2dacd740f992b"
+},
+"copiar.js": {
+"bytes": 9976,
+"sha": "aff09b24d82f46ca"
+},
+"db.js": {
+"bytes": 7185,
+"sha": "ea622f5dde486c43"
+},
+"estadistica.js": {
+"bytes": 3834,
+"sha": "6c477bf5e343cdd5"
+},
+"evolucion.js": {
+"bytes": 19239,
+"sha": "49d0747fd66a1f05"
+},
+"excel.js": {
+"bytes": 3165,
+"sha": "087772d104f165a6"
+},
+"exportar.js": {
+"bytes": 776,
+"sha": "16123bf573028834"
+},
+"fechas.js": {
+"bytes": 855,
+"sha": "abdf9632bb710608"
+},
+"fuentes.js": {
+"bytes": 732,
+"sha": "18c8f39aec0d0fa0"
+},
+"fuerzavelocidad.js": {
+"bytes": 10804,
+"sha": "6c24322bcac47877"
+},
+"iconos.js": {
+"bytes": 18798,
+"sha": "3ac0207302a00aa8"
+},
+"imagen-antropometria.js": {
+"bytes": 9196,
+"sha": "2471f9b18c295145"
+},
+"imagen-ocr.js": {
+"bytes": 4282,
+"sha": "62af9baf686c9ba3"
+},
+"importacion.js": {
+"bytes": 43136,
+"sha": "efc1ae01a85c3588"
+},
+"index.html": {
+"bytes": 967,
+"sha": "89c78391750a90f9"
+},
+"io.js": {
+"bytes": 2516,
+"sha": "f1f21aaa9827ca96"
+},
+"isohold.js": {
+"bytes": 8853,
+"sha": "cb6795c05d2886f7"
+},
+"isorack.js": {
+"bytes": 3495,
+"sha": "1258ffc5a875018c"
+},
+"jugadores.js": {
+"bytes": 17866,
+"sha": "d9b3eb54989f3e6b"
+},
+"libs.js": {
+"bytes": 337915,
+"sha": "e948e39bc873b057"
+},
+"main.js": {
+"bytes": 1719,
+"sha": "ac26c6e3396a7aa2"
+},
+"natera.js": {
+"bytes": 2172,
+"sha": "f9fa1f8a6f5e0854"
+},
+"nombres.js": {
+"bytes": 1957,
+"sha": "f3ce8ed6fcfbe91e"
+},
+"ocr-core.js": {
+"bytes": 3938657,
+"sha": "ce20eda9533cbed1"
+},
+"ocr-tesseract.js": {
+"bytes": 67175,
+"sha": "2537be686335e4b2"
+},
+"ocr-worker.js": {
+"bytes": 123724,
+"sha": "aca1229639fc9907"
+},
+"pages-ajustes.js": {
+"bytes": 14132,
+"sha": "ac48ddf5d6f79b7b"
+},
+"pages-angulos.js": {
+"bytes": 5774,
+"sha": "d2b30a255f7efa2e"
+},
+"pages-asimetrias.js": {
+"bytes": 10376,
+"sha": "44f9beb1fc3af8a4"
+},
+"pages-asociaciones.js": {
+"bytes": 12466,
+"sha": "5a3ed4c63a210c68"
+},
+"pages-cargas.js": {
+"bytes": 7322,
+"sha": "2e14c39fe4239963"
+},
+"pages-catalogo.js": {
+"bytes": 27863,
+"sha": "7d49ff711e7cfd2f"
+},
+"pages-composite.js": {
+"bytes": 31826,
+"sha": "5214ceb5438dcd4a"
+},
+"pages-deficits.js": {
+"bytes": 11554,
+"sha": "6149b272c87a26f9"
+},
+"pages-evolucion.js": {
+"bytes": 59046,
+"sha": "7cfdecd3544febf4"
+},
+"pages-fv.js": {
+"bytes": 22085,
+"sha": "e80a24f20a180d6d"
+},
+"pages-imagen.js": {
+"bytes": 13783,
+"sha": "740c8997e19aea12"
+},
+"pages-importar.js": {
+"bytes": 46047,
+"sha": "e4280a87dea7f3ba"
+},
+"pages-isorack.js": {
+"bytes": 4978,
+"sha": "e5e79a81a3332036"
+},
+"pages-jugadores.js": {
+"bytes": 24934,
+"sha": "01b2ababa778e5cb"
+},
+"pages-normativo.js": {
+"bytes": 21509,
+"sha": "a6330e46198ad882"
+},
+"pages-percentiles.js": {
+"bytes": 19540,
+"sha": "df5986a15d94f659"
+},
+"pages-radar.js": {
+"bytes": 25662,
+"sha": "70caf583e160d54c"
+},
+"pages-relaciones.js": {
+"bytes": 16921,
+"sha": "6fc9cbbc147562fa"
+},
+"pages-test.js": {
+"bytes": 28464,
+"sha": "4b353e10599d78ee"
+},
+"pages.js": {
+"bytes": 18001,
+"sha": "e675c149c50f707d"
+},
+"percentiles.js": {
+"bytes": 5794,
+"sha": "70e2ac7fee23f5c4"
+},
+"posiciones.js": {
+"bytes": 8727,
+"sha": "02074297b33c1c2e"
+},
+"premier.js": {
+"bytes": 12153,
+"sha": "5d35e8c391a916d2"
+},
+"radar.js": {
+"bytes": 10149,
+"sha": "8ba6df35c4e75a75"
+},
+"relaciones.js": {
+"bytes": 18563,
+"sha": "be59fe5f5ed7aadb"
+},
+"relativos.js": {
+"bytes": 5364,
+"sha": "f4fbdce7fa4d66fe"
+},
+"rutas.js": {
+"bytes": 1155,
+"sha": "fb0eddf7374049f5"
+},
+"sinteticos.js": {
+"bytes": 6262,
+"sha": "88eb500272001f21"
+},
+"style.css": {
+"bytes": 54717,
+"sha": "26f6711b491a6d94"
+},
+"targets.js": {
+"bytes": 4652,
+"sha": "8507ff452eb75792"
+},
+"usos.js": {
+"bytes": 5727,
+"sha": "7d9787b0ed05aa84"
+},
+"util.js": {
+"bytes": 908,
+"sha": "6e59b2045527671e"
+},
+"vald.js": {
+"bytes": 25803,
+"sha": "677eec567621bb14"
+}
+},
+"soloExisten": [
+"vision_bundle.mjs",
+"vision_wasm_internal.js",
+"vision_wasm_internal.wasm",
+"vision_wasm_nosimd_internal.js",
+"vision_wasm_nosimd_internal.wasm"
+]
+}

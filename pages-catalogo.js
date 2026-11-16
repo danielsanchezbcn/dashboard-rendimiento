@@ -4,6 +4,7 @@
 import { html, useState } from './libs.js';
 import { useApp } from './context.js';
 import { Card, Desplegable, Msg, useLoad, useRunner } from './componentes.js';
+import { usosDeTest, renombradoSeguro } from './usos.js';
 import * as C from './catalogo.js';
 import { EnlaceAngulos } from './pages-angulos.js';
 import { dn, up } from './nombres.js';
@@ -128,10 +129,19 @@ function TestDatos({ test, data }) {
   const [zone, setZone] = useState(test.zoneId ?? '');
   const [notes, setNotes] = useState(test.notes ?? '');
   const { msg, run, busy } = useRunner();
+  const [confirmado, setConfirmado] = useState(false);
   const mans = data.manifestations.filter((m) => m.blockKey === test.blockKey);
+  // Varias partes del dashboard localizan este test POR SU NOMBRE. Cambiar mayúsculas, acentos, «Single-Leg» por «SL», «Double-Leg» por «DL» o
+  // quitarle el «Run-Specific» no les afecta; cualquier otro cambio sí, y lo harían sin dar ningún error (14/11/2026).
+  const usos = usosDeTest(test.name);
+  const rompe = usos.length > 0 && name.trim() !== '' && !renombradoSeguro(test.name, name);
   return html`<${Card} titulo="Datos del test">
-    <form class="fields" onSubmit=${run(async () => { await C.updateTest(db, test.id, { name, notes, manifestationId: man === '' ? null : Number(man), zoneId: zone === '' ? null : Number(zone) }); bump(); }, 'guardado.')}>
-      <label>Nombre <input type="text" required value=${name} onInput=${(e) => setName(e.target.value)} /></label>
+    <form class="fields" onSubmit=${run(async () => {
+      if (rompe && !confirmado) { setConfirmado(true); throw new Error(`Este test lo usan: ${usos.join(', ')}. Con el nombre «${name.trim()}» dejarán de encontrarlo y mostrarán «sin datos» sin avisar. Pulsa «Guardar» otra vez para cambiarlo igualmente, o dime el nombre nuevo y lo añado como equivalente en el código.`); }
+      await C.updateTest(db, test.id, { name, notes, manifestationId: man === '' ? null : Number(man), zoneId: zone === '' ? null : Number(zone) }); setConfirmado(false); bump();
+    }, 'guardado.')}>
+      <label>Nombre <input type="text" required value=${name} onInput=${(e) => { setName(e.target.value); setConfirmado(false); }} /></label>
+      ${rompe ? html`<p class="status warn" role="status">Cuidado: este test lo usan ${usos.join(', ')}. Con ese nombre dejarán de encontrarlo.</p>` : usos.length ? html`<p class="muted">Lo usan por su nombre: ${usos.join(', ')}. El nombre que has escrito les sirve igual.</p>` : null}
       <label>Manifestación del listado <select value=${man} onChange=${(e) => setMan(e.target.value)}><option value="">Sin manifestación</option>${mans.map((m) => html`<option key=${m.id} value=${m.id}>${up(m.name)}</option>`)}</select></label>
       <label>Zona <select value=${zone} onChange=${(e) => setZone(e.target.value)}><option value="">Sin zona</option>${data.zones.map((z) => html`<option key=${z.id} value=${z.id}>${z.name}</option>`)}</select></label>
       <label>Notas <input type="text" value=${notes} onInput=${(e) => setNotes(e.target.value)} /></label>

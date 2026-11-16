@@ -1,6 +1,7 @@
 import { parseHash } from './rutas.js';
 import { VistaTest } from './pages-test.js';
 import { Relaciones } from './pages-asociaciones.js';
+import { ConfiguracionIsoRack } from './pages-isorack.js';
 import { html, useState, useEffect, useCallback } from './libs.js';
 import { AppContext } from './context.js';
 import { getLocal, getSetting, APP_VERSION } from './db.js';
@@ -16,6 +17,7 @@ export const NAV = [
   { id: 'jugadores', label: 'Jugadores' },
   { id: 'fuerza', label: 'Manifestaciones de la fuerza' },
   { id: 'relaciones', label: 'Relaciones entre variables' },
+  { id: 'isorack', label: 'Configuración ISO-rack' },
   { id: 'perimetros', label: 'Datos antropométricos' },
   { id: 'nme', label: 'NME' },
   { id: 'catalogo', label: 'Catálogo de tests' },
@@ -29,6 +31,7 @@ export const NAV_GRUPOS = [
   { id: 'inicio', label: 'Inicio', miembros: ['inicio', 'copias', 'configuracion'], pestanas: [['inicio', 'Copias de seguridad'], ['configuracion', 'Configuración']] },
   { id: 'jugadores', label: 'Jugadores', miembros: ['jugadores'] },
   { id: 'relaciones', label: 'Relaciones entre variables', miembros: ['relaciones'] },
+  { id: 'isorack', label: 'Configuración ISO-rack', miembros: ['isorack'] },
   { id: 'fuerza', label: 'Catálogo de tests', miembros: ['fuerza', 'nme', 'perimetros', 'catalogo'], pestanas: [['fuerza', 'Manifestaciones de la fuerza'], ['nme', 'NME'], ['perimetros', 'Datos antropométricos'], ['catalogo', 'Catálogo y edición']] },
   { id: 'importar', label: 'Importar', miembros: ['importar'] },
 ];
@@ -64,6 +67,8 @@ function Contenido({ route }) {
       return html`<${BloqueCatalogo} blockKey="fuerza" titulo="Manifestaciones de la fuerza" vacio="Aún no hay tests configurados." />`;
     case 'relaciones':
       return html`<${Relaciones} query=${route.query} />`;
+    case 'isorack':
+      return html`<${ConfiguracionIsoRack} />`;
     case 'perimetros':
       return html`<${BloqueCatalogo} blockKey="perimetros" titulo="Datos antropométricos" vacio="No hay medidas de perímetro definidas." />`;
     case 'nme':

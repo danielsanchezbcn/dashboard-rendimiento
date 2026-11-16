@@ -32,7 +32,9 @@ async function boot() {
     await collapsePositions(db);
     await backfillFullNames(db);
   } catch (e) {
-    showError('No se pudo abrir la base de datos local', `${e?.message || e}. Comprueba que no estás en una ventana privada y que el navegador permite guardar datos de este sitio.`);
+    // La base bloqueada por otra pestaña no es un fallo de la base: se explica aparte, porque la solución es cerrar las otras pestañas.
+    if (e?.bloqueada) showError('Cierra las otras pestañas del dashboard', e.message);
+    else showError('No se pudo abrir la base de datos local', `${e?.message || e}. Comprueba que no estás en una ventana privada y que el navegador permite guardar datos de este sitio.`);
     return;
   }
   try {
