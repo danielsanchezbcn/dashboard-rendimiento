@@ -120,7 +120,11 @@ function Photo({ key, dropId, fileId, stageInnerId, canvasId, zoomId, zoomCanvas
     const topEl = stageEl.querySelector('.stage-top');
     const exportEl = stageEl.querySelector('.export-block'); // espacio reservado para los controles de exportacion
     const exportH = exportEl ? exportEl.offsetHeight + 22 : 0; // + holgura visual entre canvas y controles
-    const availW = stageEl.clientWidth - 8;
+    // El ancho útil es el de la CAJA DE CONTENIDO del marco, no «clientWidth − 8»: en pantallas estrechas ese 8 se quedaba corto, el lienzo salía unos
+    // píxeles más ancho que su hueco y el navegador lo encogía con `max-width: 100%`. Al encogerlo, lo dibujado dejaba de coincidir con lo que se ve y
+    // los puntos se colocaban con un desvío de ~1 % (24/11/2026). Midiendo el relleno real, el lienzo nunca excede su hueco.
+    const padX = (() => { const cs = getComputedStyle(stageEl); return (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0); })();
+    const availW = stageEl.clientWidth - (padX || 8);
     const availH = stageEl.clientHeight - topEl.offsetHeight - exportH - 10;
     scale = Math.min(availW / photo.imgW, availH / photo.imgH, 1);
     W = photo.imgW * scale; H = photo.imgH * scale;

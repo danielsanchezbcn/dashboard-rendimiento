@@ -30,6 +30,13 @@ export const Migas = ({ items }) => html`<nav aria-label="Ruta de navegación"><
 export const KEEP = (q) => ({ v: q.v, p: q.p, from: q.from, to: q.to, m: q.m, pos: q.pos });
 
 const sideName = { L: 'Left', R: 'Right', S: 'Valor' };
+// Pareja carga ↔ relativo al peso: dada una de las dos, devuelve la otra. Es lo que permite enseñar los kilos movilizados junto al %BW (y al revés) en
+// cualquier test que tenga esa pareja, sin lista de tests que mantener.
+export const parejaDeCarga = (variables, variable) => {
+  if (!variable) return null;
+  if (variable.formula?.op === 'LOAD_BW') return variables.find((v) => v.id === variable.formula.operands?.[0] && !v.archived) ?? null;
+  return variables.find((v) => v.formula?.op === 'LOAD_BW' && v.formula.operands?.[0] === variable.id && !v.archived) ?? null;
+};
 
 // G4 en su forma básica: escala horizontal MIN–MAX de la variable con un marcador por jugador (círculo blanco sin lado; azul «L» y naranja «R» por lado).
 // Sin referencias externas (llegan en la fase 5c). Los mismos datos están en la tabla.
@@ -125,6 +132,16 @@ export function VistaTest({ id, query = {} }) {
   const excluded = query.ex === '1' ? sessions.filter((s) => s.status === 'excluded' && s.values?.[variable.id] && posOk(s.playerId) && inRange(s)).sort((a, b) => b.date.localeCompare(a.date)) : [];
   const res = compareTest({ sessions: sessions.filter((s) => posOk(s.playerId)), variable, players: playersById, histories, positions, mode, protocolId, from: query.from || null, to: query.to || null, sort });
   const lr = res.sides.length === 2;
+  // 24/11/2026 (petición del usuario): en los tests de carga la tabla enseña SIEMPRE los kilos movilizados y su %BW a la vez, se elija arriba la variable
+  // que se elija. La columna añadida es la pareja de la elegida (si miras el %BW, los kilos; si miras los kilos, el %BW). Sale sola en cualquier test que
+  // tenga un %BW calculado sobre una carga, así que un test de RM nuevo la tendrá sin tocar nada. El percentil, la asimetría y las referencias siguen
+  // siendo los de la variable elegida: esta columna es solo para leer el dato en bruto al lado del relativo.
+  const pareja = parejaDeCarga(catalog.variables, variable);
+  const resPar = pareja && pareja.sides === variable.sides
+    ? compareTest({ sessions: sessions.filter((s) => posOk(s.playerId)), variable: pareja, players: playersById, histories, positions, mode, protocolId, from: query.from || null, to: query.to || null, sort })
+    : null;
+  const celdasPar = resPar ? new Map(resPar.groups.flatMap((g) => g.rows).map((r) => [r.playerId, r.cells])) : null;
+  const valorPar = (playerId, s) => celdasPar?.get(playerId)?.[s]?.value ?? null;
   // Percentil frente a La Liga (todas las posiciones) en los modos que lo definen: Personal Average, Personal Best y Última sesión.
   const pctOn = mode === 'pa' || mode === 'last' || mode === 'pb';
   // Referencia ÚNICA con ambos lados juntos (un valor por jugador y lado), igual que en el perfil del jugador (9/11/2026): así el mismo valor da el mismo percentil en las dos pantallas.
@@ -154,10 +171,10 @@ export function VistaTest({ id, query = {} }) {
   const repsOf = (r) => res.sides.map((s) => r.cells[s]).filter(Boolean).map((c) => (c.sessions ? `${c.sessions} ses.${c.reps != null ? `, ${c.reps} rep.` : ''}` : c.reps ?? '—')).join(' / ');
   const hrefFor = (pid) => buildHash(`jugador-${pid}`, { ...KEEP({ ...query, m: mode }), t: id, v: variable.id, b: 'fuerza', from: query.from, to: query.to });
   const exportCsv = () => {
-    const header = ['Posición', 'Jugador', ...res.sides.map((s) => `${sideName[s]}${variable.unit ? ` (${variable.unit})` : ''}`), ...(lr ? [esGrados(variable) ? 'Asimetría (°)' : 'Asimetría (%)', 'Lado con el valor más alto'] : []), ...(pctOn ? res.sides.map((s) => `Percentil ${sideName[s].toLowerCase()} (La Liga)`) : []), ...(pctOn && plRef ? res.sides.map((s) => `Zona ${sideName[s].toLowerCase()} (Premier League)`) : []), 'Desde', 'Hasta', 'Sesiones', 'Repeticiones'];
+    const header = ['Posición', 'Jugador', ...res.sides.map((s) => `${sideName[s]}${variable.unit ? ` (${variable.unit})` : ''}`), ...(resPar ? res.sides.map((s) => `${sideName[s]} · ${dn(pareja.name)}${pareja.unit ? ` (${pareja.unit})` : ''}`) : []), ...(lr ? [esGrados(variable) ? 'Asimetría (°)' : 'Asimetría (%)', 'Lado con el valor más alto'] : []), ...(pctOn ? res.sides.map((s) => `Percentil ${sideName[s].toLowerCase()} (La Liga)`) : []), ...(pctOn && plRef ? res.sides.map((s) => `Zona ${sideName[s].toLowerCase()} (Premier League)`) : []), 'Desde', 'Hasta', 'Sesiones', 'Repeticiones'];
     const rows = res.groups.flatMap((g) => g.rows.map((r) => {
       const cs = res.sides.map((s) => r.cells[s]).filter(Boolean);
-      return [g.name, r.playerName, ...res.sides.map((s) => r.cells[s]?.value ?? ''), ...(lr ? [r.asym == null ? '' : Math.abs(r.asym), asymSideLetter(r.asym)] : []),
+      return [g.name, r.playerName, ...res.sides.map((s) => r.cells[s]?.value ?? ''), ...(resPar ? res.sides.map((s) => valorPar(r.playerId, s) ?? '') : []), ...(lr ? [r.asym == null ? '' : Math.abs(r.asym), asymSideLetter(r.asym)] : []),
         ...(pctOn ? res.sides.map((s) => { const e = pctOf(r, s); return e?.sufficient ? e.percentileStat ?? '' : ''; }) : []),
         ...(pctOn && plRef ? res.sides.map((s) => plOf(r, s)?.text ?? '') : []),
         cs[0]?.from ?? cs[0]?.date ?? '', cs[0]?.to ?? cs[0]?.date ?? '', cs[0]?.sessions ?? '', cs.map((c) => c.reps ?? '').join(' / ')];
@@ -184,12 +201,13 @@ export function VistaTest({ id, query = {} }) {
     ${mode === 'pb' && variable.direction !== 'higher' && variable.direction !== 'lower' ? html`<p class="status warn">Esta variable no tiene una dirección que permita definir el Personal Best (${variable.direction === 'target' ? 'rango objetivo, D23' : 'defínela en el catálogo'}).</p>` : null}
     <p>${res.players} jugador(es) con datos · ${res.rows} fila(s). Las sesiones excluidas no aparecen. <button type="button" class="secondary" disabled=${!res.rows} onClick=${exportCsv}>Exportar CSV</button></p>
     ${!res.rows ? html`<p class="muted">Sin datos para estos filtros.</p>` : res.groups.map((g) => html`<div class="table-wrap tabla-wrap-comp" key=${g.key}><table class="tabla-comp"><caption>${g.name}</caption>
-      <thead><tr><th rowspan="2" scope="col">Jugador</th><th colspan=${res.sides.length} scope="colgroup">Valor${variable.unit ? ` (${variable.unit})` : ''}</th>${lr ? html`<th rowspan="2" scope="col" class="num" title="|right − left| ÷ máx × 100 y la letra del lado con el valor más alto (como VALD), con los dos valores mostrados">Asimetría</th>` : null}${pctOn ? html`<th colspan=${res.sides.length} scope="colgroup">Percentil La Liga</th>` : null}${pctOn ? html`<th colspan=${res.sides.length} scope="colgroup" title=${plRef ? `Zona entre los cortes publicados de la Premier League ${PREMIER_SEASON}${plRef.estimated ? ' (ESTIMADA en medida relativa)' : ''}` : 'Esta variable no figura en las tablas de la Premier League aportadas'}>Premier League</th>` : null}${natRef ? html`<th colspan=${res.sides.length} scope="colgroup" title=${`Clasificación de Natera (${natRef.unit}): Normal desde ${nf(natRef.normal, 2)} · Good desde ${nf(natRef.good, 2)} · Excellent desde ${nf(natRef.excellent, 2)}`}>Natera</th>` : null}</tr>
-        <tr>${res.sides.map((s) => html`<th key=${'v' + s} scope="col" class="num">${sideName[s]}</th>`)}${pctOn ? res.sides.map((s) => html`<th key=${'p' + s} scope="col">${sideName[s]}</th>`) : null}${pctOn ? res.sides.map((s) => html`<th key=${'q' + s} scope="col">${sideName[s]}</th>`) : null}${natRef ? res.sides.map((s) => html`<th key=${'n' + s} scope="col">${sideName[s]}</th>`) : null}</tr>
-        ${pctOn ? html`<tr class="media-grupo"><th scope="row">Percentil medio La Liga (${g.name})</th>${res.sides.map((s) => html`<td key=${'m' + s}></td>`)}${lr ? html`<td></td>` : null}${res.sides.map((s) => { const m = mediaPct(g, s); return html`<td key=${'mp' + s} title=${m ? `Media del percentil de rendimiento de ${m.n} jugador(es) con muestra suficiente` : 'Sin jugadores con percentil calculable'}>${m ? html`<strong>${nf(m.mean, 0)}</strong> <small class="muted">n=${m.n}</small>` : '—'}</td>`; })}${res.sides.map((s) => html`<td key=${'mq' + s}></td>`)}${natRef ? res.sides.map((s) => html`<td key=${'mn' + s}></td>`) : null}</tr>` : null}</thead>
+      <thead><tr><th rowspan="2" scope="col">Jugador</th><th colspan=${res.sides.length} scope="colgroup">Valor${variable.unit ? ` (${variable.unit})` : ''}</th>${resPar ? html`<th colspan=${res.sides.length} scope="colgroup" title=${`${dn(pareja.name)}: el otro lado de la misma medida, para leer el dato en bruto junto al relativo`}>${dn(pareja.name)}${pareja.unit && !pareja.name.includes(`(${pareja.unit})`) ? ` (${pareja.unit})` : ''}</th>` : null}${lr ? html`<th rowspan="2" scope="col" class="num" title="|right − left| ÷ máx × 100 y la letra del lado con el valor más alto (como VALD), con los dos valores mostrados">Asimetría</th>` : null}${pctOn ? html`<th colspan=${res.sides.length} scope="colgroup">Percentil La Liga</th>` : null}${pctOn ? html`<th colspan=${res.sides.length} scope="colgroup" title=${plRef ? `Zona entre los cortes publicados de la Premier League ${PREMIER_SEASON}${plRef.estimated ? ' (ESTIMADA en medida relativa)' : ''}` : 'Esta variable no figura en las tablas de la Premier League aportadas'}>Premier League</th>` : null}${natRef ? html`<th colspan=${res.sides.length} scope="colgroup" title=${`Clasificación de Natera (${natRef.unit}): Normal desde ${nf(natRef.normal, 2)} · Good desde ${nf(natRef.good, 2)} · Excellent desde ${nf(natRef.excellent, 2)}`}>Natera</th>` : null}</tr>
+        <tr>${res.sides.map((s) => html`<th key=${'v' + s} scope="col" class="num">${sideName[s]}</th>`)}${resPar ? res.sides.map((s) => html`<th key=${'k' + s} scope="col" class="num">${sideName[s]}</th>`) : null}${pctOn ? res.sides.map((s) => html`<th key=${'p' + s} scope="col">${sideName[s]}</th>`) : null}${pctOn ? res.sides.map((s) => html`<th key=${'q' + s} scope="col">${sideName[s]}</th>`) : null}${natRef ? res.sides.map((s) => html`<th key=${'n' + s} scope="col">${sideName[s]}</th>`) : null}</tr>
+        ${pctOn ? html`<tr class="media-grupo"><th scope="row">Percentil medio La Liga (${g.name})</th>${res.sides.map((s) => html`<td key=${'m' + s}></td>`)}${resPar ? res.sides.map((s) => html`<td key=${'mk' + s}></td>`) : null}${lr ? html`<td></td>` : null}${res.sides.map((s) => { const m = mediaPct(g, s); return html`<td key=${'mp' + s} title=${m ? `Media del percentil de rendimiento de ${m.n} jugador(es) con muestra suficiente` : 'Sin jugadores con percentil calculable'}>${m ? html`<strong>${nf(m.mean, 0)}</strong> <small class="muted">n=${m.n}</small>` : '—'}</td>`; })}${res.sides.map((s) => html`<td key=${'mq' + s}></td>`)}${natRef ? res.sides.map((s) => html`<td key=${'mn' + s}></td>`) : null}</tr>` : null}</thead>
       <tbody>${g.rows.map((r, i) => html`<tr key=${i} class=${r.playerId === originId ? 'origin' : ''}>
         <th scope="row"><a href=${hrefFor(r.playerId)}>${r.playerName}</a>${r.playerId === originId ? html` <span class="muted">(origen)</span>` : ''}${r.multi ? html`<small class="cell-date">ocupó varias posiciones</small>` : ''}<small class="cell-date">${repsOf(r)}</small></th>
         ${res.sides.map((s) => html`<td key=${s} class="num"><a href=${hrefFor(r.playerId)}>${cell(r.cells[s])}</a></td>`)}
+        ${resPar ? res.sides.map((s) => html`<td key=${'k' + s} class="num">${nf(valorPar(r.playerId, s))}</td>`) : null}
         ${lr ? html`<td class="num">${r.asym == null ? '—' : html`<${AsimTexto} pct=${r.asym} texto=${esGrados(variable) ? `${nf(Math.abs(r.asym))} °${asymSideLetter(r.asym) ? ' ' + asymSideLetter(r.asym) : ''}` : null} />`}</td>` : null}
         ${pctOn ? res.sides.map((s) => html`<td key=${'p' + s}><${CeldaPercentil} ev=${pctOf(r, s)} /></td>`) : null}
         ${pctOn ? res.sides.map((s) => html`<td key=${'q' + s}><${CeldaPremier} pl=${plOf(r, s)} /></td>`) : null}

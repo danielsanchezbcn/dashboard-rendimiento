@@ -90,12 +90,15 @@ export function isoHoldValues({ variables, test, sessions, ctx, anthropometry, t
 }
 
 // 1RM estimado (kg) = (carga + masa) × factor, solo en 12RM. Masa: la medida más cercana a la fecha de la sesión (o el peso de referencia).
+// 24/11/2026: la carga de los RM puede ir por pierna, así que el estimado sigue a la carga y se calcula para cada lado que tenga dato.
 export function rmEstimate(v, session, anthropometry) {
-  const load = session.values?.[v.formula.operands[0]]?.S;
-  if (!finite(load)) return undefined;
+  const src = session.values?.[v.formula.operands[0]] ?? {};
+  const lados = ['L', 'R', 'S'].filter((k) => finite(src[k]));
+  if (!lados.length) return undefined;
   const m = massNearest(anthropometry.filter((a) => a.playerId === session.playerId), session.date);
   const f = Number(v.formula.params?.factor ?? RM_EST_FACTOR_DEFAULT);
-  return m && f > 0 ? { S: (load + m.kg) * f } : null;
+  if (!m || !(f > 0)) return null;
+  return Object.fromEntries(lados.map((k) => [k, (src[k] + m.kg) * f]));
 }
 
 // Contexto para calcular las variables del Iso-Hold de un test: los tests del catálogo y las sesiones del Iso-Push emparejado (si el test es un Iso-Hold).

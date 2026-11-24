@@ -14,7 +14,7 @@ import { ISO_PAIRS, RM12_TESTS, RM_EST_FACTOR_DEFAULT, pairFactor } from './isoh
 
 import { mismoTest } from './nombres.js';
 
-export const CATALOG_SEED_VERSION = 16; // 16 (23/11/2026): Leg Press 45° 8RM con carga por pierna en el unilateral y %BW en los dos
+export const CATALOG_SEED_VERSION = 17; // 17 (24/11/2026): todos los RM con la misma estructura (carga por pierna salvo el Double-Leg Leg Press, y %BW)
 
 const BLOCKS = [
   { key: 'fuerza', name: 'Manifestaciones de la fuerza' },
@@ -111,8 +111,9 @@ const MAX_LOAD_LR = [{ name: 'Carga máxima (kg)', unit: 'kg', sides: 'LR', mani
 const HOLD_LOAD = [{ name: 'Carga externa (kg)', unit: 'kg', sides: 'single', manifestation: MAXISO, notes: LOAD_NOTE + ' Carga externa añadida con la que se han trabajado 3 series de 20 s; sin Personal Average.' }];
 const VARIABLES_BY_TEST = {
   'Nordic Hamstring Exercise': NORDIC_VARIABLES,
-  ...Object.fromEntries(RM_TESTS.map((n) => [n, MAX_LOAD])),
-  [LEG_PRESS_UNILATERAL]: MAX_LOAD_LR, // va después del reparto anterior: sustituye la carga única por la de cada pierna
+  // 24/11/2026: en los RM la carga va POR PIERNA en todos menos en el Double-Leg Leg Press, que es el único bilateral (criterio del usuario).
+  ...Object.fromEntries(RM_TESTS.map((n) => [n, MAX_LOAD_LR])),
+  [LEG_PRESS_BILATERAL]: MAX_LOAD, // va después del reparto anterior: el único con carga de valor único
   ...Object.fromEntries(Object.keys(ISO_PAIRS).map((n) => [n, HOLD_LOAD])),
   CMJ: CMJ_VARIABLES,
   'SL CMJ': SL_CMJ_VARIABLES,
@@ -223,7 +224,7 @@ async function sembrarCatalogo(db) {
       }
       for (const [test, vars] of Object.entries(VARIABLES_BY_TEST)) for (const x of vars) if (testIds[test]) await addVar(testIds[test], { ...x, manifestationId: x.manifestation ? manId[x.manifestation] : x.manifestationId });
       await ensureDerived(db, ts, counts);
-      await ensureLegPress(db, ts, counts);
+      await ensureRM(db, ts, counts);
       await ensureGroinAnkle(db, ts, counts);
     }
     await ensurePerimeters(db, ts, counts);
@@ -417,33 +418,49 @@ async function ensureGroinAnkle(db, ts, counts) {
 //    pierna eran, así que se deja como está y se avisa en el recuento (el usuario decide entonces qué hacer con esas sesiones).
 // 2) Los dos tests reciben «%BW» calculado (LOAD_BW: carga ÷ masa × 100, con la masa más cercana a la fecha de la sesión o el peso de referencia).
 // Idempotente: crea solo lo que falte, por nombre normalizado, así que un test renombrado por el usuario sigue recibiéndolo.
-async function ensureLegPress(db, ts, counts) {
+// Tests de RM de Heavy Dynamic Strength (24/11/2026, petición del usuario: «todos funcionarán igual, se importarán igual y querré visualizarlos de la
+// misma forma»). Estructura única para TODOS ellos, y para los que se añadan en el futuro:
+//   · «Carga máxima (kg)» POR PIERNA en todos menos en el Double-Leg Leg Press, que es el único bilateral (criterio del usuario del 24/11/2026).
+//   · «%BW» calculado (LOAD_BW: carga ÷ masa × 100, masa de la fecha de la sesión o peso de referencia), con los mismos lados que la carga.
+//   · En los 12RM, el «1RM estimado (kg)» sigue a la carga: si ella va por pierna, él también.
+// Solo se cambia a por pierna si NO hay ningún valor guardado: con datos no se puede saber de qué pierna eran, así que se deja como está y se avisa en el
+// recuento. Idempotente y por nombre normalizado, así que un test renombrado por el usuario sigue recibiéndolo.
+export const RM_BILATERALES = [LEG_PRESS_BILATERAL];
+async function ensureRM(db, ts, counts) {
   const lc = (x) => String(x ?? '').trim().toLowerCase();
   const tests = await db.tests.toArray();
   const mans = await db.manifestations.toArray();
   const manId = mans.find((m) => lc(m.name) === lc(HDS))?.id ?? null;
   let order = (await db.variables.orderBy('order').last())?.order ?? 0;
-  for (const [nombre, porPierna] of [[LEG_PRESS_BILATERAL, false], [LEG_PRESS_UNILATERAL, true]]) {
+  for (const nombre of RM_TESTS) {
     const t = tests.find((x) => mismoTest(x.name, nombre));
     if (!t) continue;
-    const vars = await db.variables.where('testId').equals(t.id).toArray();
+    const porPierna = !RM_BILATERALES.some((n) => mismoTest(n, nombre));
+    let vars = await db.variables.where('testId').equals(t.id).toArray();
     const carga = vars.find((x) => lc(x.name) === lc('Carga máxima (kg)'));
     if (!carga) continue;
     if (porPierna && carga.sides !== 'LR') {
       const sesiones = await db.sessions.where('testId').equals(t.id).toArray();
       const conDatos = sesiones.some((s) => s.values?.[carga.id] && Object.keys(s.values[carga.id]).length);
-      if (conDatos) counts.legPressCargaConDatos = (counts.legPressCargaConDatos ?? 0) + 1;
-      else { await db.variables.update(carga.id, { sides: 'LR', notes: `${LOAD_NOTE} Carga máxima movilizada por pierna hasta el momento; sin Personal Average.`, updatedAt: ts }); counts.legPressPorPierna = (counts.legPressPorPierna ?? 0) + 1; }
+      if (conDatos) counts.rmCargaConDatos = (counts.rmCargaConDatos ?? 0) + 1;
+      else { await db.variables.update(carga.id, { sides: 'LR', notes: `${LOAD_NOTE} Carga máxima movilizada por pierna hasta el momento; sin Personal Average.`, updatedAt: ts }); counts.rmPorPierna = (counts.rmPorPierna ?? 0) + 1; }
     }
-    if (vars.some((x) => lc(x.name) === '%bw')) continue;
-    const formula = { op: 'LOAD_BW', operands: [carga.id], params: {}, text: '' };
-    const id = await db.variables.add({
-      testId: t.id, name: '%BW', unit: '%', sides: porPierna ? 'LR' : 'single', direction: 'higher', manifestationId: manId, kind: 'derived', formula, formulaVersion: 1,
-      notes: 'Carga ÷ masa corporal × 100. Masa medida más cercana a la fecha de la sesión, o peso de referencia.', archived: false, order: ++order, createdAt: ts, updatedAt: ts, source: 'inicial',
-    });
-    await db.formulaHistory.add({ variableId: id, version: 1, formula, at: ts, reason: 'Leg Press 45° 8RM relativo al peso (23/11/2026)' });
-    counts.variablesAnadidas = (counts.variablesAnadidas ?? 0) + 1;
-    counts.variables = (counts.variables ?? 0) + (counts.tests !== undefined ? 1 : 0); // al sembrar, el recuento que se informa tiene que cuadrar con la base
+    const lados = (await db.variables.get(carga.id)).sides; // los lados REALES tras el posible cambio: lo derivado tiene que seguirlos
+    const bw = vars.find((x) => lc(x.name) === '%bw');
+    if (bw) { if (bw.sides !== lados) await db.variables.update(bw.id, { sides: lados, updatedAt: ts }); }
+    else {
+      const formula = { op: 'LOAD_BW', operands: [carga.id], params: {}, text: '' };
+      const id = await db.variables.add({
+        testId: t.id, name: '%BW', unit: '%', sides: lados, direction: 'higher', manifestationId: manId, kind: 'derived', formula, formulaVersion: 1,
+        notes: 'Carga ÷ masa corporal × 100. Masa medida más cercana a la fecha de la sesión, o peso de referencia.', archived: false, order: ++order, createdAt: ts, updatedAt: ts, source: 'inicial',
+      });
+      await db.formulaHistory.add({ variableId: id, version: 1, formula, at: ts, reason: 'Tests de RM relativos al peso (23/11/2026)' });
+      counts.variablesAnadidas = (counts.variablesAnadidas ?? 0) + 1;
+      counts.variables = (counts.variables ?? 0) + (counts.tests !== undefined ? 1 : 0); // al sembrar, el recuento informado tiene que cuadrar con la base
+    }
+    vars = await db.variables.where('testId').equals(t.id).toArray();
+    const rm1 = vars.find((x) => x.formula?.op === 'RM_EST');
+    if (rm1 && rm1.sides !== lados) await db.variables.update(rm1.id, { sides: lados, updatedAt: ts });
   }
 }
 
@@ -591,7 +608,7 @@ async function migrateCatalog(db, prev) {
     if (depthAlto.length) await audit(db, 'catalogo-direccion-depth', { cantidad: depthAlto.length, de: 'lower', a: 'higher' });
     res.depthAlto = depthAlto.length;
     await ensureDerived(db, ts, res);
-    await ensureLegPress(db, ts, res);
+    await ensureRM(db, ts, res);
     await ensureGroinAnkle(db, ts, res);
     await ensurePerimeters(db, ts, res);
     await ensureJurdan(db, ts, res);

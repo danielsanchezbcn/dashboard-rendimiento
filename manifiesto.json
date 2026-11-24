@@ -1,5 +1,5 @@
 {
-"version": "10i-0.6.0",
+"version": "10i-0.7.0",
 "archivos": {
 "alta-manual.js": {
 "bytes": 3994,
@@ -14,8 +14,8 @@
 "sha": "42f8694ae1563f01"
 },
 "angulos-engine.js": {
-"bytes": 23421,
-"sha": "6409662063612492"
+"bytes": 24020,
+"sha": "ea3aef6aabdd23df"
 },
 "angulos-exportar.js": {
 "bytes": 7392,
@@ -102,8 +102,8 @@
 "sha": "1233f013fe906d21"
 },
 "catalogo-inicial.js": {
-"bytes": 49952,
-"sha": "49aaf4ac415dc6db"
+"bytes": 51519,
+"sha": "d9830855c8697e2a"
 },
 "catalogo.js": {
 "bytes": 26734,
@@ -139,7 +139,7 @@
 },
 "db.js": {
 "bytes": 7185,
-"sha": "5a8faa15f67e4aa8"
+"sha": "dd2e73baa89ad1bd"
 },
 "dsieur.js": {
 "bytes": 4174,
@@ -198,8 +198,8 @@
 "sha": "f1f21aaa9827ca96"
 },
 "isohold.js": {
-"bytes": 9719,
-"sha": "3b10df8c3c3ab66d"
+"bytes": 9974,
+"sha": "d82227d2e220b90a"
 },
 "isorack.js": {
 "bytes": 3495,
@@ -254,12 +254,12 @@
 "sha": "5a3ed4c63a210c68"
 },
 "pages-cargas-dos.js": {
-"bytes": 9534,
-"sha": "8674e2167e73d8d3"
+"bytes": 9842,
+"sha": "b4bb3db6e3a487d2"
 },
 "pages-cargas.js": {
-"bytes": 7322,
-"sha": "2e14c39fe4239963"
+"bytes": 8413,
+"sha": "6126c13b88da3c6f"
 },
 "pages-catalogo.js": {
 "bytes": 27863,
@@ -318,8 +318,8 @@
 "sha": "2d1034f464527b78"
 },
 "pages-test.js": {
-"bytes": 29405,
-"sha": "598d5486cb73e0bb"
+"bytes": 31892,
+"sha": "1b4c0637c464078c"
 },
 "pages.js": {
 "bytes": 18001,

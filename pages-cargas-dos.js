@@ -32,11 +32,14 @@ export function ImportarCargasDos() {
     setRes(null); setElegido({}); setHojas(null); setMsg(null);
     if (!f) return;
     const grid = await readFileGrid(f);
+    // El catálogo se lee aquí, no del estado de la pantalla: si el fichero se elige antes de que termine de cargar, la lista estaría vacía y la
+    // propuesta de tests saldría en blanco sin decir por qué (24/11/2026).
+    const paraAdivinar = loadTests(data?.cat ?? (await listCatalog(db)));
     const lista = [];
     for (const s of grid.sheets) {
       const parsed = parseTwoWaySheet(s.rows);
       const links = parsed.ok ? await proposeLinks(db, parsed.rows.map((r) => r.name)) : {};
-      const guess = parsed.ok ? guessTwoWayTests(s.name, parsed.title ?? '', todos) : { doble: null, uni: null };
+      const guess = parsed.ok ? guessTwoWayTests(s.name, parsed.title ?? '', paraAdivinar) : { doble: null, uni: null };
       lista.push({ name: s.name, parsed, links, dobleId: guess.doble?.id ?? '', uniId: guess.uni?.id ?? '', on: parsed.ok && parsed.rows.some((r) => !r.empty) });
     }
     setHojas(lista);

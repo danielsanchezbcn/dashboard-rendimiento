@@ -7,6 +7,7 @@ import { listCatalog } from './catalogo.js';
 import { todayIso, isIsoDay, fmtDay } from './fechas.js';
 import { playerLabel } from './jugadores.js';
 import { parseLoadSheet, loadTests, guessLoadTest, proposeLinks, commitLoads } from './cargas-excel.js';
+import { LOAD_VARIABLE_NAMES } from './isohold.js';
 import { dn } from './nombres.js';
 
 const nf = (n) => Number(n).toLocaleString('es-ES', { maximumFractionDigits: 2 });
@@ -19,17 +20,23 @@ export function ImportarCargas() {
   const [fecha, setFecha] = useState(todayIso());
   const [elegido, setElegido] = useState({}); // `${hoja}|${nombre}` → id de jugador ('' = omitir)
   const [res, setRes] = useState(null);
-  const tests = data ? loadTests(data.cat) : [];
+  // 24/11/2026: esta pestaña lee UNA columna de carga, así que no sirve para los tests cuya carga va por pierna (casi todos los RM desde esa fecha):
+  // esos se importan en «Cargas bilateral y por pierna (Excel)», que lee izquierda y derecha. Se quedan fuera del selector para no ofrecer algo que fallaría.
+  const todosLosTests = data ? loadTests(data.cat) : [];
+  const tests = data ? todosLosTests.filter((t) => data.cat.variables.find((v) => v.testId === t.id && !v.archived && v.kind !== 'derived' && LOAD_VARIABLE_NAMES.includes(v.name))?.sides !== 'LR') : [];
+  const fueraPorPierna = todosLosTests.length - tests.length;
 
   const onFile = (ev) => { const f = ev.target.files?.[0] ?? null; return run(async () => {
     setRes(null); setElegido({}); setHojas(null); setMsg(null);
     if (!f) return;
     const grid = await readFileGrid(f);
+    // El catálogo se lee aquí y no del estado de la pantalla, por si el fichero se elige antes de que termine de cargar (24/11/2026).
+    const paraAdivinar = loadTests(data?.cat ?? (await listCatalog(db)));
     const lista = [];
     for (const s of grid.sheets) {
       const parsed = parseLoadSheet(s.rows);
       const links = parsed.ok ? await proposeLinks(db, parsed.rows.map((r) => r.name)) : {};
-      lista.push({ name: s.name, parsed, links, testId: guessLoadTest(s.name, parsed.title ?? '', tests)?.id ?? '', on: parsed.ok && parsed.rows.some((r) => r.load != null) });
+      lista.push({ name: s.name, parsed, links, testId: guessLoadTest(s.name, parsed.title ?? '', paraAdivinar)?.id ?? '', on: parsed.ok && parsed.rows.some((r) => r.load != null) });
     }
     setHojas(lista);
     if (!lista.some((h) => h.parsed.ok)) throw new Error('Ninguna hoja tiene una columna de carga reconocible («ADDED EXTERNAL LOAD», «EXTERNAL LOAD ADDED» o «Carga externa»).');
@@ -50,7 +57,7 @@ export function ImportarCargas() {
   }, 'Importación terminada.');
 
   return html`<${Card} titulo="Cargas de Iso-Hold / RM desde Excel">
-    <${Desplegable} titulo="Formato del Excel de cargas"><p class="muted">Sube un Excel con los jugadores en una columna y la carga externa (kg) en otra, con cabecera «ADDED EXTERNAL LOAD», «EXTERNAL LOAD ADDED» o «Carga externa». Cada hoja (HIP, KNEE, ANKLE…) se puede asignar a un test. Solo se leen los valores de esa columna, no las fórmulas. El Excel no trae fecha: elige la de la sesión. Se guarda una sesión manual por jugador; MVIC, %PIMA y %BW/%SW se calculan solos.</p><//>
+    <${Desplegable} titulo="Formato del Excel de cargas"><p class="muted">Sube un Excel con los jugadores en una columna y la carga externa (kg) en otra, con cabecera «ADDED EXTERNAL LOAD», «EXTERNAL LOAD ADDED» o «Carga externa». Cada hoja (HIP, KNEE, ANKLE…) se puede asignar a un test. Solo se leen los valores de esa columna, no las fórmulas. El Excel no trae fecha: elige la de la sesión. Se guarda una sesión manual por jugador; MVIC, %PIMA y %BW/%SW se calculan solos.</p>${fueraPorPierna ? html`<p class="muted">${fueraPorPierna} test(s) con la carga por pierna no salen aquí: se importan en la pestaña «Cargas bilateral y por pierna (Excel)», que lee las columnas de izquierda y derecha.</p>` : null}<//>
     <label class="fields"><span class="muted">Fichero</span><input type="file" accept=".xlsx,.csv,.txt" onChange=${onFile} disabled=${busy} /></label>
     <${Msg} msg=${msg} />
     ${hojas ? html`<div class="filters"><label>Fecha de las sesiones <input type="date" value=${fecha} onInput=${(e) => setFecha(e.target.value)} required /></label></div>
