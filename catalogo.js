@@ -32,6 +32,8 @@ export const OPERATIONS = {
   ISO_LOAD_SW: { label: '%SW', unit: '%', operands: 1, system: true, definition: 'carga externa ÷ (factor × masa corporal (kg)) × 100; masa medida más cercana a hoy', params: { factor: SW_FACTOR_DEFAULT } },
   RM_EST: { label: '1RM estimado (kg)', unit: 'kg', operands: 1, system: true, definition: '(carga movilizada + masa corporal) × factor; factor 1,4 para 12RM (coincide con Epley a 12 repeticiones; inferencia no verificada con fuente)', params: { factor: 1.4 } },
   REL_LEVER: { label: 'Relativo a palanca y masa (N·m/kg)', unit: 'N·m/kg', operands: 1, definition: 'fuerza (N) × longitud de pierna / palanca (m) ÷ masa corporal (kg); fórmula del Excel del usuario (9/11/2026)', params: {} },
+  // No lleva «system: true»: es una relación carga/peso corriente, así que se puede usar en cualquier test cuya variable de origen sea una carga en kilos.
+  LOAD_BW: { label: 'Carga relativa al peso (%BW)', unit: '%', operands: 1, definition: 'carga movilizada (kg) ÷ masa corporal (kg) × 100; masa medida más cercana a la fecha de la sesión, o peso de referencia (23/11/2026). A diferencia de %BW del Iso-Hold, no usa la masa más cercana a hoy', params: {} },
   REL_SW: { label: 'Relativo al System Weight (SW)', unit: 'SW', operands: 1, definition: 'fuerza del lado (N) ÷ (factor × masa corporal (kg) × 9,80665); factor por defecto 0,29 (D27)', params: { factor: SW_FACTOR_DEFAULT } },
 };
 

@@ -14,7 +14,7 @@ import { ISO_PAIRS, RM12_TESTS, RM_EST_FACTOR_DEFAULT, pairFactor } from './isoh
 
 import { mismoTest } from './nombres.js';
 
-export const CATALOG_SEED_VERSION = 15;
+export const CATALOG_SEED_VERSION = 16; // 16 (23/11/2026): Leg Press 45° 8RM con carga por pierna en el unilateral y %BW en los dos
 
 const BLOCKS = [
   { key: 'fuerza', name: 'Manifestaciones de la fuerza' },
@@ -103,10 +103,16 @@ const NORDIC_VARIABLES = [
 const RM_TESTS = ['Hamstring Bridge 30 cm 8RM', 'Single-Leg Knee Flexion 8RM', 'Double-Leg Leg Press 45° 8RM', 'Single-Leg Leg Press 45° 8RM', 'RFESS 45° 8RM', 'Single-Leg Standing Calf Raise 12RM', 'Single-Leg Seated Calf Raise 6RM'];
 const LOAD_NOTE = 'Carga que introduces tú, no viene de VALD (D5).';
 const MAX_LOAD = [{ name: 'Carga máxima (kg)', unit: 'kg', sides: 'single', manifestation: HDS, notes: LOAD_NOTE + ' Carga máxima movilizada hasta el momento; sin Personal Average (decidido el 8/11/2026).' }];
+// 23/11/2026 (petición del usuario): el Leg Press 45° 8RM se mide bilateral y por pierna, en sus dos tests de siempre. En el unilateral la carga va POR
+// PIERNA, para que la asimetría salga sola; los dos tests reciben además un «%BW» calculado (ver ensureLegPress).
+export const LEG_PRESS_BILATERAL = 'Double-Leg Leg Press 45° 8RM';
+export const LEG_PRESS_UNILATERAL = 'Single-Leg Leg Press 45° 8RM';
+const MAX_LOAD_LR = [{ name: 'Carga máxima (kg)', unit: 'kg', sides: 'LR', manifestation: HDS, notes: LOAD_NOTE + ' Carga máxima movilizada por pierna hasta el momento; sin Personal Average.' }];
 const HOLD_LOAD = [{ name: 'Carga externa (kg)', unit: 'kg', sides: 'single', manifestation: MAXISO, notes: LOAD_NOTE + ' Carga externa añadida con la que se han trabajado 3 series de 20 s; sin Personal Average.' }];
 const VARIABLES_BY_TEST = {
   'Nordic Hamstring Exercise': NORDIC_VARIABLES,
   ...Object.fromEntries(RM_TESTS.map((n) => [n, MAX_LOAD])),
+  [LEG_PRESS_UNILATERAL]: MAX_LOAD_LR, // va después del reparto anterior: sustituye la carga única por la de cada pierna
   ...Object.fromEntries(Object.keys(ISO_PAIRS).map((n) => [n, HOLD_LOAD])),
   CMJ: CMJ_VARIABLES,
   'SL CMJ': SL_CMJ_VARIABLES,
@@ -217,6 +223,7 @@ async function sembrarCatalogo(db) {
       }
       for (const [test, vars] of Object.entries(VARIABLES_BY_TEST)) for (const x of vars) if (testIds[test]) await addVar(testIds[test], { ...x, manifestationId: x.manifestation ? manId[x.manifestation] : x.manifestationId });
       await ensureDerived(db, ts, counts);
+      await ensureLegPress(db, ts, counts);
       await ensureGroinAnkle(db, ts, counts);
     }
     await ensurePerimeters(db, ts, counts);
@@ -405,6 +412,41 @@ async function ensureGroinAnkle(db, ts, counts) {
 
 // 10/11/2026: Nordic Hamstring Exercise — «Max Force relativo (BW)»: fuerza máxima de cada pierna (N) ÷ (masa corporal × 9,80665), igual que el Peak Force relativo de los Iso-Push.
 // La variable absoluta (N) se conserva (las referencias de la Premier y los umbrales publicados son absolutos). Se muestra primero la relativa. Idempotente, por nombre.
+// Leg Press 45° 8RM (23/11/2026, petición del usuario): medida bilateral y medida por pierna, las dos con su valor relativo al peso del jugador.
+// 1) En el test unilateral la carga pasa a registrarse POR PIERNA. Solo se cambia si NO hay ningún valor guardado: con datos no se puede saber de qué
+//    pierna eran, así que se deja como está y se avisa en el recuento (el usuario decide entonces qué hacer con esas sesiones).
+// 2) Los dos tests reciben «%BW» calculado (LOAD_BW: carga ÷ masa × 100, con la masa más cercana a la fecha de la sesión o el peso de referencia).
+// Idempotente: crea solo lo que falte, por nombre normalizado, así que un test renombrado por el usuario sigue recibiéndolo.
+async function ensureLegPress(db, ts, counts) {
+  const lc = (x) => String(x ?? '').trim().toLowerCase();
+  const tests = await db.tests.toArray();
+  const mans = await db.manifestations.toArray();
+  const manId = mans.find((m) => lc(m.name) === lc(HDS))?.id ?? null;
+  let order = (await db.variables.orderBy('order').last())?.order ?? 0;
+  for (const [nombre, porPierna] of [[LEG_PRESS_BILATERAL, false], [LEG_PRESS_UNILATERAL, true]]) {
+    const t = tests.find((x) => mismoTest(x.name, nombre));
+    if (!t) continue;
+    const vars = await db.variables.where('testId').equals(t.id).toArray();
+    const carga = vars.find((x) => lc(x.name) === lc('Carga máxima (kg)'));
+    if (!carga) continue;
+    if (porPierna && carga.sides !== 'LR') {
+      const sesiones = await db.sessions.where('testId').equals(t.id).toArray();
+      const conDatos = sesiones.some((s) => s.values?.[carga.id] && Object.keys(s.values[carga.id]).length);
+      if (conDatos) counts.legPressCargaConDatos = (counts.legPressCargaConDatos ?? 0) + 1;
+      else { await db.variables.update(carga.id, { sides: 'LR', notes: `${LOAD_NOTE} Carga máxima movilizada por pierna hasta el momento; sin Personal Average.`, updatedAt: ts }); counts.legPressPorPierna = (counts.legPressPorPierna ?? 0) + 1; }
+    }
+    if (vars.some((x) => lc(x.name) === '%bw')) continue;
+    const formula = { op: 'LOAD_BW', operands: [carga.id], params: {}, text: '' };
+    const id = await db.variables.add({
+      testId: t.id, name: '%BW', unit: '%', sides: porPierna ? 'LR' : 'single', direction: 'higher', manifestationId: manId, kind: 'derived', formula, formulaVersion: 1,
+      notes: 'Carga ÷ masa corporal × 100. Masa medida más cercana a la fecha de la sesión, o peso de referencia.', archived: false, order: ++order, createdAt: ts, updatedAt: ts, source: 'inicial',
+    });
+    await db.formulaHistory.add({ variableId: id, version: 1, formula, at: ts, reason: 'Leg Press 45° 8RM relativo al peso (23/11/2026)' });
+    counts.variablesAnadidas = (counts.variablesAnadidas ?? 0) + 1;
+    counts.variables = (counts.variables ?? 0) + (counts.tests !== undefined ? 1 : 0); // al sembrar, el recuento que se informa tiene que cuadrar con la base
+  }
+}
+
 async function ensureNordicRelative(db, ts, counts) {
   const lc = (x) => String(x ?? '').trim().toLowerCase();
   const t = (await db.tests.toArray()).find((x) => lc(x.name) === lc('Nordic Hamstring Exercise'));
@@ -549,6 +591,7 @@ async function migrateCatalog(db, prev) {
     if (depthAlto.length) await audit(db, 'catalogo-direccion-depth', { cantidad: depthAlto.length, de: 'lower', a: 'higher' });
     res.depthAlto = depthAlto.length;
     await ensureDerived(db, ts, res);
+    await ensureLegPress(db, ts, res);
     await ensureGroinAnkle(db, ts, res);
     await ensurePerimeters(db, ts, res);
     await ensureJurdan(db, ts, res);

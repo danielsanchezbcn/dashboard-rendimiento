@@ -22,7 +22,24 @@ export function Angulos({ jugadorId = null }) {
   const [date, setDate] = useState(todayIso());
   const [time, setTime] = useState('');
   const [medida, setMedida] = useState(null); // último mensaje de la herramienta
+  const [pleno, setPleno] = useState(false); // pantalla completa mientras se mide (18/11/2026)
   const { msg, busy, run } = useRunner();
+  // La clase va en <body> porque el marco se superpone a todo. Se quita siempre al salir de la pantalla, para no dejar el dashboard bloqueado.
+  useEffect(() => {
+    document.body.classList.toggle('angulos-pleno', pleno);
+    if (!pleno) return undefined;
+    // Esc tiene que funcionar también con el foco DENTRO de la herramienta (es un marco del mismo origen, así que se le puede escuchar);
+    // si no, pulsar Esc después de tocar la herramienta no haría nada y el único modo de salir sería el botón.
+    const esc = (e) => { if (e.key === 'Escape') setPleno(false); };
+    const doc = marco.current?.contentDocument ?? null;
+    window.addEventListener('keydown', esc);
+    try { doc?.addEventListener('keydown', esc); } catch { /* marco aún no accesible */ }
+    return () => {
+      window.removeEventListener('keydown', esc);
+      try { doc?.removeEventListener('keydown', esc); } catch { /* marco ya descargado */ }
+    };
+  }, [pleno]);
+  useEffect(() => () => document.body.classList.remove('angulos-pleno'), []);
   useEffect(() => {
     const onMsg = (e) => {
       if (e.origin !== location.origin || e.source !== marco.current?.contentWindow || e.data?.type !== 'gfc-angulos') return;
@@ -63,5 +80,7 @@ export function Angulos({ jugadorId = null }) {
         <p class="muted">Carga la foto 1 y la foto 2, comprueba (y arrastra si hace falta) los puntos y elige el jugador. Las fotos no se guardan ni salen de tu navegador: solo se guardan los ángulos, en grados con un decimal. JURDAN RESULTS se calcula igual que en tu Excel (izquierda = Hams izq − Psoas der; derecha = Hams der − Psoas izq). No se sobrescribe nada: si ya hay una sesión de ese jugador, fecha y hora, se avisa. La detección automática de puntos solo funciona si se han añadido los archivos de MediaPipe (ver ANGULOS.md); si no, los puntos se colocan a mano.</p>
       </details>
     <//>
+    <p><button type="button" class="secondary" onClick=${() => setPleno(true)}>Pantalla completa</button> <span class="muted">Cuanto más grande sea el área de trabajo, más precisa es la colocación de los puntos y más nítida la foto que te llevas.</span></p>
+    ${pleno ? html`<button type="button" class="angulos-salir" onClick=${() => setPleno(false)}>Salir de pantalla completa (Esc)</button>` : null}
     <iframe ref=${marco} class="angulos-marco" src="angulos.html" title="Herramienta de medición de ángulos"></iframe>`;
 }

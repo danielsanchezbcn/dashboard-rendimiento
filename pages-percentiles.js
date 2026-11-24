@@ -111,7 +111,11 @@ export function refContext({ refData, test, variable, sides, filters, playerId, 
   const histories = {}; for (const r of records) (histories[r.playerId] ??= []).push(r);
   // El resultado actual se compara con el Personal Average de los demás jugadores (9/11/2026); el Personal Best con sus Personal Best. Ambas piernas juntas.
   const entries = (basis, posId = null) => sides.flatMap((sd) => buildReference({ sessions, variable, side: sd, players: playersById, histories, basis: basis === 'last' ? 'pa' : basis, positionId: posId, from: filters.from, to: filters.to, protocolId: filters.protocolId }));
-  const plRef = isRelative(variable) ? (srcVar ? estimateRelative(findPremier(test, srcVar), relFactor(variable)) : null) : findPremier(test, variable);
+  // La estimación de la referencia Premier convierte newtons a múltiplos del peso: no vale para una carga en kilos relativa al peso (LOAD_BW), que además
+  // no tiene referencia Premier. Se deja en null explícitamente para que un futuro cambio en `findPremier` no produzca una referencia inventada.
+  const plRef = isRelative(variable)
+    ? (variable.formula.op === 'LOAD_BW' || !srcVar ? null : estimateRelative(findPremier(test, srcVar), relFactor(variable)))
+    : findPremier(test, variable);
   const cache = {};
   const ent = (basis, posId) => (cache[basis + ':' + posId] ??= entries(basis, posId));
   const vals = (basis, posId) => ent(basis, posId).filter((e) => e.playerId !== playerId).map((e) => e.value);

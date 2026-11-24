@@ -1,5 +1,5 @@
 {
-"version": "10i-0.3.0",
+"version": "10i-0.6.0",
 "archivos": {
 "alta-manual.js": {
 "bytes": 3994,
@@ -14,8 +14,8 @@
 "sha": "42f8694ae1563f01"
 },
 "angulos-engine.js": {
-"bytes": 22045,
-"sha": "17f9b432a3c194f8"
+"bytes": 23421,
+"sha": "6409662063612492"
 },
 "angulos-exportar.js": {
 "bytes": 7392,
@@ -32,6 +32,14 @@
 "angulos-pruebas-runner.js": {
 "bytes": 5341,
 "sha": "0b445c36c231ec27"
+},
+"angulos-pruebas.css": {
+"bytes": 2825,
+"sha": "848c18d2554c6140"
+},
+"angulos-pruebas.html": {
+"bytes": 1756,
+"sha": "8aa8b1898e6656f1"
 },
 "angulos-registry.js": {
 "bytes": 1174,
@@ -52,6 +60,14 @@
 "angulos-utils.js": {
 "bytes": 5495,
 "sha": "6069f845eecbffb9"
+},
+"angulos.css": {
+"bytes": 7702,
+"sha": "eb8d9843a580e30c"
+},
+"angulos.html": {
+"bytes": 6144,
+"sha": "1b85cd929c49218c"
 },
 "antropometria.js": {
 "bytes": 5799,
@@ -82,16 +98,16 @@
 "sha": "95fde752bb66e04c"
 },
 "cargas-excel.js": {
-"bytes": 5750,
-"sha": "f97918c4dc2e27a8"
+"bytes": 11673,
+"sha": "1233f013fe906d21"
 },
 "catalogo-inicial.js": {
-"bytes": 46109,
-"sha": "c6dc26e6739c8643"
+"bytes": 49952,
+"sha": "49aaf4ac415dc6db"
 },
 "catalogo.js": {
-"bytes": 26263,
-"sha": "120470663c134b5c"
+"bytes": 26734,
+"sha": "959f511eacecd46d"
 },
 "colores.js": {
 "bytes": 1264,
@@ -123,7 +139,7 @@
 },
 "db.js": {
 "bytes": 7185,
-"sha": "7d004631f9c9d98a"
+"sha": "5a8faa15f67e4aa8"
 },
 "dsieur.js": {
 "bytes": 4174,
@@ -182,8 +198,8 @@
 "sha": "f1f21aaa9827ca96"
 },
 "isohold.js": {
-"bytes": 8853,
-"sha": "cb6795c05d2886f7"
+"bytes": 9719,
+"sha": "3b10df8c3c3ab66d"
 },
 "isorack.js": {
 "bytes": 3495,
@@ -226,8 +242,8 @@
 "sha": "ac48ddf5d6f79b7b"
 },
 "pages-angulos.js": {
-"bytes": 5774,
-"sha": "d2b30a255f7efa2e"
+"bytes": 7318,
+"sha": "79785a2f115f85a4"
 },
 "pages-asimetrias.js": {
 "bytes": 10376,
@@ -236,6 +252,10 @@
 "pages-asociaciones.js": {
 "bytes": 12466,
 "sha": "5a3ed4c63a210c68"
+},
+"pages-cargas-dos.js": {
+"bytes": 9534,
+"sha": "8674e2167e73d8d3"
 },
 "pages-cargas.js": {
 "bytes": 7322,
@@ -258,8 +278,8 @@
 "sha": "bfb3cb52b2898d56"
 },
 "pages-evolucion.js": {
-"bytes": 59046,
-"sha": "7cfdecd3544febf4"
+"bytes": 59824,
+"sha": "3d402fb8d042398f"
 },
 "pages-fv.js": {
 "bytes": 22085,
@@ -270,8 +290,8 @@
 "sha": "740c8997e19aea12"
 },
 "pages-importar.js": {
-"bytes": 46047,
-"sha": "e4280a87dea7f3ba"
+"bytes": 46369,
+"sha": "9d00996b1b3b7aaa"
 },
 "pages-isorack.js": {
 "bytes": 5163,
@@ -286,8 +306,8 @@
 "sha": "a6330e46198ad882"
 },
 "pages-percentiles.js": {
-"bytes": 19540,
-"sha": "df5986a15d94f659"
+"bytes": 19891,
+"sha": "1cd91f291cccfa58"
 },
 "pages-radar.js": {
 "bytes": 25662,
@@ -298,8 +318,8 @@
 "sha": "2d1034f464527b78"
 },
 "pages-test.js": {
-"bytes": 28464,
-"sha": "4b353e10599d78ee"
+"bytes": 29405,
+"sha": "598d5486cb73e0bb"
 },
 "pages.js": {
 "bytes": 18001,
@@ -326,8 +346,8 @@
 "sha": "be59fe5f5ed7aadb"
 },
 "relativos.js": {
-"bytes": 5364,
-"sha": "f4fbdce7fa4d66fe"
+"bytes": 6056,
+"sha": "22a654151ea665b9"
 },
 "rutas.js": {
 "bytes": 1155,
@@ -338,8 +358,8 @@
 "sha": "88eb500272001f21"
 },
 "style.css": {
-"bytes": 56390,
-"sha": "5b2d532f276c574f"
+"bytes": 57288,
+"sha": "460560cf5f947a02"
 },
 "targets.js": {
 "bytes": 4652,
@@ -359,6 +379,8 @@
 }
 },
 "soloExisten": [
+"eng.traineddata.gz",
+"pose_landmarker_full.task",
 "vision_bundle.mjs",
 "vision_wasm_internal.js",
 "vision_wasm_internal.wasm",

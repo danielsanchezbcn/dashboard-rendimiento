@@ -416,12 +416,15 @@ function AltaManualCarga({ player, catalog, reload, fixedTest = null }) {
   const { db } = useApp();
   const { msg, busy, run } = useRunner();
   const tests = catalog.tests.filter((t) => (!fixedTest || t.id === fixedTest.id) && !t.archived && catalog.variables.some((v) => v.testId === t.id && !v.archived && v.kind !== 'derived' && LOAD_VARIABLE_NAMES.includes(v.name)));
-  const [f, setF] = useState({ testId: fixedTest ? String(fixedTest.id) : '', date: todayIso(), time: '', load: '' });
+  const [f, setF] = useState({ testId: fixedTest ? String(fixedTest.id) : '', date: todayIso(), time: '', load: '', loadL: '', loadR: '' });
   if (!tests.length) return null;
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  // Hay tests cuya carga se registra por pierna (23/11/2026): entonces el formulario pide izquierda y derecha en vez de un solo valor.
+  const varCarga = catalog.variables.find((v) => v.testId === Number(f.testId) && !v.archived && v.kind !== 'derived' && LOAD_VARIABLE_NAMES.includes(v.name));
+  const porPierna = varCarga?.sides === 'LR';
   const save = run(async () => {
-    await addManualLoad(db, { playerId: player.id, testId: Number(f.testId), date: f.date, time: f.time, load: f.load });
-    setF({ ...f, load: '' }); reload();
+    await addManualLoad(db, { playerId: player.id, testId: Number(f.testId), date: f.date, time: f.time, load: f.load, loadL: f.loadL, loadR: f.loadR });
+    setF({ ...f, load: '', loadL: '', loadR: '' }); reload();
   }, 'Sesión guardada.');
   return html`<${Card} titulo="Alta manual de carga (Iso-Hold y RM)" id="alta-manual">
     <${Desplegable} titulo="Sobre la carga externa"><p class="muted">La carga de estos tests no viene de VALD: escríbela aquí. Se guarda una sesión con la carga (kg); las variables calculadas (MVIC, %PIMA, %BW/%SW, 1RM estimado) se obtienen solas. Si te equivocas, corrígela desde la tabla de sesiones del test.</p><//>
@@ -430,8 +433,11 @@ function AltaManualCarga({ player, catalog, reload, fixedTest = null }) {
       ${fixedTest ? html`<p><strong>${fixedTest.name}</strong></p>` : html`<label>Test <select value=${f.testId} onChange=${set('testId')} required><option value="">Elige…</option>${tests.map((t) => html`<option key=${t.id} value=${t.id}>${dn(t.name)}</option>`)}</select></label>`}
       <label>Fecha <input type="date" value=${f.date} onInput=${set('date')} required /></label>
       <label>Hora (opcional) <input type="time" value=${f.time} onInput=${set('time')} /></label>
-      <label>Carga (kg) <input inputmode="decimal" value=${f.load} onInput=${set('load')} required /></label>
-      <button type="submit" disabled=${busy || !f.testId}>Guardar carga</button>
+      ${porPierna
+        ? html`<label>Carga izquierda (kg) <input inputmode="decimal" value=${f.loadL} onInput=${set('loadL')} /></label>
+          <label>Carga derecha (kg) <input inputmode="decimal" value=${f.loadR} onInput=${set('loadR')} /></label>`
+        : html`<label>Carga (kg) <input inputmode="decimal" value=${f.load} onInput=${set('load')} required /></label>`}
+      <button type="submit" disabled=${busy || !f.testId || (porPierna ? !String(f.loadL).trim() && !String(f.loadR).trim() : !String(f.load).trim())}>Guardar carga</button>
     </form><${Msg} msg=${msg} /><//>`;
 }
 

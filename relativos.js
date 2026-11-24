@@ -8,7 +8,11 @@ import { isIsoDerived, isoHoldValues, rmEstimate } from './isohold.js';
 import { todayIso } from './fechas.js';
 import { SW_FACTOR_DEFAULT } from './catalogo.js';
 
-export const REL_OPS = ['REL_BW', 'REL_SW', 'REL_LEVER'];
+// LOAD_BW (23/11/2026, petición del usuario para el Leg Press 45° 8RM): el origen es una CARGA EN KILOS, no una fuerza en newtons, así que no se divide
+// por g. Carga ÷ masa corporal × 100, con la masa medida más cercana a la FECHA DE LA SESIÓN (o el peso de referencia), que es el criterio general del
+// dashboard. No se confunde con ISO_LOAD_BW, que es el de los iso-hold y usa a propósito la masa más cercana a HOY. Vale para carga única y por pierna.
+export const REL_OPS = ['REL_BW', 'REL_SW', 'REL_LEVER', 'LOAD_BW'];
+export const esCargaRelativa = (v) => v?.formula?.op === 'LOAD_BW';
 export const isRelative = (v) => v?.kind === 'derived' && REL_OPS.includes(v.formula?.op) && v.formula.operands?.length === 1;
 export const isViewable = (v) => !v.archived && (v.kind === 'raw' || isRelative(v) || isIsoDerived(v));
 // ¿Hay datos para mostrar la variable? Una relativa se ofrece si hay dato de origen, aunque falte la masa (entonces se explica por qué no hay valor).
@@ -68,7 +72,11 @@ export function expandRelative(variables, testId, sessions, anthropometry, ctx =
       const lever = r.formula.op === 'REL_LEVER' ? legNearest(byPlayer.get(s.playerId) ?? [], s.date) : null;
       if (r.formula.op === 'REL_LEVER' && !lever) { omitted[r.id]++; continue; }
       const rel = {};
-      for (const k of ['L', 'R', 'S']) if (Number.isFinite(src[k])) rel[k] = lever ? (src[k] * lever.m) / m.kg : src[k] / (f * m.kg * G);
+      for (const k of ['L', 'R', 'S']) {
+        if (!Number.isFinite(src[k])) continue;
+        if (esCargaRelativa(r)) rel[k] = (src[k] / m.kg) * 100; // carga en kg: sin g, y en porcentaje
+        else rel[k] = lever ? (src[k] * lever.m) / m.kg : src[k] / (f * m.kg * G);
+      }
       values ??= { ...s.values };
       values[r.id] = rel;
     }

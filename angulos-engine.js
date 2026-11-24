@@ -59,6 +59,25 @@ function Photo({ key, dropId, fileId, stageInnerId, canvasId, zoomId, zoomCanvas
   zctx.setTransform(ZS, 0, 0, ZS, 0, 0);
   const img = new Image();
   let scale = 1;
+  // Resolucion del lienzo (18/11/2026). El lienzo de pantalla mide lo de siempre, pero AL EXPORTAR se redibuja todo a mas resolucion: misma
+  // composicion, mas pixeles. Misma tecnica que la lupa: el tamano visible se fija en CSS y una transformacion de escala multiplica cada trazo,
+  // cada tipografia y cada caja, asi que la imagen sale identica, solo que nitida. Sin esto el PNG que se descarga o se copia es el lienzo de
+  // pantalla: con una foto de movil de 12 Mpx, unos 0,3 Mpx. Nunca se pasa de la resolucion real de la foto (no tiene sentido inventar pixeles).
+  const EXPORT_LADO_LARGO = 2000;
+  let W = 0, H = 0; // tamano LOGICO del lienzo (lo que se ve y en lo que se dibuja); los pixeles reales son W*q x H*q
+  function escalaLienzo() {
+    const largo = Math.max(W, H);
+    if (!photo.exporting || !largo || !photo.imgW) return 1;
+    return Math.max(1, Math.min(EXPORT_LADO_LARGO / largo, Math.max(photo.imgW, photo.imgH) / largo));
+  }
+  function aplicarLienzo() {
+    const q = escalaLienzo();
+    const w = Math.round(W * q), h = Math.round(H * q);
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px'; // el tamano en pantalla no cambia nunca
+    ctx.setTransform(q, 0, 0, q, 0, 0); // todo el dibujo sigue en coordenadas de pantalla
+  }
   const photo = { key, canvas, points: null, legRole: null, activeSlot: 'A', ready: false, dragging: null, generation: 0, detection: null, adjusted: false, onChange: null };
 
   function notify() { if (photo.onChange) photo.onChange(); }
@@ -104,7 +123,8 @@ function Photo({ key, dropId, fileId, stageInnerId, canvasId, zoomId, zoomCanvas
     const availW = stageEl.clientWidth - 8;
     const availH = stageEl.clientHeight - topEl.offsetHeight - exportH - 10;
     scale = Math.min(availW / photo.imgW, availH / photo.imgH, 1);
-    canvas.width = photo.imgW * scale; canvas.height = photo.imgH * scale;
+    W = photo.imgW * scale; H = photo.imgH * scale;
+    aplicarLienzo();
   }
 
   // Clasificacion INICIAL, una sola vez por carga (tras una deteccion o un fallback correctos). Calcula los DOS estados
@@ -170,8 +190,9 @@ function Photo({ key, dropId, fileId, stageInnerId, canvasId, zoomId, zoomCanvas
 
   photo.render = () => {
     if (!photo.ready) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    aplicarLienzo(); // pantalla o exportacion: fija los pixeles reales del lienzo antes de dibujar
+    ctx.clearRect(0, 0, W, H);
+    ctx.drawImage(img, 0, 0, W, H);
     const legsToDraw = legsPerPhoto() === 1 ? [photo.activeSlot] : ['A', 'B'];
     legsToDraw.forEach(leg => {
       const joints = activeJoints(photo, leg);
@@ -198,7 +219,7 @@ function Photo({ key, dropId, fileId, stageInnerId, canvasId, zoomId, zoomCanvas
       const drawable = angles.filter(a => isValidMeasurement(a.deg)); // una medicion invalida no dibuja etiqueta
       // Las cajas de angulo van FUERA de la pierna (perpendicular al segmento, del lado mas despejado) con una linea guia fina: asi no tapan los segmentos.
       const segs = []; for (let i = 0; i < joints.length - 1; i++) segs.push({ a: toCanvas(joints[i].pt), b: toCanvas(joints[i + 1].pt) });
-      const placed = drawable.map(a => placeLabel(toCanvas(a.p1), toCanvas(a.p2), segs, canvas.width, canvas.height));
+      const placed = drawable.map(a => placeLabel(toCanvas(a.p1), toCanvas(a.p2), segs, W, H));
       const labelPositions = placed.map(p => p.pos);
       const MIN_GAP = 26;
       for (let i = 1; i < labelPositions.length; i++) {
@@ -325,7 +346,7 @@ function Photo({ key, dropId, fileId, stageInnerId, canvasId, zoomId, zoomCanvas
     const pos = getPos(e);
     if (downPos && Math.hypot(pos.x - downPos.x, pos.y - downPos.y) > 4) moved = true;
     if (!photo.dragging) return;
-    const cx = Math.max(0, Math.min(canvas.width, pos.x)), cy = Math.max(0, Math.min(canvas.height, pos.y));
+    const cx = Math.max(0, Math.min(W, pos.x)), cy = Math.max(0, Math.min(H, pos.y));
     const prev = photo.points[photo.dragging.leg][photo.dragging.joint], next = toImage(cx, cy);
     if (next.x !== prev.x || next.y !== prev.y) {
       // El usuario desplaza el landmark: ya no hay confianza de MediaPipe para esa posicion, y la foto pasa a AJUSTADO (persistente).

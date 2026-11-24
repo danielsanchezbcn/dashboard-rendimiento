@@ -109,7 +109,9 @@ export async function pairContext(db, tests, test) {
 // Alta manual de la carga (D5, mejora del 8/11/2026): crea UNA sesión con la variable de carga del test (Carga externa o Carga máxima).
 // Sin repeticiones ni protocolo; origen «manual». Rechaza duplicados exactos de jugador, test, fecha y hora.
 export const LOAD_VARIABLE_NAMES = ['Carga externa (kg)', 'Carga máxima (kg)'];
-export async function addManualLoad(db, { playerId, testId, date, time = '', load }) {
+// 23/11/2026: hay tests cuya carga se registra POR PIERNA (Single-Leg Leg Press 45° 8RM). Si la variable de carga del test es de dos lados, se guardan
+// `loadL` y `loadR` (basta con uno); si es de valor único, se sigue guardando `load` como siempre. Así la asimetría sale sola, sin pedirla aparte.
+export async function addManualLoad(db, { playerId, testId, date, time = '', load, loadL, loadR }) {
   const player = await db.players.get(playerId);
   if (!player) throw new Error('Elige un jugador.');
   const test = await db.tests.get(testId);
@@ -120,12 +122,27 @@ export async function addManualLoad(db, { playerId, testId, date, time = '', loa
   const d = String(date ?? '').trim(); const t = String(time ?? '').trim();
   if (!isIsoDay(d)) throw new Error('La fecha no es válida (AAAA-MM-DD).');
   if (t && !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) throw new Error('La hora no es válida (HH:MM).');
-  const txtLoad = String(load ?? '').trim();
-  const x = typeof load === 'number' ? load : txtLoad === '' ? NaN : Number(txtLoad.replace(',', '.'));
-  if (!Number.isFinite(x) || x < 0 || x > 1000) throw new Error('La carga debe ser un número entre 0 y 1000 kg (0 = sin carga añadida).');
+  const kilos = (raw) => {
+    const txt = String(raw ?? '').trim();
+    if (txt === '') return null;
+    const n = typeof raw === 'number' ? raw : Number(txt.replace(',', '.'));
+    if (!Number.isFinite(n) || n < 0 || n > 1000) throw new Error('La carga debe ser un número entre 0 y 1000 kg (0 = sin carga añadida).');
+    return n;
+  };
+  const porPierna = v.sides === 'LR';
+  let valores;
+  if (porPierna) {
+    const l = kilos(loadL), r = kilos(loadR);
+    if (l === null && r === null) throw new Error('Escribe la carga de al menos una pierna (izquierda o derecha).');
+    valores = { ...(l === null ? {} : { L: l }), ...(r === null ? {} : { R: r }) };
+  } else {
+    const x = kilos(load);
+    if (x === null) throw new Error('La carga debe ser un número entre 0 y 1000 kg (0 = sin carga añadida).');
+    valores = { S: x };
+  }
   const clash = (await db.sessions.where('playerId').equals(playerId).toArray()).find((s) => s.testId === testId && s.date === d && (s.time ?? '') === t);
   if (clash) throw new Error('Ya hay una sesión de ese jugador y test en esa fecha y hora. Corrígela desde su tabla de sesiones.');
-  const id = await db.sessions.add({ playerId, testId, protocolId: null, date: d, time: t, values: { [v.id]: { S: x } }, reps: {}, status: 'valid', excludedReason: '', source: 'manual', createdAt: new Date().toISOString(), ...(player.synthetic ? { synthetic: 1 } : {}) });
+  const id = await db.sessions.add({ playerId, testId, protocolId: null, date: d, time: t, values: { [v.id]: valores }, reps: {}, status: 'valid', excludedReason: '', source: 'manual', createdAt: new Date().toISOString(), ...(player.synthetic ? { synthetic: 1 } : {}) });
   await audit(db, 'sesion-alta-manual', { sessionId: id, playerId, testId, date: d });
   return id;
 }
