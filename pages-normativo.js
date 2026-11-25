@@ -9,7 +9,7 @@ import { isIsoDerived, LOAD_VARIABLE_NAMES } from './isohold.js';
 import { isAsymVariable, asymmetryPct, asimetriaLR, asymText, asymSideLetter, esGrados, usaPanelColumnas } from './catalogo.js';
 import { valorBase, valorPrevio, variacionPct, personalBestFor, fmtVar, rotuloComp, TIP_COMP } from './evolucion.js';
 import { refContext, Banda } from './pages-percentiles.js';
-import { evaluate, buildReference } from './percentiles.js';
+import { evaluate, referenciaPlantilla } from './percentiles.js';
 import { placeAgainstPremier, PREMIER_SEASON } from './premier.js';
 import { findNatera, classifyNatera, NATERA_SOURCE } from './natera.js';
 import { fmtDay } from './fechas.js';
@@ -67,7 +67,7 @@ export function columnasNormativas({ player, test, catalog, sessions, refData, v
   const histories = {}; for (const r of refData.records) (histories[r.playerId] ??= []).push(r);
   // Asimetría absoluta de cada jugador con ambos lados (misma base): cada medida se compara solo consigo misma.
   const asymEntries = (v) => {
-    const side = (sd) => new Map(buildReference({ sessions: refData.sessions, variable: v, side: sd, players: playersById, histories, basis: base === 'last' ? 'pa' : base, positionId, from, to, protocolId: f.protocolId }).map((e) => [e.playerId, e.value]));
+    const side = (sd) => new Map(referenciaPlantilla({ sessions: refData.sessions, variable: v, sides: [sd], players: playersById, histories, basis: base, positionId, from, to, protocolId: f.protocolId, minN }).ref.map((e) => [e.playerId, e.value]));
     const L = side('L'), R = side('R');
     return [...L].filter(([id]) => R.has(id)).map(([playerId, l]) => ({ playerId, value: Math.abs(asymmetryPct(l, R.get(playerId))) })).filter((e) => Number.isFinite(e.value));
   };

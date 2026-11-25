@@ -29,6 +29,9 @@
 <button id="otra">Volver a comprobar</button>
 <h2>Archivos</h2>
 <table id="tfiles"><thead><tr><th>Archivo</th><th>Estado</th><th>Detalle</th></tr></thead><tbody></tbody></table>
+<h2>Archivos grandes (modelo de IA, wasm y datos del OCR)</h2>
+<p class="sub">De estos solo se comprueba que estén y que tengan el tamaño correcto: medir su huella obligaría a descargar unos 19 MB cada vez. Si falta alguno, el dashboard sigue funcionando: se queda sin la función que indica cada fila.</p>
+<table id="tgrandes"><thead><tr><th>Archivo</th><th>Estado</th><th>Detalle</th></tr></thead><tbody></tbody></table>
 <h2>Carga real de la aplicación</h2>
 <table id="tcarga"><thead><tr><th>Módulo</th><th>Estado</th><th>Detalle</th></tr></thead><tbody></tbody></table>
 <h2>Base de datos de este navegador</h2>
@@ -44,6 +47,51 @@ const fila = (tabla, a, estado, clase, detalle) => {
 const sha16 = async (buf) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', buf))].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
 const sinCache = (u) => fetch(u + '?c=' + Date.now(), { cache: 'no-store' });
 
+// Tamaño de un archivo SIN descargarlo (25/11/2026). Es para los archivos grandes (modelo de IA, núcleos wasm, datos del OCR): comprobar su
+// huella obligaría a descargar ~19 MB cada vez que se abre esta página, y los dos fallos reales de una subida por navegador son que el archivo
+// NO esté o que se haya subido a medias; el tamaño los detecta los dos.
+//   1. HEAD: el servidor dice el tamaño y no manda nada de contenido. Es el camino normal y no descarga ni un byte.
+//   2. Si lo envía comprimido, «Content-Length» es el tamaño comprimido y no sirve para comparar: se pide UN byte con «Range» y el servidor
+//      contesta cuántos hay en total, ya sin comprimir («Content-Range: bytes 0-0/9423986»).
+//   3. Si tampoco se puede, se dice que el tamaño no se ha podido comprobar, en vez de dar un error inventado. Nunca se lee el cuerpo de la
+//      respuesta: se cancela, para no descargar el archivo entero.
+const porRango = async (u) => {
+  const r = await fetch(u + '?c=' + Date.now(), { cache: 'no-store', headers: { Range: 'bytes=0-0' } });
+  const m = /\/(\d+)\s*$/.exec(r.headers.get('content-range') ?? '');
+  r.body?.cancel?.();
+  if (!r.ok && r.status !== 206) return { esta: false, status: r.status };
+  return { esta: true, bytes: r.status === 206 && m ? Number(m[1]) : null };
+};
+const tamanoSinDescargar = async (u) => {
+  let r;
+  try { r = await fetch(u + '?c=' + Date.now(), { method: 'HEAD', cache: 'no-store' }); }
+  catch { return porRango(u); }
+  if (r.status === 404 || r.status === 410) return { esta: false, status: r.status };
+  if (!r.ok) return porRango(u); // algunos servidores no admiten HEAD (405)
+  const cl = r.headers.get('content-length');
+  if (cl && !r.headers.get('content-encoding')) return { esta: true, bytes: Number(cl) };
+  return porRango(u); // lo envía comprimido o no dice el tamaño
+};
+
+// Archivos grandes: presencia y tamaño. Ninguno rompe el dashboard si falta —cada uno deja de funcionar una cosa concreta—, así que se
+// avisa en ámbar y se dice qué se pierde, en vez de teñir de rojo toda la comprobación.
+async function comprobarGrandes(man) {
+  const avisos = [];
+  for (const g of man.grandes ?? []) {
+    const porque = g.para ? 'sin él no funciona ' + g.para : '';
+    try {
+      const t = await tamanoSinDescargar(g.a);
+      if (!t.esta) { avisos.push(g.a + ' (no está)'); fila('#tgrandes', g.a, 'NO ESTÁ', 'avi', [porque, 'el servidor responde ' + t.status].filter(Boolean).join(' · ')); continue; }
+      if (t.bytes === null) { fila('#tgrandes', g.a, 'está', 'ok', 'tamaño no comprobable (el servidor no lo dice sin descargarlo)'); continue; }
+      const kb = (n) => Math.round(n / 1024).toLocaleString('es-ES') + ' KB';
+      if (g.bytes == null) fila('#tgrandes', g.a, 'está', 'ok', kb(t.bytes) + ' (solo presencia: no hay tamaño de referencia)');
+      else if (t.bytes === g.bytes) fila('#tgrandes', g.a, 'al día', 'ok', kb(t.bytes));
+      else { avisos.push(g.a + ' (tamaño distinto)'); fila('#tgrandes', g.a, 'TAMAÑO DISTINTO', 'avi', `publicado ${kb(t.bytes)}, debería ser ${kb(g.bytes)}${porque ? ' · ' + porque : ''}`); }
+    } catch (e) { avisos.push(g.a + ' (no se puede leer)'); fila('#tgrandes', g.a, 'NO SE PUEDE LEER', 'avi', [String(e.message || e), porque].filter(Boolean).join(' · ')); }
+  }
+  return avisos;
+}
+
 async function comprobarArchivos(man) {
   const faltan = [], viejos = [];
   for (const [a, esperado] of Object.entries(man.archivos)) {
@@ -55,10 +103,6 @@ async function comprobarArchivos(man) {
       if (h === esperado.sha) fila('#tfiles', a, 'al día', 'ok', Math.round(buf.byteLength / 1024) + ' KB');
       else { viejos.push(a); fila('#tfiles', a, 'DESACTUALIZADO', 'mal', `publicado ${Math.round(buf.byteLength / 1024)} KB, debería ser ${Math.round(esperado.bytes / 1024)} KB`); }
     } catch (e) { faltan.push(a); fila('#tfiles', a, 'NO SE PUEDE LEER', 'mal', String(e.message || e)); }
-  }
-  for (const a of man.soloExisten ?? []) {
-    try { const r = await fetch(a, { method: 'HEAD', cache: 'no-store' }); fila('#tfiles', a, r.ok ? 'está' : 'NO ESTÁ', r.ok ? 'ok' : 'mal', r.ok ? '(archivo grande: solo se comprueba que esté)' : 'El servidor responde ' + r.status); if (!r.ok) faltan.push(a); }
-    catch { faltan.push(a); fila('#tfiles', a, 'NO SE PUEDE LEER', 'mal', ''); }
   }
   return { faltan, viejos };
 }
@@ -108,6 +152,7 @@ async function todo() {
   try { const r = await sinCache('manifiesto.json'); if (!r.ok) throw new Error('responde ' + r.status); man = await r.json(); }
   catch (e) { document.getElementById('resumen').innerHTML = '<strong class="mal">Falta <code>manifiesto.json</code></strong> (' + e.message + '). Súbelo junto a esta página: es la lista de archivos con los que se compara.'; return; }
   const { faltan, viejos } = await comprobarArchivos(man);
+  const avisos = await comprobarGrandes(man);
   const carga = await comprobarCarga();
   await comprobarBase();
   const r = document.getElementById('resumen'); const l = document.getElementById('lista');
@@ -118,8 +163,11 @@ async function todo() {
   } else if (!carga.bien) {
     r.innerHTML = '<strong class="mal">Los archivos están al día, pero alguno falla al cargarse.</strong> Mira el detalle en rojo de «Carga real de la aplicación».';
   } else {
-    r.innerHTML = '<strong class="ok">Todo correcto: los ' + Object.keys(man.archivos).length + ' archivos están al día y la aplicación carga.</strong> Versión publicada: <code>' + (carga.version ?? '?') + '</code> (esperada: <code>' + man.version + '</code>).';
+    r.innerHTML = avisos.length
+      ? '<strong class="ok">Los ' + Object.keys(man.archivos).length + ' archivos de la aplicación están al día y carga.</strong> Versión publicada: <code>' + (carga.version ?? '?') + '</code> (esperada: <code>' + man.version + '</code>).'
+      : '<strong class="ok">Todo correcto: los ' + Object.keys(man.archivos).length + ' archivos están al día y la aplicación carga.</strong> Versión publicada: <code>' + (carga.version ?? '?') + '</code> (esperada: <code>' + man.version + '</code>).';
     if (carga.version && man.version && carga.version !== man.version) r.innerHTML += ' <span class="avi">Ojo: las dos versiones no coinciden.</span>';
+    if (avisos.length) r.innerHTML += '<br><span class="avi">De los archivos grandes hay ' + avisos.length + ' con aviso:</span> ' + pills(avisos) + ' <span class="avi">El dashboard funciona; mira abajo qué función se queda sin ellos.</span>';
   }
 }
 document.getElementById('otra').addEventListener('click', todo);

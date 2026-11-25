@@ -9,7 +9,7 @@ import { compareTest, MODES } from './comparativa.js';
 import { positionOnDate } from './posiciones.js';
 import { buildHash, replaceQuery } from './rutas.js';
 import { getSetting } from './db.js';
-import { MIN_N_DEFAULT, buildReference, evaluate } from './percentiles.js';
+import { MIN_N_DEFAULT, referenciaPlantilla } from './percentiles.js';
 import { CeldaPercentil } from './pages-percentiles.js';
 import { buildCsv } from './exportar.js';
 import { expandRelative, isViewable, isRelative, relFactor, hasData, orderVars, defaultVar, prefiereRsi } from './relativos.js';
@@ -144,10 +144,10 @@ export function VistaTest({ id, query = {} }) {
   const valorPar = (playerId, s) => celdasPar?.get(playerId)?.[s]?.value ?? null;
   // Percentil frente a La Liga (todas las posiciones) en los modos que lo definen: Personal Average, Personal Best y Última sesión.
   const pctOn = mode === 'pa' || mode === 'last' || mode === 'pb';
-  // Referencia ÚNICA con ambos lados juntos (un valor por jugador y lado), igual que en el perfil del jugador (9/11/2026): así el mismo valor da el mismo percentil en las dos pantallas.
-  const pooled = pctOn ? res.sides.flatMap((sd) => buildReference({ sessions, variable, side: sd, players: playersById, histories, basis: mode === 'last' ? 'pa' : mode, protocolId, from: query.from || null, to: query.to || null })) : null;
-  const refs = pctOn ? Object.fromEntries(res.sides.map((sd) => [sd, pooled])) : null;
-  const pctOf = (r, sd) => (refs && r.cells[sd]?.value != null ? evaluate(refs[sd], { playerId: r.playerId, value: r.cells[sd].value, direction: variable.direction, minN }) : null);
+  // Referencia ÚNICA con ambos lados juntos (un valor por jugador y lado), la MISMA función que usa el perfil del jugador (`referenciaPlantilla`, 25/11/2026):
+  // así el mismo valor da el mismo percentil en las dos pantallas, y una sola copia de la regla «Latest se compara con el Personal Average de los demás».
+  const pool = pctOn ? referenciaPlantilla({ sessions, variable, sides: res.sides, players: playersById, histories, basis: mode, protocolId, from: query.from || null, to: query.to || null, minN }) : null;
+  const pctOf = (r, sd) => (pool ? pool.evalDe(r.playerId, r.cells[sd]?.value) : null);
   const unit = variable.unit ? ` ${variable.unit}` : '';
   // Zona de la Premier League (sin interpolar; en medida relativa es una estimación, como en el perfil del jugador).
   const srcVar = isRelative(variable) ? catalog.variables.find((v) => v.id === variable.formula.operands[0]) ?? null : null;

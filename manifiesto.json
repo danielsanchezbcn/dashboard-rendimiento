@@ -1,5 +1,5 @@
 {
-"version": "10i-0.8.0",
+"version": "10i-0.11.0",
 "archivos": {
 "alta-manual.js": {
 "bytes": 3994,
@@ -126,8 +126,8 @@
 "sha": "70ba44a73f3ae3f0"
 },
 "comprobar.html": {
-"bytes": 9425,
-"sha": "d19ec5744bf6101c"
+"bytes": 13363,
+"sha": "d4efd865f84f3c63"
 },
 "context.js": {
 "bytes": 154,
@@ -138,8 +138,8 @@
 "sha": "aff09b24d82f46ca"
 },
 "db.js": {
-"bytes": 7185,
-"sha": "20615f09ab53e4d0"
+"bytes": 7186,
+"sha": "4c2b2787c8ad99c9"
 },
 "dsieur.js": {
 "bytes": 4174,
@@ -270,16 +270,16 @@
 "sha": "1adfc2f3d7610ef5"
 },
 "pages-deficits.js": {
-"bytes": 11554,
-"sha": "6149b272c87a26f9"
+"bytes": 12940,
+"sha": "7c3dac03ef126a5a"
 },
 "pages-dsieur.js": {
 "bytes": 6939,
 "sha": "bfb3cb52b2898d56"
 },
 "pages-evolucion.js": {
-"bytes": 60267,
-"sha": "bb81f435567c7272"
+"bytes": 60242,
+"sha": "d765d96e44ec6b62"
 },
 "pages-fv.js": {
 "bytes": 22085,
@@ -302,12 +302,12 @@
 "sha": "01b2ababa778e5cb"
 },
 "pages-normativo.js": {
-"bytes": 21509,
-"sha": "a6330e46198ad882"
+"bytes": 21507,
+"sha": "7557a657f918242d"
 },
 "pages-percentiles.js": {
-"bytes": 19891,
-"sha": "1cd91f291cccfa58"
+"bytes": 19852,
+"sha": "8c08249033d735a8"
 },
 "pages-radar.js": {
 "bytes": 25662,
@@ -318,16 +318,16 @@
 "sha": "2d1034f464527b78"
 },
 "pages-test.js": {
-"bytes": 31892,
-"sha": "1b4c0637c464078c"
+"bytes": 31803,
+"sha": "93c7a3e97f23bcbe"
 },
 "pages.js": {
 "bytes": 18001,
 "sha": "e675c149c50f707d"
 },
 "percentiles.js": {
-"bytes": 5794,
-"sha": "70e2ac7fee23f5c4"
+"bytes": 6934,
+"sha": "7c229c8985c67980"
 },
 "posiciones.js": {
 "bytes": 8727,
@@ -376,15 +376,24 @@
 "vald.js": {
 "bytes": 25803,
 "sha": "677eec567621bb14"
+},
+"vision_bundle.mjs": {
+"bytes": 136870,
+"sha": "e77f281f9619150d"
+},
+"vision_wasm_internal.js": {
+"bytes": 209826,
+"sha": "9440cf0cc0cea218"
+},
+"vision_wasm_nosimd_internal.js": {
+"bytes": 209735,
+"sha": "abe9b6fbeaf86fcb"
 }
 },
-"soloExisten": [
-"eng.traineddata.gz",
-"pose_landmarker_full.task",
-"vision_bundle.mjs",
-"vision_wasm_internal.js",
-"vision_wasm_internal.wasm",
-"vision_wasm_nosimd_internal.js",
-"vision_wasm_nosimd_internal.wasm"
+"grandes": [
+{"a":"pose_landmarker_full.task","bytes":null,"para":"la detección automática de puntos en las fotos (Jurdan y AKET)"},
+{"a":"vision_wasm_internal.wasm","bytes":9423986,"para":"la detección automática de puntos"},
+{"a":"vision_wasm_nosimd_internal.wasm","bytes":9294247,"para":"la detección automática en navegadores sin SIMD"},
+{"a":"eng.traineddata.gz","bytes":2952873,"para":"el OCR de las fotos de antropometría"}
 ]
 }

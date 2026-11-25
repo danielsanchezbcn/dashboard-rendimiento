@@ -26,24 +26,31 @@ const LADO = { L: 'Izquierda', R: 'Derecha', S: '' };
 
 // Déficits de un jugador: una fila por variable y lado cuyo percentil de rendimiento de La Liga sea ≤ umbral, más las asimetrías con percentil bajo
 // (en asimetría, percentil bajo = asimetría grande). Lógica pura sobre lo ya calculado: no vuelve a decidir cómo se calcula un percentil.
-export function deficitsDeTest({ player, test, catalog, refData, base, positionId, umbral }) {
+// 25/11/2026 (fallo encontrado por el usuario): este bloque compara SIEMPRE contra toda La Liga, nunca contra la posición del jugador. Antes recibía la
+// posición principal del jugador y se la pasaba a `columnasNormativas`, que entonces calculaba el percentil solo entre los de su posición. En los tests
+// que pocos jugadores han hecho, esa muestra no llega al mínimo y la variable desaparecía de la lista **sin decir nada**, aunque su percentil de La Liga
+// fuera 9. Además contradecía lo que dice la propia tarjeta («el mismo percentil que Normative Benchmarking») y la decisión 121. Ya no se pasa posición.
+export function deficitsDeTest({ player, test, catalog, refData, base, umbral }) {
   const mias = refData.sessions.filter((s) => s.playerId === player.id);
-  if (!mias.length) return [];
+  if (!mias.length) return { filas: [], sinMuestra: [] };
   const candidatas = catalog.variables.filter((v) => v.testId === test.id && isViewable(v) && hasData(v, mias) && !isAsymVariable(v) && !variableExcluidaDeDeficits(v));
   // Si una variable tiene su versión relativa al peso con datos (Peak Force → Peak Force relativo, Max Force → Max Force relativo), se lista solo la
   // relativa: es la que permite comparar entre jugadores, y las dos juntas serían el mismo déficit contado dos veces (12/11/2026).
   const conRelativa = new Set(candidatas.filter((v) => isRelative(v)).map((v) => v.formula.operands[0]));
   const vars = ordenIsoHold(orderVars(candidatas.filter((v) => !conRelativa.has(v.id))));
-  if (!vars.length) return [];
-  const cols = columnasNormativas({ player, test, catalog, sessions: mias, refData, vars, base, f: {}, positionId });
-  const out = [];
+  if (!vars.length) return { filas: [], sinMuestra: [] };
+  const cols = columnasNormativas({ player, test, catalog, sessions: mias, refData, vars, base, f: {}, positionId: null });
+  const out = []; const sinMuestra = [];
   // Asimetría de la última sesión y de la anterior, para poder compararlas (la asimetría ya es un %, así que su cambio se da en PUNTOS porcentuales).
   const asimDe = (c, campo) => { const L = c.lado.L?.[campo], R = c.lado.R?.[campo]; return L && R ? asimetriaLR(c.v, L.value, R.value) : null; };
   for (const c of cols) {
     for (const sd of c.sides) {
       const l = c.lado[sd], ev = l?.ev;
       // Sin dirección «mejor/peor» el percentil solo dice dónde cae en La Liga, no si es un déficit: esas variables no entran.
-      if (!l?.x || !ev || !ev.sufficient || ev.band === null || ev.positional || ev.percentilePerf > umbral) continue;
+      if (!l?.x || !ev) continue;
+      // Lo que no se puede evaluar se anota para decirlo en pantalla, en vez de desaparecer sin más (25/11/2026).
+      if (!ev.sufficient) { sinMuestra.push({ test, variable: c.v, side: sd, n: ev.n, minN: ev.minN, razon: ev.reason ?? '' }); continue; }
+      if (ev.band === null || ev.positional || ev.percentilePerf > umbral) continue;
       // La misma comparación que muestra Normative Benchmarking para esa base: viene ya calculada en `columnasNormativas`, no se recalcula aquí.
       out.push({ tipo: 'valor', test, variable: c.v, side: sd, value: l.x.value, date: l.x.date, from: l.x.from ?? l.x.date, unit: c.v.unit ?? '', ev, vari: l.vari ?? null, variPuntos: null });
     }
@@ -53,10 +60,10 @@ export function deficitsDeTest({ player, test, catalog, refData, base, positionI
       out.push({ tipo: 'asimetria', test, variable: c.v, side: null, value: Math.abs(c.asim), date: c.lado.L?.x?.date ?? null, unit: '%', ev: c.evAsim, vari: null, variPuntos });
     }
   }
-  return out;
+  return { filas: out, sinMuestra };
 }
 
-export function Deficits({ player, positionId = null }) {
+export function Deficits({ player }) {
   const { db, version } = useApp();
   const [base, setBase] = useState('last');
   const [umbral, setUmbral] = useState(35);
@@ -82,7 +89,9 @@ export function Deficits({ player, positionId = null }) {
   if (!data) return html`<p>Calculando déficits…</p>`;
   const { catalog, refs, minN } = data;
   const u = Number.isFinite(Number(umbral)) ? Math.min(99, Math.max(1, Number(umbral))) : 35;
-  const filas = refs.flatMap(([test, refData]) => deficitsDeTest({ player, test, catalog, refData, base, positionId, umbral: u }));
+  const porTest = refs.map(([test, refData]) => deficitsDeTest({ player, test, catalog, refData, base, umbral: u }));
+  const filas = porTest.flatMap((x) => x.filas);
+  const sinMuestra = porTest.flatMap((x) => x.sinMuestra);
   // Agrupado por test y variable (16/11/2026, pedido del usuario): si la misma variable aparece repetida (izquierda, derecha y asimetría), sus filas
   // van juntas en lugar de desperdigarse por la lista. Los grupos siguen ordenados por su percentil más bajo, así que lo peor sigue arriba del todo.
   const ordenLado = (f) => (f.tipo === 'asimetria' ? 2 : f.side === 'L' ? 0 : f.side === 'R' ? 1 : 3);
@@ -115,6 +124,7 @@ export function Deficits({ player, positionId = null }) {
           <td>${f.date ? (f.from && f.from !== f.date ? `${fmtDay(f.from)} – ${fmtDay(f.date)}` : fmtDay(f.date)) : '—'}</td>
         </tr>`))}</tbody></table></div>`}
     <${Desplegable} titulo="Qué entra en esta lista y qué no">
+      ${sinMuestra.length ? html`<p class="muted">${sinMuestra.length} variable(s) no se han podido evaluar por muestra insuficiente y no entran en la lista: ${sinMuestra.map((x) => `${dn(x.test.name)} · ${dn(x.variable.name)}${x.side === 'S' ? '' : ` (${LADO[x.side]})`} (N = ${x.n}, mínimo ${x.minN})`).join(' · ')}.</p>` : null}
       <p class="muted">Se recorre cada test con datos del jugador y cada una de sus variables visibles, con el valor de la base elegida (Latest, Personal Average o Personal Best) y el mismo percentil de La Liga que muestra el cuadro «Normative Benchmarking» de ese test: es la misma función de cálculo, no una copia.</p>
       <p class="muted">La columna «${rotuloComp(base)}» es la misma comparación que muestra el cuadro «Normative Benchmarking»: el valor de la última sesión frente a la base elegida y, con «Latest», frente a la sesión válida anterior. En las filas de asimetría el cambio va en puntos porcentuales (p.p.), porque la asimetría ya es un porcentaje.</p>
       <p class="muted">Las filas del mismo test y variable van juntas, con la izquierda, la derecha y la asimetría seguidas; los grupos se ordenan por su percentil más bajo, así que lo peor sigue arriba. Se listan las variables por lado (cada pierna por separado) y, además, las asimetrías: en ellas un percentil bajo significa una asimetría grande comparada con la de los demás jugadores.</p>

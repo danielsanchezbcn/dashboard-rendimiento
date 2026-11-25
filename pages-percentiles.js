@@ -13,7 +13,7 @@ import { findNatera } from './natera.js';
 import { listPositions } from './posiciones.js';
 import { asymmetryPct, asymText } from './catalogo.js';
 import { asimClase } from './asim-ui.js';
-import { BANDS, MIN_N_DEFAULT, buildReference, evaluate, playerValue, perfQuantile } from './percentiles.js';
+import { BANDS, MIN_N_DEFAULT, referenciaPlantilla, evaluate, playerValue, perfQuantile } from './percentiles.js';
 import { PAL, colorLado } from './colores.js';
 import { isRelative, relFactor } from './relativos.js';
 import { Copiable } from './copiar.js';
@@ -110,7 +110,7 @@ export function refContext({ refData, test, variable, sides, filters, playerId, 
   const playersById = Object.fromEntries(players.map((p) => [p.id, p]));
   const histories = {}; for (const r of records) (histories[r.playerId] ??= []).push(r);
   // El resultado actual se compara con el Personal Average de los demás jugadores (9/11/2026); el Personal Best con sus Personal Best. Ambas piernas juntas.
-  const entries = (basis, posId = null) => sides.flatMap((sd) => buildReference({ sessions, variable, side: sd, players: playersById, histories, basis: basis === 'last' ? 'pa' : basis, positionId: posId, from: filters.from, to: filters.to, protocolId: filters.protocolId }));
+  const entries = (basis, posId = null) => referenciaPlantilla({ sessions, variable, sides, players: playersById, histories, basis, positionId: posId, from: filters.from, to: filters.to, protocolId: filters.protocolId, minN }).ref;
   // La estimación de la referencia Premier convierte newtons a múltiplos del peso: no vale para una carga en kilos relativa al peso (LOAD_BW), que además
   // no tiene referencia Premier. Se deja en null explícitamente para que un futuro cambio en `findPremier` no produzca una referencia inventada.
   const plRef = isRelative(variable)

@@ -72,6 +72,15 @@ export function buildReference({ sessions, variable, side, players, histories = 
   return entries;
 }
 
+// Referencia de plantilla con los DOS lados juntos y la traducción de base en un solo sitio (25/11/2026). La usan `refContext` (perfil del jugador:
+// Normative Benchmarking, escala y cursores) y la tabla de «ver todos los jugadores en este test». Antes cada pantalla repetía estas dos líneas, incluida
+// la regla «Latest se compara con el Personal Average de los demás»: si una de las dos copias cambiaba, el mismo valor daba percentiles distintos según
+// la pantalla, que es exactamente el tipo de fallo del bloque Déficits. `evalDe` evalúa por jugador (cada uno fuera de su propia referencia, D28a).
+export function referenciaPlantilla({ sessions, variable, sides, players, histories = {}, basis = 'pa', positionId = null, from = null, to = null, protocolId, minN = MIN_N_DEFAULT }) {
+  const ref = sides.flatMap((sd) => buildReference({ sessions, variable, side: sd, players, histories, basis: basis === 'last' ? 'pa' : basis, positionId, from, to, protocolId }));
+  return { ref, evalDe: (playerId, value) => (Number.isFinite(value) ? evaluate(ref, { playerId, value, direction: variable.direction, minN }) : null) };
+}
+
 // Evalúa un valor frente a la referencia SIN el jugador evaluado (D28a).
 export function evaluate(entries, { playerId, value, direction, minN = MIN_N_DEFAULT }) {
   const ref = entries.filter((e) => e.playerId !== playerId).map((e) => e.value);
