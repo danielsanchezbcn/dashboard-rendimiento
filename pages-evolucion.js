@@ -4,7 +4,7 @@ import { html, useState, useEffect, useRef, Chart } from './libs.js';
 import { useApp } from './context.js';
 import { Card, Desplegable, Msg, useLoad, useRunner, agruparFiltros, SelectorVariable } from './componentes.js';
 import { fmtDay, todayIso } from './fechas.js';
-import { addManualLoad, LOAD_VARIABLE_NAMES } from './isohold.js';
+import { addManualLoad, LOAD_VARIABLE_NAMES, RM_MISMA_CARGA } from './isohold.js';
 import { addManualSession, admiteAltaManual, variablesAltaManual } from './alta-manual.js';
 import { listCatalog, SIDES } from './catalogo.js';
 import { replaceQuery, buildHash } from './rutas.js';
@@ -422,6 +422,9 @@ function AltaManualCarga({ player, catalog, reload, fixedTest = null }) {
   // Hay tests cuya carga se registra por pierna (23/11/2026): entonces el formulario pide izquierda y derecha en vez de un solo valor.
   const varCarga = catalog.variables.find((v) => v.testId === Number(f.testId) && !v.archived && v.kind !== 'derived' && LOAD_VARIABLE_NAMES.includes(v.name));
   const porPierna = varCarga?.sides === 'LR';
+  // En los calf raise la carga es la misma en las dos piernas, así que basta con escribir una (25/11/2026).
+  const testSel = tests.find((x) => x.id === Number(f.testId));
+  const espejo = porPierna && testSel && RM_MISMA_CARGA.some((n) => mismoTest(n, testSel.name));
   const save = run(async () => {
     await addManualLoad(db, { playerId: player.id, testId: Number(f.testId), date: f.date, time: f.time, load: f.load, loadL: f.loadL, loadR: f.loadR });
     setF({ ...f, load: '', loadL: '', loadR: '' }); reload();
@@ -438,6 +441,7 @@ function AltaManualCarga({ player, catalog, reload, fixedTest = null }) {
           <label>Carga derecha (kg) <input inputmode="decimal" value=${f.loadR} onInput=${set('loadR')} /></label>`
         : html`<label>Carga (kg) <input inputmode="decimal" value=${f.load} onInput=${set('load')} required /></label>`}
       <button type="submit" disabled=${busy || !f.testId || (porPierna ? !String(f.loadL).trim() && !String(f.loadR).trim() : !String(f.load).trim())}>Guardar carga</button>
+      ${espejo ? html`<p class="muted">En este test la carga es la misma en las dos piernas: si escribes solo una, se guarda igual en la otra.</p>` : null}
     </form><${Msg} msg=${msg} /><//>`;
 }
 

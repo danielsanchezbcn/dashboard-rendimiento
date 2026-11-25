@@ -71,7 +71,7 @@ export function ImportarCargasDos() {
   return html`<${Card} titulo="Cargas bilateral y por pierna desde Excel">
     <${Desplegable} titulo="Formato del Excel">
       <p class="muted">Para los libros que llevan en la misma hoja la medida de las dos piernas juntas y la de cada pierna, como el de Leg Press 45° 8RM. En la fila de cabecera hacen falta «DOUBLE LEG» (o «BILATERAL») y/o «IZQUIERDA» y «DERECHA» (también valen «LEFT» y «RIGHT»); los nombres de los jugadores, en una de las tres primeras columnas.</p>
-      <p class="muted">Las columnas de <strong>relativo al peso</strong> y de <strong>asimetría</strong> no se leen: las calcula el dashboard a partir de la carga y de la masa corporal más cercana a la fecha de la sesión (o del peso de referencia). La columna de peso del libro tampoco se importa. Cada hoja crea una sesión en el test bilateral y otra en el de por pierna, solo donde haya dato.</p>
+      <p class="muted">Las columnas de <strong>relativo al peso</strong> y de <strong>asimetría</strong> no se leen: las calcula el dashboard a partir de la carga y de la masa corporal más cercana a la fecha de la sesión (o del peso de referencia). La columna de peso del libro tampoco se importa. Cada hoja crea una sesión en el test bilateral y otra en el de por pierna, solo donde haya dato. En los dos calf raise, donde la carga es la misma en las dos piernas, aportar un solo lado guarda ese valor en los dos.</p>
     <//>
     <label class="fields"><span class="muted">Fichero</span><input type="file" accept=".xlsx,.csv,.txt" onChange=${onFile} disabled=${busy} /></label>
     <${Msg} msg=${msg} />

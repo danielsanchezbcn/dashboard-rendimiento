@@ -10,11 +10,11 @@
 
 import { audit } from './db.js';
 import { SW_FACTOR_DEFAULT, testUsage, PERFILES_POR_DEFECTO, pbCriterionOf, sinAsimetriaPorDefecto } from './catalogo.js';
-import { ISO_PAIRS, RM12_TESTS, RM_EST_FACTOR_DEFAULT, pairFactor } from './isohold.js';
+import { ISO_PAIRS, RM_EST_TESTS, pairFactor } from './isohold.js';
 
 import { mismoTest } from './nombres.js';
 
-export const CATALOG_SEED_VERSION = 17; // 17 (24/11/2026): todos los RM con la misma estructura (carga por pierna salvo el Double-Leg Leg Press, y %BW)
+export const CATALOG_SEED_VERSION = 18; // 18 (25/11/2026): 1RM estimado también en el Seated Calf Raise 6RM, con su propio factor de masa corporal
 
 const BLOCKS = [
   { key: 'fuerza', name: 'Manifestaciones de la fuerza' },
@@ -371,7 +371,8 @@ async function ensureDerived(db, ts, counts) {
     // de decenas de kilos con el 5 % de la masa corporal. Con el peso corporal como referencia los cuatro iso-hold se leen y se comparan igual.
     await make(hold, 'Carga externa (kg)', '%BW', 'ISO_LOAD_BW', MAXISO, {}, 'Carga externa ÷ masa corporal; masa medida más cercana a hoy.');
   }
-  for (const n of RM12_TESTS) { const t = tByName(n); if (t) await make(t, 'Carga máxima (kg)', '1RM estimado (kg)', 'RM_EST', HDS, { factor: RM_EST_FACTOR_DEFAULT }, '(carga + masa corporal) × 1,4, solo en 12RM. Estimado, no medido. 1,4 coincide con Epley a 12 repeticiones (inferencia no verificada con fuente).'); }
+  // Cada test con 1RM estimado trae sus propios parámetros (25/11/2026): de pie participa toda la masa corporal y sentado solo el 5 %.
+  for (const e of RM_EST_TESTS) { const t = tByName(e.test); if (t) await make(t, 'Carga máxima (kg)', '1RM estimado (kg)', 'RM_EST', HDS, { factor: e.factor, massFactor: e.massFactor }, e.nota); }
 }
 
 

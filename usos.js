@@ -7,7 +7,7 @@ import { TESTS_RELACIONES, DSI_TESTS, EUR_TESTS, ANKLE_TESTS, HIP_TESTS, DJ_TEST
 import { RADAR_PROFILES } from './radar.js';
 import { NATERA } from './natera.js';
 import { PREMIER_REFERENCES } from './premier.js';
-import { ISO_PAIRS, RM12_TESTS } from './isohold.js';
+import { ISO_PAIRS, RM_EST_TESTS } from './isohold.js';
 import { CUALIDADES, T as CT } from './composite.js';
 
 const lc = (s) => String(s ?? '').trim().toLowerCase();
@@ -25,7 +25,7 @@ export function inventarioNombres() {
   for (const n of NATERA) add('referencias de Natera', n.test);
   for (const r of PREMIER_REFERENCES) for (const t of r.tests) add('referencias de la Premier League', t, r.variable);
   for (const [hold, push] of Object.entries(ISO_PAIRS)) { add('emparejamiento iso-hold / iso-push', hold); add('emparejamiento iso-hold / iso-push', push); }
-  for (const n of RM12_TESTS) add('estimación de 1RM', n);
+  for (const e of RM_EST_TESTS) add('estimación de 1RM', e.test);
   for (const c of CUALIDADES) {
     const mete = (d) => {
       if (d && !d.tipo) { if (d.orz) { add('COMPOSITE PROFILE SCORE', CT.dj30, d.variable); add('COMPOSITE PROFILE SCORE', CT.dj45, d.variable); } else add('COMPOSITE PROFILE SCORE', d.test, d.variable); }

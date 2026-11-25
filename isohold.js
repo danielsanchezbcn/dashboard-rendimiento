@@ -21,8 +21,17 @@ export const ISO_PAIRS = {
 export const normIsoName = normTestName;
 const PAIRS_LC = Object.fromEntries(Object.entries(ISO_PAIRS).map(([k, v]) => [normIsoName(k), v]));
 export const pairNameOf = (name) => PAIRS_LC[normIsoName(name)] ?? null;
-export const RM12_TESTS = ['Single-Leg Standing Calf Raise 12RM'];
+// Tests con 1RM estimado y sus parámetros: (carga + massFactor × masa corporal) × factor. `massFactor` es la parte de la masa corporal que mueve el
+// ejercicio: 1 de pie (levantas todo el cuerpo) y 0,05 sentado, donde el peso del tronco descansa en el asiento (criterio del usuario, 25/11/2026).
+// Los dos factores y el 0,05 los ha fijado el usuario; no proceden de una fuente aportada.
+export const RM_EST_TESTS = [
+  { test: 'Single-Leg Standing Calf Raise 12RM', factor: 1.4, massFactor: 1, nota: '(carga + masa corporal) × 1,4. Estimado, no medido. 1,4 coincide con Epley a 12 repeticiones (inferencia no verificada con fuente).' },
+  { test: 'Single-Leg Seated Calf Raise 6RM', factor: 1.2, massFactor: 0.05, nota: '(carga + 5 % de la masa corporal) × 1,2. Estimado, no medido. Sentado, el tronco descansa en el asiento: solo una parte pequeña de la masa corporal participa (criterio del usuario del 25/11/2026).' },
+];
 export const RM_EST_FACTOR_DEFAULT = 1.4; // coincide con Epley a 12 repeticiones (1 + 12/30); es una inferencia, no una fuente aportada
+// Tests en los que la carga de UNA pierna se aplica a las dos (25/11/2026, petición del usuario): se cargan igual en los dos lados, así que aportar un
+// solo lado significa «lo mismo en el otro». Solo se copia cuando falta el otro lado; si se aportan los dos, se respetan tal cual.
+export const RM_MISMA_CARGA = ['Single-Leg Standing Calf Raise 12RM', 'Single-Leg Seated Calf Raise 6RM'];
 export const ISO_OPS = ['ISO_MVIC', 'ISO_PIMA', 'ISO_LOAD_BW', 'ISO_LOAD_SW', 'RM_EST'];
 export const isIsoDerived = (v) => v?.kind === 'derived' && ISO_OPS.includes(v.formula?.op) && v.formula.operands?.length === 1;
 const lc = (s) => String(s ?? '').trim().toLowerCase();
@@ -97,8 +106,9 @@ export function rmEstimate(v, session, anthropometry) {
   if (!lados.length) return undefined;
   const m = massNearest(anthropometry.filter((a) => a.playerId === session.playerId), session.date);
   const f = Number(v.formula.params?.factor ?? RM_EST_FACTOR_DEFAULT);
-  if (!m || !(f > 0)) return null;
-  return Object.fromEntries(lados.map((k) => [k, (src[k] + m.kg) * f]));
+  const fm = Number(v.formula.params?.massFactor ?? 1); // parte de la masa corporal que participa: 1 de pie, 0,05 sentado
+  if (!m || !(f > 0) || !(fm >= 0)) return null;
+  return Object.fromEntries(lados.map((k) => [k, (src[k] + fm * m.kg) * f]));
 }
 
 // Contexto para calcular las variables del Iso-Hold de un test: los tests del catálogo y las sesiones del Iso-Push emparejado (si el test es un Iso-Hold).
@@ -138,6 +148,8 @@ export async function addManualLoad(db, { playerId, testId, date, time = '', loa
     const l = kilos(loadL), r = kilos(loadR);
     if (l === null && r === null) throw new Error('Escribe la carga de al menos una pierna (izquierda o derecha).');
     valores = { ...(l === null ? {} : { L: l }), ...(r === null ? {} : { R: r }) };
+    // En los tests que se cargan igual en las dos piernas, aportar un solo lado significa «lo mismo en el otro» (25/11/2026).
+    if (RM_MISMA_CARGA.some((n) => mismoTest(n, test.name)) && (l === null || r === null)) { const u = l === null ? r : l; valores = { L: u, R: u }; }
   } else {
     const x = kilos(load);
     if (x === null) throw new Error('La carga debe ser un número entre 0 y 1000 kg (0 = sin carga añadida).');
