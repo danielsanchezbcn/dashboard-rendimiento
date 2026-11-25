@@ -122,6 +122,13 @@ export async function pairContext(db, tests, test) {
 // Alta manual de la carga (D5, mejora del 8/11/2026): crea UNA sesión con la variable de carga del test (Carga externa o Carga máxima).
 // Sin repeticiones ni protocolo; origen «manual». Rechaza duplicados exactos de jugador, test, fecha y hora.
 export const LOAD_VARIABLE_NAMES = ['Carga externa (kg)', 'Carga máxima (kg)'];
+// Tests cuya medida es una CARGA EXTERNA que introduce el usuario: los iso-hold y todos los RM. Se reconocen por su estructura —tienen una variable de
+// carga medida—, no por una lista de nombres, así que cualquier test de carga que se añada en el futuro entra solo. En «Déficits» de estos tests solo se
+// lista el %BW (petición del usuario, 25/11/2026): los kilos no se pueden comparar entre jugadores de distinto tamaño, y el MVIC iso-push, el %PIMA y el
+// 1RM estimado salen de esa misma carga, de modo que repetirían el mismo déficit con otro nombre.
+export const LOAD_BW_OPS = ['LOAD_BW', 'ISO_LOAD_BW'];
+export const esPorcentajeBW = (v) => v?.kind === 'derived' && LOAD_BW_OPS.includes(v?.formula?.op);
+export const esTestDeCarga = (testId, variables) => variables.some((v) => v.testId === testId && !v.archived && v.kind !== 'derived' && LOAD_VARIABLE_NAMES.includes(v.name));
 // 23/11/2026: hay tests cuya carga se registra POR PIERNA (Single-Leg Leg Press 45° 8RM). Si la variable de carga del test es de dos lados, se guardan
 // `loadL` y `loadR` (basta con uno); si es de valor único, se sigue guardando `load` como siempre. Así la asimetría sale sola, sin pedirla aparte.
 export async function addManualLoad(db, { playerId, testId, date, time = '', load, loadL, loadR }) {

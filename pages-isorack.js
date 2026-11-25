@@ -3,7 +3,7 @@
 // La altura del jugador no se escribe aquí: la pone el sistema con la medición de altura más reciente de su antropometría.
 import { html, useState } from './libs.js';
 import { useApp } from './context.js';
-import { useLoad, Msg, useRunner } from './componentes.js';
+import { useLoad, Msg, useRunner, Desplegable } from './componentes.js';
 import { playerLabel, baseName } from './jugadores.js';
 import { fmtDay } from './fechas.js';
 import { ISO_RACK_TESTS, CALZADO, listIsoRack, setIsoRack, alturaDe, vacio } from './isorack.js';
@@ -46,8 +46,10 @@ export function ConfiguracionIsoRack() {
   };
 
   return html`<h2 class="page-title">Configuración ISO-rack</h2>
-    <p class="muted">A qué altura se configura el rack para cada iso-push y si el test se hace descalzo o con zapatillas. Es un dato permanente, no una medición: no lleva fecha ni historial, y cada cambio sustituye a lo anterior. Se guarda solo al salir de la casilla.</p>
-    <p class="muted">La altura del rack se escribe tal cual la uses (un número de agujero, centímetros…): el dashboard no le supone ninguna unidad ni la usa en ningún cálculo. La altura del jugador la pone el sistema con su medición de altura más reciente, que se edita en la ficha del jugador.</p>
+    <${Desplegable} titulo="Qué se guarda aquí">
+      <p class="muted">A qué altura se configura el rack para cada iso-push y si el test se hace descalzo o con zapatillas. Es un dato permanente, no una medición: no lleva fecha ni historial, y cada cambio sustituye a lo anterior. Se guarda solo al salir de la casilla.</p>
+      <p class="muted">La altura del rack se escribe tal cual la uses (un número de agujero, centímetros…): el dashboard no le supone ninguna unidad ni la usa en ningún cálculo. La altura del jugador la pone el sistema con su medición de altura más reciente, que se edita en la ficha del jugador.</p>
+    <//>
     <${Msg} msg=${msg} />
     ${lista.length === 0 ? html`<p class="muted">Todavía no hay jugadores.</p>` : html`<div class="table-wrap"><table class="isorack">
       <thead><tr><th scope="col">Jugador</th><th scope="col">Altura del jugador</th>${ISO_RACK_TESTS.map((t) => html`<th scope="col" key=${t.key}>${t.label}</th>`)}</tr></thead>

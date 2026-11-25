@@ -1,4 +1,4 @@
-// vald.js — importador de exportaciones CSV de VALD ForceDecks (fase 4). Perfiles: Iso-Push (Hip, Knee, Ankle), Supine 90°/90°,
+// vald.js — importador de exportaciones CSV de VALD ForceDecks (fase 4). Perfiles: Iso-Push (Hip, Knee, Ankle), Supine 90°/90°, Standing 90°/20°,
 // Seated Calf Raise, CMJ, SL CMJ, Squat Jump, Hop Test y Drop Jump (30 y 45 cm).
 //
 // Decisiones (D29 a D32 y D37, 7/11/2026):
@@ -78,6 +78,10 @@ export const VALD_PROFILES = {
   'Run-Specific Knee Iso-Push': { mode: 'LR', cols: ISO },
   'Run-Specific Ankle Iso-Push': { mode: 'LR', cols: ISO },
   'Supine Isometric 90°/90° Leg Curl Test': { mode: 'LR', cols: ISO },
+  // 25/11/2026: isométrico de isquios de pie 90°/20° (código SLHNTI). Mismas columnas que el 90°/90°. No se importan ni «Peak Vertical Force / BM»
+  // —VALD la divide por un «BW [KG]» de 7 a 12 kg que no es la masa corporal: el relativo lo calcula el dashboard con la antropometría (D30)— ni
+  // «Start Time to 80% Net Peak Force», que el usuario deja fuera por ahora (valores de −0,02 s a 5,3 s, con saltos grandes entre piernas).
+  'Standing Isometric 90°/20° Hamstring Test': { mode: 'LR', cols: ISO },
   'Seated Calf Raise Iso-Push': { mode: 'LR', cols: ISO },
   'CMJ': { mode: 'S', cols: [...CMJ_COLS, ...CMJ_ONLY] },
   'SL CMJ': { mode: 'LR', cols: [...CMJ_COLS, ...SL_ONLY] },
@@ -115,6 +119,7 @@ export function parseAsym(v) {
 export const VALD_CODES = {
   RSHIP: fixed('Run-Specific Hip Iso-Push'), RSKIP: fixed('Run-Specific Knee Iso-Push'), RSAIP: fixed('Run-Specific Ankle Iso-Push'),
   SLHNNI: fixed('Supine Isometric 90°/90° Leg Curl Test'), SLSEICR: fixed('Seated Calf Raise Iso-Push'),
+  SLHNTI: fixed('Standing Isometric 90°/20° Hamstring Test'),
   Nordic: fixed('Nordic Hamstring Exercise'), SLJ: fixed('SL CMJ'), CMJ: fixed('CMJ'), SJ: fixed('Squat Jump'), HJ: fixed('Double-Leg Hop Test'),
   DJ: (r) => (r.dropHeight === 30 ? { test: 'DL Drop Jump 30 cm' } : r.dropHeight === 45 ? { test: 'DL Drop Jump 45 cm' } : { skip: `altura de caída ${r.dropHeight === null ? 'sin dato' : r.dropHeight + ' cm'} (el catálogo solo tiene 30 y 45 cm)` }),
   SLHJ: fixed('SL Hop Test'),

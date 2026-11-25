@@ -10,7 +10,7 @@ import { listPositions } from './posiciones.js';
 import { getSetting } from './db.js';
 import { expandRelative, orderVars, isViewable, hasData, isRelative } from './relativos.js';
 import { withReferenceWeights } from './relaciones.js';
-import { pairContext } from './isohold.js';
+import { pairContext, esTestDeCarga, esPorcentajeBW } from './isohold.js';
 import { isAsymVariable, variableExcluidaDeDeficits, asimetriaLR } from './catalogo.js';
 import { fmtVar, fmtPuntos, rotuloComp, TIP_COMP } from './evolucion.js';
 import { columnasNormativas, ordenIsoHold } from './pages-normativo.js';
@@ -33,7 +33,11 @@ const LADO = { L: 'Izquierda', R: 'Derecha', S: '' };
 export function deficitsDeTest({ player, test, catalog, refData, base, umbral }) {
   const mias = refData.sessions.filter((s) => s.playerId === player.id);
   if (!mias.length) return { filas: [], sinMuestra: [] };
-  const candidatas = catalog.variables.filter((v) => v.testId === test.id && isViewable(v) && hasData(v, mias) && !isAsymVariable(v) && !variableExcluidaDeDeficits(v));
+  const visibles = catalog.variables.filter((v) => v.testId === test.id && isViewable(v) && hasData(v, mias) && !isAsymVariable(v) && !variableExcluidaDeDeficits(v));
+  // Tests de carga (iso-hold y todos los RM): solo el %BW (25/11/2026, petición del usuario). Los kilos no son comparables entre jugadores, y el MVIC
+  // iso-push, el %PIMA y el 1RM estimado se calculan desde esa misma carga: listarlos sería el mismo déficit contado tres o cuatro veces. La asimetría
+  // del test sigue apareciendo, calculada sobre el %BW, que es la misma que la de los kilos.
+  const candidatas = esTestDeCarga(test.id, catalog.variables) ? visibles.filter(esPorcentajeBW) : visibles;
   // Si una variable tiene su versión relativa al peso con datos (Peak Force → Peak Force relativo, Max Force → Max Force relativo), se lista solo la
   // relativa: es la que permite comparar entre jugadores, y las dos juntas serían el mismo déficit contado dos veces (12/11/2026).
   const conRelativa = new Set(candidatas.filter((v) => isRelative(v)).map((v) => v.formula.operands[0]));
@@ -128,6 +132,7 @@ export function Deficits({ player }) {
       <p class="muted">Se recorre cada test con datos del jugador y cada una de sus variables visibles, con el valor de la base elegida (Latest, Personal Average o Personal Best) y el mismo percentil de La Liga que muestra el cuadro «Normative Benchmarking» de ese test: es la misma función de cálculo, no una copia.</p>
       <p class="muted">La columna «${rotuloComp(base)}» es la misma comparación que muestra el cuadro «Normative Benchmarking»: el valor de la última sesión frente a la base elegida y, con «Latest», frente a la sesión válida anterior. En las filas de asimetría el cambio va en puntos porcentuales (p.p.), porque la asimetría ya es un porcentaje.</p>
       <p class="muted">Las filas del mismo test y variable van juntas, con la izquierda, la derecha y la asimetría seguidas; los grupos se ordenan por su percentil más bajo, así que lo peor sigue arriba. Se listan las variables por lado (cada pierna por separado) y, además, las asimetrías: en ellas un percentil bajo significa una asimetría grande comparada con la de los demás jugadores.</p>
+      <p class="muted">En los tests cuya medida es una <strong>carga externa</strong> —los iso-hold y todos los de RM— solo se lista el <strong>%BW</strong>: los kilos no se pueden comparar entre jugadores de distinto tamaño, y el MVIC iso-push, el %PIMA y el 1RM estimado se calculan a partir de esa misma carga, así que serían el mismo déficit contado varias veces. La asimetría del test sigue apareciendo: sale del %BW y es la misma que la de los kilos.</p>
       <p class="muted">No entran: las variables sin dirección «mejor/peor» (ahí el percentil solo dice dónde cae en La Liga, no si es bueno o malo), las que no llegan al mínimo de ${minN} jugadores en la referencia, los valores que el jugador no tiene con esa base, y los tests archivados, las variables marcadas como excluidas en el Catálogo (por defecto Torque del Nordic y Force/RFD at 100 ms) y la medida absoluta cuando existe su relativa al peso con datos (se lista solo la relativa). La referencia nunca incluye al propio jugador ni datos sintéticos.</p>
     <//>
   <//>`;

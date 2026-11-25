@@ -14,7 +14,7 @@ import { ISO_PAIRS, RM_EST_TESTS, pairFactor } from './isohold.js';
 
 import { mismoTest } from './nombres.js';
 
-export const CATALOG_SEED_VERSION = 18; // 18 (25/11/2026): 1RM estimado también en el Seated Calf Raise 6RM, con su propio factor de masa corporal
+export const CATALOG_SEED_VERSION = 19; // 19 (25/11/2026): variables del «Standing Isometric 90°/20° Hamstring Test», que estaba en el catálogo pero vacío
 
 const BLOCKS = [
   { key: 'fuerza', name: 'Manifestaciones de la fuerza' },
@@ -142,6 +142,9 @@ const ISO_PUSH = {
   // 7 de noviembre de 2026: las mismas variables se aplican a estos dos tests. Hip → SW (29 %); el calf raise sentado usa otra variante de SW (5 % del peso corporal).
   'Supine Isometric 90°/90° Leg Curl Test': { rel: 'REL_SW', relName: 'Peak Force relativo (SW)', relUnit: 'SW' },
   'Seated Calf Raise Iso-Push': { rel: 'REL_SW', relName: 'Peak Force relativo (SW)', relUnit: 'SW', factor: 0.05, relNotes: 'SW de este test = 5 % del peso corporal (variante indicada por el usuario el 7/11; sin fuente verificada).' },
+  // 25/11/2026: el isométrico de isquios de pie 90°/20° (código SLHNTI de VALD) recibe las mismas variables que el 90°/90°, con el relativo al SW del
+  // 29 % elegido por el usuario. SW y BW son proporcionales (SW = 0,29 × masa), así que la elección cambia la escala del número, no el percentil.
+  'Standing Isometric 90°/20° Hamstring Test': { rel: 'REL_SW', relName: 'Peak Force relativo (SW)', relUnit: 'SW' },
 };
 
 // Variables explosivas del Run-Specific Iso-Push (PDF de VALD): RFD at 100 ms (N/s) y Force at 100 ms (N); ambas en Explosive Strength.
