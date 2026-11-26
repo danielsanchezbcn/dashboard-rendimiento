@@ -42,8 +42,17 @@ const refLabel = (k, posName, dates = null) => {
   const l = RADAR_REFS.find((r) => r.key === k)?.label ?? k;
   const d = (k === 'first' || k === 'last') ? dates?.[k] : null;
   if (d) return d[0] === d[1] ? fmtDay(d[0]) : `${fmtDay(d[0])} – ${fmtDay(d[1])}`;
-  return k.endsWith('pos') && posName ? `${l} (${posName})` : l;
+  return k.endsWith('pos') ? `${l} (${posName || 'by position'})` : l;
 };
+
+// 26/11/2026 (pedido del usuario): las referencias con fecha —primera y última medida— se ordenan cronológicamente, la más antigua primero, tanto
+// en la leyenda del radar como en las columnas de la tabla de valores originales. Las demás conservan el orden en que se marcaron.
+export function ordenCronologico(keys, dates) {
+  const fechaDe = (k) => dates?.[k]?.[0] ?? null;
+  const cron = keys.filter(fechaDe).sort((a, b) => String(fechaDe(a)).localeCompare(String(fechaDe(b))));
+  let i = 0;
+  return keys.map((k) => (fechaDe(k) ? cron[i++] : k));
+}
 
 export function RadarSvg({ profile, radar, playerName, shown = ['p50', 'premier50', 'pa'], posName = '', svgRef, zoom = false }) {
   const n = radar.axes.length;
@@ -72,8 +81,9 @@ export function RadarSvg({ profile, radar, playerName, shown = ['p50', 'premier5
   // Dos series con los mismos valores en todos los ejes se dibujan una sola vez (p. ej. «primera» y «última medida» cuando solo hay una sesión):
   // superpuestas no se distinguen y parecían datos distintos que coinciden por casualidad (13/11/2026).
   const iguales = (k1, k2) => radar.axes.every((a) => Number.isFinite(a.ratios[k1]) && Number.isFinite(a.ratios[k2]) && Math.abs(a.ratios[k1] - a.ratios[k2]) < 1e-9);
+  const dentroOrd = ordenCronologico(dentro, radar.dates);
   const pintadas = []; const juntas = {};
-  for (const k of dentro) { const igual = pintadas.find((q) => iguales(q, k)); if (igual) (juntas[igual] ??= []).push(k); else pintadas.push(k); }
+  for (const k of dentroOrd) { const igual = pintadas.find((q) => iguales(q, k)); if (igual) (juntas[igual] ??= []).push(k); else pintadas.push(k); }
   const rotulo = (k) => [k, ...(juntas[k] ?? [])].map((q) => refLabel(q, posName, radar.dates)).filter((t, i, arr) => arr.indexOf(t) === i).join(' · ');
   // Geometría de los rótulos de los ejes: se calcula ANTES de dibujar para saber hasta dónde llegan por abajo y colocar debajo la leyenda.
   // Con el rótulo del eje inferior pisando la leyenda (13/11/2026) se vio que una altura fija no vale: depende del radio y de las unidades.
@@ -102,23 +112,28 @@ export function RadarSvg({ profile, radar, playerName, shown = ['p50', 'premier5
   const yEtiq = Math.max(...geo.map((g) => g.yMax));
   const yInfo = Math.max(H - 22, yEtiq + 18);                       // línea «Axis values: …»
   const rows = Math.ceil(pintadas.length / 2); const yLeg = yInfo + 28; // primera fila de la leyenda
+  // Título del centro: con el tamaño que quepa dentro del polígono más interior (apotema del polígono regular). Si no cabe a 12 px se saca ARRIBA,
+  // en una banda propia, y el gráfico entero baja esa altura. Antes se dibujaba encima del rótulo del eje superior y se solapaba con él.
+  // Con la ESCALA AMPLIADA el título sale arriba SIEMPRE: al ampliar el radio los polígonos pasan por el centro, así que cualquier título dentro
+  // queda encima de las líneas aunque el cálculo del hueco diga que cabe (26/11/2026, fallo visto por el usuario en «Drop Jump 30 cm»).
+  const tituloLineas = profile.center.length > 11 ? wrap(profile.center) : [profile.center];
+  const interior = Math.min(...pintadas.map((k) => Math.min(...radar.axes.map((a) => rOf(a.ratios[k])))));
+  const apotema = interior * Math.cos(Math.PI / n) - 6;
+  const anchoEm = Math.max(...tituloLineas.map((l) => l.length)) * 0.58;
+  const fsTit = Math.min(34, Math.floor(Math.min((apotema * 2) / anchoEm, (apotema * 2) / (tituloLineas.length * 1.25))));
+  const tituloDentro = !zoom && fsTit >= 12;
+  const tamTit = tituloDentro ? fsTit : 22;
+  const banda = tituloDentro ? 0 : Math.round(tituloLineas.length * tamTit * 1.2 + 14); // lo que baja el gráfico para dejarle sitio
+  const yTit = tituloDentro ? CY - ((tituloLineas.length - 1) * tamTit * 1.15) / 2 + tamTit * 0.35 : tamTit + 6;
   const HH = Math.round((rows ? yLeg + (rows - 1) * 26 + 10 : yInfo + 8) + (pie ? 26 : 8));
-  return html`<svg ref=${svgRef} xmlns="http://www.w3.org/2000/svg" viewBox=${`0 0 ${W} ${HH}`} width="100%" role="img" class="radar-svg"
+  const HT = HH + banda;
+  return html`<svg ref=${svgRef} xmlns="http://www.w3.org/2000/svg" viewBox=${`0 0 ${W} ${HT}`} width="100%" role="img" class="radar-svg"
       aria-label=${`${profile.title} radar for ${playerName}: ${radar.axes.map((a) => `${a.label}${val(a) != null ? ` ${fx(val(a))} ${a.unit}` : ''}`).join('; ')}. References drawn: ${pintadas.map((k) => refLabel(k, posName, radar.dates)).join(', ')}`}>
-    <rect width=${W} height=${HH} fill="#000" />
+    <rect width=${W} height=${HT} fill="#000" />
+    ${!tituloDentro ? html`<g font-family=${FONT} font-weight="700" fill=${BLANCO} text-anchor="middle">${tituloLineas.map((l, k) => html`<text key=${k} class="radar-titulo" x=${CX} y=${yTit + k * tamTit * 1.15} font-size=${tamTit}>${l}</text>`)}</g>` : null}
+    <g transform=${`translate(0 ${banda})`}>
     ${pintadas.map((k) => { const st = REF_STYLE[k]; return html`<polygon key=${k} points=${poly(radar.axes.map((a) => a.ratios[k]))} fill="none" stroke=${st.color} stroke-width=${st.w} stroke-dasharray=${st.dash ?? null} stroke-linecap=${st.cap ?? 'butt'} stroke-linejoin="round" />`; })}
-    ${(() => {
-      // El título va en el centro, con el tamaño que quepa dentro del polígono más interior (apotema del polígono regular). Si ni a 12 px cabe,
-      // se sube a la cabecera del gráfico en vez de pisar las líneas (13/11/2026).
-      const interior = Math.min(...pintadas.map((k) => Math.min(...radar.axes.map((a) => rOf(a.ratios[k])))));
-      const apotema = interior * Math.cos(Math.PI / n) - 6;
-      const lineas = profile.center.length > 11 ? wrap(profile.center) : [profile.center];
-      const anchoEm = Math.max(...lineas.map((l) => l.length)) * 0.58;
-      const fs = Math.min(34, Math.floor(Math.min((apotema * 2) / anchoEm, (apotema * 2) / (lineas.length * 1.25))));
-      const dentroOk = fs >= 12;
-      const tam = dentroOk ? fs : 20; const y0 = dentroOk ? CY - ((lineas.length - 1) * tam * 1.15) / 2 + tam * 0.35 : 34;
-      return html`<g font-family=${FONT} font-weight="700" fill=${BLANCO} text-anchor="middle">${lineas.map((l, k) => html`<text key=${k} x=${CX} y=${y0 + k * tam * 1.15} font-size=${tam}>${l}</text>`)}</g>`;
-    })()}
+    ${tituloDentro ? html`<g font-family=${FONT} font-weight="700" fill=${BLANCO} text-anchor="middle">${tituloLineas.map((l, k) => html`<text key=${k} class="radar-titulo" x=${CX} y=${yTit + k * tamTit * 1.15} font-size=${tamTit}>${l}</text>`)}</g>` : null}
     ${pie ? html`<text x=${CX} y=${HH - 8} text-anchor="middle" font-family=${FONT} font-size="17" fill=${MORADO}>${pie}</text>` : null}
     ${geo.map((g, i) => (g.eje
       ? html`<g key=${i}>${g.lines.map((l, k) => html`<text key=${k} x=${g.vtxX} y=${g.y0 + k * 22} text-anchor="middle" font-family=${FONT} font-size="21" font-weight="700" fill=${BLANCO}>${l}</text>`)}
@@ -133,6 +148,7 @@ export function RadarSvg({ profile, radar, playerName, shown = ['p50', 'premier5
         return row.map((k) => { const st = REF_STYLE[k]; const x0 = x; x += itemW(k) + GAP;
           return html`<g key=${k}><line x1=${x0} x2=${x0 + 60} y1=${y} y2=${y} stroke=${st.color} stroke-width=${st.w} stroke-dasharray=${st.dash ?? null} stroke-linecap=${st.cap ?? 'butt'} /><text x=${x0 + 72} y=${y + 6} fill=${st.color}>${rotulo(k)}</text></g>`; }); });
     })()}</g>
+    </g>
   </svg>`;
 }
 
@@ -217,6 +233,7 @@ export function RadarPanel({ player, testName }) {
   const toggleRef = (k) => { const next = shown.includes(k) ? shown.filter((x) => x !== k) : [...shown, k]; setShownLocal(next); setSetting(db, 'radarRefs', next); };
   const unavailable = (r) => (r.needsPosition && positionId === null ? 'Choose a position to enable it.' : !radar.complete[r.key] ? (r.group === 'premier' ? 'The Premier League does not publish this reference for every variable in the radar.' : r.needsPosition ? 'Not enough players in that position.' : r.group === 'jugador' ? 'The player has no value for one of the variables.' : 'Not enough players in La Liga.') : null);
   const draw = shown.filter((k) => radar.complete[k]);
+  const drawOrd = ordenCronologico(draw, radar.dates);
   const posName = positionId === null ? 'all positions' : data.positions.find((p) => p.id === positionId)?.name ?? '—';
   return html`<${Card} titulo=${`Radar profile: ${profile.title} (${profile.center})`} id="radar">
     <p><button type="button" class="secondary" aria-expanded=${editing} onClick=${() => setEditing(!editing)}>${editing ? 'Close' : 'Choose radar variables'}</button></p>
@@ -226,16 +243,17 @@ export function RadarPanel({ player, testName }) {
       <label class="check" title="El radio deja de empezar en cero y se ajusta al rango de lo dibujado. Útil cuando todas las líneas se superponen (Hop Test, Drop Jump).">
         <input type="checkbox" checked=${zoom} onChange=${(e) => toggleZoom(e.target.checked)} /> Zoom the radius to the data range</label>
     </div>
-    <fieldset class="modes filas"><legend>Radar references</legend>${agruparFiltros(RADAR_REFS).map((fila, i) => html`<div class="ref-fila" key=${'f' + i}>${fila.map((r) => { const why = radar.axes.length ? unavailable(r) : null; return html`<label class="check" key=${r.key} title=${why ?? ''}><input type="checkbox" checked=${shown.includes(r.key)} disabled=${!!why} onChange=${() => toggleRef(r.key)} /> ${refLabel(r.key, '', radar.dates)}${why ? html` <span class="muted">(not available)</span>` : null}</label>`; })}</div>`)}</fieldset>
+    ${/* Los filtros con fecha (primera y última medida) también van cronológicamente, la más antigua a la izquierda: es la misma lista que la leyenda (26/11/2026). */ ''}
+    <fieldset class="modes filas"><legend>Radar references</legend>${agruparFiltros(RADAR_REFS).map((fila0, i) => { const orden = ordenCronologico(fila0.map((r) => r.key), radar.dates); const fila = orden.map((k) => fila0.find((r) => r.key === k)); return html`<div class="ref-fila" key=${'f' + i}>${fila.map((r) => { const why = radar.axes.length ? unavailable(r) : null; return html`<label class="check" key=${r.key} title=${why ?? ''}><input type="checkbox" checked=${shown.includes(r.key)} disabled=${!!why} onChange=${() => toggleRef(r.key)} /> ${refLabel(r.key, positionId === null ? '' : posName, radar.dates)}${why ? html` <span class="muted">(not available)</span>` : null}</label>`; })}</div>`; })}</fieldset>
     ${radar.drawable ? html`<${Copiable} nombre=${`radar-${profile.center}-${baseName(player)}`}><${RadarSvg} profile=${profile} radar=${radar} playerName=${playerLabel(player)} shown=${shown} posName=${posName} svgRef=${svgRef} zoom=${zoom} /><//>
       <div class="actions"><button type="button" class="secondary" onClick=${() => toPng(svgRef.current, `radar-${profile.center}-${baseName(player)}.png`.replace(/[^\w.-]+/g, '_')).catch((e) => setMsg({ type: 'error', text: e.message }))}>Download image (PNG)</button></div>
       <${Msg} msg=${msg} />`
       : html`<p class="muted">Not enough data to draw the radar: at least 3 variables with a value for this player and a sufficient La Liga P50 are needed.</p>`}
     ${radar.axes.length && draw.length ? html`<${Desplegable} titulo="Original values and normalisation"><div class="table-wrap"><table><caption>Each reference ÷ the La Liga P50, all positions</caption>
-      <thead><tr><th>Variable</th><th class="num">La Liga P50 (N)</th>${draw.filter((k) => k !== 'p50').map((k) => html`<th key=${k} class="num">${refLabel(k, posName, radar.dates)}</th>`)}</tr></thead>
+      <thead><tr><th>Variable</th><th class="num">La Liga P50 (N)</th>${drawOrd.filter((k) => k !== 'p50').map((k) => html`<th key=${k} class="num">${refLabel(k, posName, radar.dates)}</th>`)}</tr></thead>
       <tbody>${radar.axes.map((a) => html`<tr key=${a.variable.id}><th scope="row">${a.label}${a.invertido ? ' ↓' : ''}<small class="cell-date">${dn(a.variable.name)}</small></th>
         <td class="num">${nf(a.laLiga.p50, digits(a.laLiga.p50))} ${a.unit} (${a.laLiga.n})</td>
-        ${draw.filter((k) => k !== 'p50').map((k) => html`<td key=${k} class="num">${nf(a.refs[k], digits(a.refs[k]))} ${a.unit} <span class="muted">· ${nf(a.ratios[k] * 100, 0)} %</span></td>`)}</tr>`)}</tbody></table></div><//>` : null}
+        ${drawOrd.filter((k) => k !== 'p50').map((k) => html`<td key=${k} class="num">${nf(a.refs[k], digits(a.refs[k]))} ${a.unit} <span class="muted">· ${nf(a.ratios[k] * 100, 0)} %</span></td>`)}</tr>`)}</tbody></table></div><//>` : null}
     ${radar.omitted.length ? html`<p class="muted">Variables left out of the radar: ${radar.omitted.map((o) => `${o.label} (${o.reason})`).join(' · ')}</p>` : null}
     <details class="notas"><summary>How to read the radar</summary><p class="muted">Each axis is the value divided by the La Liga P50 (the 50th percentile) of that variable, all positions, so the solid yellow polygon (La Liga = 100 %) is regular. Every other reference is its value ÷ that same P50: La Liga P75 and the by-position P50/P75 (yellow), Premier League in-season P50 and P75 (purple; only when the Premier publishes that reference for every axis) and the player's own measurements (white: Personal Average and Personal Best; grey: first and latest measurement). The La Liga P50/P75 exclude the player himself and any synthetic data; the minimum number of players is the one set in Ajustes. Only single-value variables where «higher is better» are eligible.</p>
       <p class="muted"><strong>↓</strong> marks the variables where a lower value is better (contact time, for instance): that axis is drawn inverted (P50 ÷ value) so that, as everywhere else, further out is always better. On those axes «P75» is also the 75th performance percentile (the 0.25 quantile of the values), so it means the same on every axis.</p>

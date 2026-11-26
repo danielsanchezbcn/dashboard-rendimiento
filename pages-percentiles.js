@@ -47,8 +47,11 @@ function EscalaG4({ filas, refs, unit }) {
   const rows0 = filas[0].rows;
   const vals = filas.flatMap((f) => f.rows.flatMap((r) => [r.ev.min, r.ev.max, r.value, r.ev.p50])).concat(refs.map((m) => m.v)).filter((v) => v != null);
   const min = Math.min(...vals), max = Math.max(...vals), span = max - min || 1;
-  const hayEtiq = filas.length > 1 || filas[0].base !== 'pa'; // etiquetas PA / PB / fecha a la izquierda, a la altura del valor
-  const W = 640, L = hayEtiq ? 100 : 40, R = 40;
+  const hayEtiq = filas.length > 1 || filas[0].base !== 'pa'; // etiquetas Personal Average / Personal Best / fecha a la izquierda, a la altura del valor
+  // El margen izquierdo se ajusta al rótulo más largo: desde el 26/11/2026 pone «Personal Average» y «Personal Best» completos, que no caben en los
+  // 100 px de antes y se montaban sobre la escala.
+  const anchoEtiq = Math.round(Math.max(0, ...filas.map((f) => String(f.etiqueta ?? '').length)) * 7 + 22);
+  const W = 640, L = hayEtiq ? Math.max(100, anchoEtiq) : 40, R = 40;
   const x = (v) => L + ((v - min) / span) * (W - L - R);
   const T = PAL.texto;
   const lo = L - 6, hi = W - R + 6;
@@ -178,7 +181,7 @@ export function PercentilesPanel({ player, test, variable, mine, q, setQ, filter
   const baseOff = (b) => baseRows(b).length === 0;
   const refOff = (k) => REFS.find((r) => r[0] === k)[2] == null;
   const toggleSm = (k, on) => setQ({ sm: (on ? [...chosenSm, k] : chosenSm.filter((x) => x !== k)).join(',') || 'none' });
-  const filas = [BASES[2], BASES[1], BASES[0]].filter(([b]) => chosenSm.includes(b) && !baseOff(b)).map(([b, n]) => { const rows = baseRows(b); return { base: b, etiqueta: b === 'pa' ? 'PA' : b === 'pb' ? 'PB' : etiquetaActual, base: b, rows, asym: sides.length === 2 && rows.length === 2 ? asymmetryPct(rows[0].value, rows[1].value) : null }; });
+  const filas = [BASES[2], BASES[1], BASES[0]].filter(([b]) => chosenSm.includes(b) && !baseOff(b)).map(([b, n]) => { const rows = baseRows(b); return { base: b, etiqueta: b === 'pa' ? 'Personal Average' : b === 'pb' ? 'Personal Best' : etiquetaActual, base: b, rows, asym: sides.length === 2 && rows.length === 2 ? asymmetryPct(rows[0].value, rows[1].value) : null }; });
   const refsSel = REFS.filter(([k]) => chosenSm.includes(k) && !refOff(k)).map(([k, n, v, color, icon, txt, premier]) => ({ key: k, v, icon, color, txt, premier, dash: false, label: `${n}: ${nfv(v)} ${unit ?? ''}` }));
   const insuf = filas.some((f) => f.rows.some((r) => r.ev.n && !r.ev.sufficient));
   // Filtros en cuatro filas (13/11/2026): medidas del jugador, La Liga, Premier League y Natera. El orden y el reparto los decide `agruparFiltros`, compartido con el radar y el gráfico longitudinal.

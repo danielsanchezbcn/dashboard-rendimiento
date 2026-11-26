@@ -102,7 +102,7 @@ export function PanelAsimetrias({ catalog, sessions, q, setQ, jugador }) {
                 : fmtVar(r.variL) || fmtVar(r.variR)
                   ? html`<span class="asim-l">L ${fmtVar(r.variL) ?? '—'}</span> · <span class="asim-r">R ${fmtVar(r.variR) ?? '—'}</span>`
                   : '—'}</td>
-              <td class="num muted asim-fecha">${base === 'last' ? fmtDay(r.date) : base === 'pb' ? `PB · ${fmtDay(r.date)}` : `PA · ${r.from === r.date ? fmtDay(r.date) : `${fmtDay(r.from)} – ${fmtDay(r.date)}`}`}</td></tr>`)}</tbody></table>${falta.length ? html`<p class="muted asim-falta">Sin valores en este jugador: ${falta.map((v) => dn(v.name)).join(', ')}. Para verlas hay que importar esas columnas de VALD en su sesión.</p>` : null}</div>
+              <td class="num muted asim-fecha">${base === 'last' ? fmtDay(r.date) : base === 'pb' ? `Personal Best · ${fmtDay(r.date)}` : `Personal Average · ${r.from === r.date ? fmtDay(r.date) : `${fmtDay(r.from)} – ${fmtDay(r.date)}`}`}</td></tr>`)}</tbody></table>${falta.length ? html`<p class="muted asim-falta">Sin valores en este jugador: ${falta.map((v) => dn(v.name)).join(', ')}. Para verlas hay que importar esas columnas de VALD en su sesión.</p>` : null}</div>
           <//>`)}
         <//>`)}<//>`)}`}
   </section>`;

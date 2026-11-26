@@ -81,6 +81,27 @@ export function referenciaPlantilla({ sessions, variable, sides, players, histor
   return { ref, evalDe: (playerId, value) => (Number.isFinite(value) ? evaluate(ref, { playerId, value, direction: variable.direction, minN }) : null) };
 }
 
+// Rango de TODA la base de datos para una variable: el valor más bajo y el más alto que ha registrado cualquier jugador en ella (sesiones válidas,
+// sin jugadores sintéticos, sin filtros de fecha ni de protocolo). Fija la escala de los gráficos de evolución: con el eje ajustado solo a los datos
+// de un jugador, una diferencia de un 2 % llenaba la pantalla y parecía un cambio enorme (26/11/2026, pedido del usuario).
+export function rangoGlobal(sessions, variable, players = {}) {
+  const sides = variable.sides === 'LR' ? ['L', 'R'] : ['S'];
+  let min = null, max = null;
+  for (const s of sessions) {
+    if (s.testId !== variable.testId || s.status !== 'valid') continue;
+    if (players[s.playerId]?.synthetic) continue;
+    const v = s.values?.[variable.id];
+    if (!v) continue;
+    for (const sd of sides) {
+      const x = v[sd];
+      if (!Number.isFinite(x)) continue;
+      if (min === null || x < min) min = x;
+      if (max === null || x > max) max = x;
+    }
+  }
+  return { min, max, defined: min !== null && max !== null && max > min };
+}
+
 // Evalúa un valor frente a la referencia SIN el jugador evaluado (D28a).
 export function evaluate(entries, { playerId, value, direction, minN = MIN_N_DEFAULT }) {
   const ref = entries.filter((e) => e.playerId !== playerId).map((e) => e.value);

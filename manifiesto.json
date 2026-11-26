@@ -1,5 +1,5 @@
 {
-"version": "10i-0.17.0",
+"version": "10i-0.18.0",
 "archivos": {
 "alta-manual.js": {
 "bytes": 3994,
@@ -135,7 +135,7 @@
 },
 "db.js": {
 "bytes": 7523,
-"sha": "28d9e97a63acbfcf"
+"sha": "1d767fcd5b4317f4"
 },
 "dsieur.js": {
 "bytes": 4174,
@@ -242,8 +242,8 @@
 "sha": "79785a2f115f85a4"
 },
 "pages-asimetrias.js": {
-"bytes": 11257,
-"sha": "46fa6717efac5724"
+"bytes": 11282,
+"sha": "caf362c09678b090"
 },
 "pages-asociaciones.js": {
 "bytes": 24036,
@@ -262,8 +262,8 @@
 "sha": "7d49ff711e7cfd2f"
 },
 "pages-composite.js": {
-"bytes": 35614,
-"sha": "adc829630074da8e"
+"bytes": 36155,
+"sha": "6a7a8551304548a2"
 },
 "pages-deficits.js": {
 "bytes": 16150,
@@ -274,8 +274,8 @@
 "sha": "6c847734a7b56608"
 },
 "pages-evolucion.js": {
-"bytes": 49612,
-"sha": "ffc16d294bc0db11"
+"bytes": 50431,
+"sha": "6ff5a637c6177239"
 },
 "pages-fv.js": {
 "bytes": 22085,
@@ -298,16 +298,16 @@
 "sha": "933ec996e7332150"
 },
 "pages-normativo.js": {
-"bytes": 22752,
-"sha": "f758c8cd2cb703fe"
+"bytes": 22700,
+"sha": "bca4c50ac369fe38"
 },
 "pages-percentiles.js": {
-"bytes": 19434,
-"sha": "b3216d15a61f1095"
+"bytes": 19820,
+"sha": "dfbb53ab496e3dc7"
 },
 "pages-radar.js": {
-"bytes": 25662,
-"sha": "70caf583e160d54c"
+"bytes": 27602,
+"sha": "69d71165c29f4759"
 },
 "pages-relaciones.js": {
 "bytes": 17105,
@@ -322,8 +322,8 @@
 "sha": "e675c149c50f707d"
 },
 "percentiles.js": {
-"bytes": 6934,
-"sha": "7c229c8985c67980"
+"bytes": 8002,
+"sha": "91636d613718b872"
 },
 "posiciones.js": {
 "bytes": 8601,
@@ -334,8 +334,8 @@
 "sha": "5d35e8c391a916d2"
 },
 "radar.js": {
-"bytes": 10149,
-"sha": "8ba6df35c4e75a75"
+"bytes": 10342,
+"sha": "76a5c0716a854b54"
 },
 "relaciones.js": {
 "bytes": 18563,

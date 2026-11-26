@@ -23,7 +23,7 @@ import { buildSeries, personalAverage, personalBestFor, currentResult, asymmetry
 import { playerLabel, nameMatchesPlayer } from './jugadores.js';
 import { findNatera, NATERA_HEX } from './natera.js';
 import { PAL, colorLado } from './colores.js';
-import { buildReference } from './percentiles.js';
+import { buildReference, rangoGlobal } from './percentiles.js';
 import { Copiable } from './copiar.js';
 import { RadarPanel } from './pages-radar.js';
 import { Angulos } from './pages-angulos.js';
@@ -231,8 +231,8 @@ function CompararPanel({ variable, sides, series, cmp, setCmp, stats }) {
         <tr><th scope="row">Medida anterior</th><td>${fmtDay(ant.date)}${ant.time ? ' ' + ant.time : ''}</td><td class="num">${nf(ant.value)}${u}</td></tr>
         <tr><th scope="row">Medida posterior</th><td>${fmtDay(pos.date)}${pos.time ? ' ' + pos.time : ''}</td><td class="num">${nf(pos.value)}${u}</td></tr>
         <tr class="grupo-ini"><th scope="row">Diferencia (${fmtDay(pos.date)}) vs (${fmtDay(ant.date)})</th><td class="muted">posterior − anterior</td><td class="num">${celda(dif(ant.value))}</td></tr>
-        <tr><th scope="row">Diferencia (${fmtDay(pos.date)}) vs Personal Average</th><td class="muted">${vPA === null ? (st?.pa?.reason ?? 'sin Personal Average') : `PA = ${nf(vPA)}${u}`}</td><td class="num">${celda(dif(vPA))}</td></tr>
-        <tr><th scope="row">Diferencia (${fmtDay(pos.date)}) vs Personal Best</th><td class="muted">${vPB === null ? (st?.pb?.reason ?? 'sin Personal Best') : `PB = ${nf(vPB)}${u}${st.pb.date ? ` · ${fmtDay(st.pb.date)}` : ''}`}</td><td class="num">${celda(dif(vPB))}</td></tr>
+        <tr><th scope="row">Diferencia (${fmtDay(pos.date)}) vs Personal Average</th><td class="muted">${vPA === null ? (st?.pa?.reason ?? 'sin Personal Average') : `Personal Average = ${nf(vPA)}${u}`}</td><td class="num">${celda(dif(vPA))}</td></tr>
+        <tr><th scope="row">Diferencia (${fmtDay(pos.date)}) vs Personal Best</th><td class="muted">${vPB === null ? (st?.pb?.reason ?? 'sin Personal Best') : `Personal Best = ${nf(vPB)}${u}${st.pb.date ? ` · ${fmtDay(st.pb.date)}` : ''}`}</td><td class="num">${celda(dif(vPB))}</td></tr>
       </tbody></table></div>` : null}
   </section>`;
 }
@@ -266,9 +266,15 @@ function PanelTest({ player, test, catalog, sessions, omitted = {}, reload, q, s
   const paOpts = sides.map((sd) => ['pa' + sd, variable.sides === 'LR' ? `Personal Average (${sd})` : 'Personal Average', [6, 4], 2, variable.sides === 'LR' ? colorLado(sd) : PAL.texto, stats[sd].pa.defined ? stats[sd].pa.value : null]);
   const opts = [...REF_OPTS.map(([k, label, , dash, w]) => [k, label, dash, w, k.startsWith('premier') ? PAL.premier : PAL.laLiga, ctx?.lines[k] ?? null]), ...NAT_OPTS, ...paOpts];
   const refLines = opts.filter(([k, , , , , v]) => chosen.includes(k) && v != null).map(([k, label, dash, w, color, v]) => ({ k, label, value: v, dash, w, color }));
+  // Escala del gráfico (26/11/2026, pedido del usuario): el eje abarca el MÍNIMO y el MÁXIMO registrados en toda la base de datos para esta variable,
+  // no solo los de este jugador. Con el eje ajustado a sus datos, una subida del 2 % llenaba la pantalla y parecía un cambio enorme. Si la variable no
+  // tiene rango global (un solo valor en toda la base), se vuelve al comportamiento anterior. Las referencias dibujadas siempre caben: si alguna se sale
+  // del rango global, el eje se amplía hasta ella.
   const all = sides.flatMap((sd) => [...series[sd].valid, ...series[sd].excluded].map((p) => p.value)).concat(refLines.map((r) => r.value));
-  const pad = all.length ? (Math.max(...all) - Math.min(...all)) * 0.1 || Math.abs(Math.max(...all)) * 0.1 || 1 : 1;
-  const yMin = all.length ? Math.min(...all) - pad : undefined, yMax = all.length ? Math.max(...all) + pad : undefined; // mismo eje para ambos lados
+  const global = refData ? rangoGlobal(refData.sessions, variable, Object.fromEntries(refData.players.map((p) => [p.id, p]))) : { defined: false }; // refData llega un instante después
+  const base = global.defined ? [global.min, global.max, ...all] : all;
+  const pad = base.length ? (Math.max(...base) - Math.min(...base)) * 0.06 || Math.abs(Math.max(...base)) * 0.1 || 1 : 1;
+  const yMin = base.length ? Math.min(...base) - pad : undefined, yMax = base.length ? Math.max(...base) + pad : undefined; // mismo eje para ambos lados
   // Asimetrías del test (13/11/2026, pedido por el usuario): entran tanto las variables por lados (asimetría calculada) como las variables de asimetría
   // que VALD ya trae calculadas (CMJ, Hop, Drop Jump: un valor con signo). Se eligen con un selector propio, independiente de la variable de la página.
   const asimVars = orderVars(catalog.variables.filter((v) => v.testId === test.id && isViewable(v) && hasData(v, sessions) && (v.sides === 'LR' || isAsymVariable(v))));

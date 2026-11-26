@@ -27,13 +27,16 @@ const FONT = FUENTE_GRAFICOS;
 const lc = (s) => String(s ?? '').trim().toLowerCase();
 const nf = (n, d = 2) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 const pc = (p) => (Number.isFinite(p) ? String(Math.round(p)) : '—');
-const BASES = [['last', 'Latest'], ['pa', 'PA'], ['pb', 'PB']];
+const BASES = [['last', 'Latest'], ['pa', 'Personal Average'], ['pb', 'Personal Best']]; // nombres completos, nunca «PA» ni «PB» (26/11/2026)
 // 16/11/2026: el radar puede dibujar Latest, Personal Average y Personal Best A LA VEZ, cada una con su propio polígono. Es un selector APARTE
 // del de «Valor»: ese sigue mandando sobre la tabla de cualidades y sobre el desglose, que solo pueden mostrar una base a la vez.
 const CAPAS = [['last', 'Latest'], ['pa', 'Personal Average'], ['pb', 'Personal Best']];
 // 15/11/2026: el usuario deja SOLO las referencias posicionales. Los polígonos regulares de P50 y P75 de La Liga (que en un radar de percentiles
 // no aportan nada que no diga ya el propio eje) desaparecen del selector, de la tabla y del radar.
-const REFS = [['p50pos', 'P50 posicional'], ['p75pos', 'P75 posicional']];
+// 26/11/2026: un solo texto para la referencia posicional en TODO el dashboard: «P50 La Liga (External Midfielder)». Antes el filtro decía
+// «P50 posicional» y la leyenda del radar «P50 External Midfielder»: tres nombres para la misma línea.
+const REFS = ['p50pos', 'p75pos'];
+export const etiquetaRefPos = (clave, nombrePos) => `${clave === 'p75pos' ? 'P75' : 'P50'} La Liga (${nombrePos || 'by position'})`;
 const BACK_SQUAT = 'Back Squat Force–Velocity Profile';
 const SIN_DATOS = '—';
 
@@ -276,8 +279,8 @@ export function CompositeProfile({ player, positionId = null }) {
   // así que no pueden contarse cosas distintas (13/11/2026, pedido por el usuario).
   // Sin posición principal no hay referencia posicional que calcular: no se añade una columna vacía de guiones (15/11/2026).
   const referencias = posActual == null ? [] : [
-    ...(refs.includes('p50pos') ? [{ clave: 'p50pos', nombre: `P50 ${posNombre(positions, posActual)}`, vals: CUALIDADES.map((c) => referenciaPosicional(c, (d) => pctPosicional(d, 0.5), pesos)) }] : []),
-    ...(refs.includes('p75pos') ? [{ clave: 'p75pos', nombre: `P75 ${posNombre(positions, posActual)}`, vals: CUALIDADES.map((c) => referenciaPosicional(c, (d) => pctPosicional(d, 0.75), pesos)) }] : []),
+    ...(refs.includes('p50pos') ? [{ clave: 'p50pos', nombre: etiquetaRefPos('p50pos', posNombre(positions, posActual)), vals: CUALIDADES.map((c) => referenciaPosicional(c, (d) => pctPosicional(d, 0.5), pesos)) }] : []),
+    ...(refs.includes('p75pos') ? [{ clave: 'p75pos', nombre: etiquetaRefPos('p75pos', posNombre(positions, posActual)), vals: CUALIDADES.map((c) => referenciaPosicional(c, (d) => pctPosicional(d, 0.75), pesos)) }] : []),
   ];
   // Un polígono del jugador por capa marcada, en el orden fijo Latest → PA → PB (16/11/2026). Las referencias posicionales se calculan con la base
   // de «Valor», que es la que enseña la tabla: así las columnas del cuadro y los polígonos amarillos siguen diciendo lo mismo.
@@ -374,7 +377,7 @@ export function CompositeProfile({ player, positionId = null }) {
     <//>
     <div class="filters">
       <fieldset class="modes"><legend>Capas del radar</legend>${CAPAS.map(([k, n]) => { const sola = capas.length === 1 && capas.includes(k); return html`<label class="check" key=${k} title=${sola ? 'Tiene que quedar al menos una capa marcada.' : ''}><input type="checkbox" name="cps-capa" disabled=${sola} checked=${capas.includes(k)} onChange=${() => toggleCapa(k)} /> ${n}</label>`; })}</fieldset>
-      <fieldset class="modes"><legend>Referencia posicional de La Liga (radar)</legend>${REFS.map(([k, n]) => { const off = posActual == null; return html`<label class="check" key=${k} title=${off ? 'El jugador no tiene posición principal.' : ''}><input type="checkbox" disabled=${off} checked=${!off && refs.includes(k)} onChange=${() => toggleRef(k)} /> ${n}</label>`; })}
+      <fieldset class="modes"><legend>Referencia posicional de La Liga (radar)</legend>${REFS.map((k) => { const off = posActual == null; return html`<label class="check" key=${k} title=${off ? 'El jugador no tiene posición principal.' : ''}><input type="checkbox" disabled=${off} checked=${!off && refs.includes(k)} onChange=${() => toggleRef(k)} /> ${etiquetaRefPos(k, posNombre(positions, posActual))}</label>`; })}
         ${posActual == null ? html`<p class="muted" data-ancla="sin-posicion">Sin posición principal no hay referencia: asígnasela en su ficha.</p>` : null}</fieldset>
     </div>
     <${BotonesImagen} rotulo="Tabla" obtener=${() => refTabla.current} nombre=${`composite-${player.id}`} titulo=${`COMPOSITE PROFILE SCORE · ${playerLabel(player)}`} />
@@ -399,7 +402,7 @@ export function CompositeProfile({ player, positionId = null }) {
   <//>`;
 }
 
-const posNombre = (positions, id) => (id == null ? 'posición' : positions.find((p) => p.id === id)?.name ?? 'posición');
+const posNombre = (positions, id) => (id == null ? null : positions.find((p) => p.id === id)?.name ?? null); // null → la etiqueta cae en «(by position)»
 
 const NotaMetodo = ({ umbrales, minN }) => html`<${Desplegable} titulo="Cómo se calcula">
   <p class="muted">Cada cualidad es la media ponderada de los percentiles de rendimiento de La Liga de sus variables de puntuación, redondeada a entero. Los percentiles son los mismos que muestra «Normative Benchmarking» de cada test: la referencia excluye al propio jugador y a los sintéticos, y hace falta un mínimo de ${minN} jugadores. Las variables interpretativas nunca puntúan: están para leer el número.</p>
