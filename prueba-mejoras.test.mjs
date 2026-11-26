@@ -36,8 +36,9 @@ const hold = T('Hip Iso-Hold 20 s'), rm = T('Single-Leg Standing Calf Raise 12RM
 const id1 = await addManualLoad(db, { playerId: p, testId: hold.id, date: '2026-03-20', load: '42,5' });
 const row = await db.sessions.get(id1);
 check('alta manual Iso-Hold: sesión con Carga externa, origen manual y sin repeticiones', row.values[V('Hip Iso-Hold 20 s', 'Carga externa (kg)').id].S === 42.5 && row.source === 'manual' && row.status === 'valid' && Object.keys(row.reps).length === 0);
-const id2 = await addManualLoad(db, { playerId: p, testId: rm.id, date: '2026-03-20', load: 60 });
-check('alta manual RM: Carga máxima', (await db.sessions.get(id2)).values[V('Single-Leg Standing Calf Raise 12RM', 'Carga máxima (kg)').id].S === 60);
+// 24/11/2026: en los RM la carga va por pierna (todos menos el Double-Leg Leg Press), así que el alta manual pide izquierda y derecha.
+const id2 = await addManualLoad(db, { playerId: p, testId: rm.id, date: '2026-03-20', loadL: 60, loadR: 62 });
+check('alta manual RM: Carga máxima por pierna', JSON.stringify((await db.sessions.get(id2)).values[V('Single-Leg Standing Calf Raise 12RM', 'Carga máxima (kg)').id]) === JSON.stringify({ L: 60, R: 62 }));
 check('alta manual: duplicado exacto rechazado', /Ya hay una sesión/.test(await rejects(() => addManualLoad(db, { playerId: p, testId: hold.id, date: '2026-03-20', load: 10 }))));
 check('alta manual: carga negativa o no numérica', (await Promise.all([-5, 'abc', ''].map((x) => rejects(() => addManualLoad(db, { playerId: p, testId: hold.id, date: '2026-03-21', load: x }))))).every((m) => /carga/.test(m)));
 check('alta manual: fecha inválida', /fecha/.test(await rejects(() => addManualLoad(db, { playerId: p, testId: hold.id, date: '21/03/2026', load: 10 }))));

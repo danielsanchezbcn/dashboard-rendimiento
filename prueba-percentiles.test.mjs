@@ -36,4 +36,26 @@ check('filtro de posición: solo cuentan los jugadores de esa posición (A está
 const rl = { id: 5, sides: 'LR', direction: 'higher' };
 const sl = [{ id: 1, playerId: 1, testId: 1, date: '2026-03-10', time: '', values: { 5: { L: 100, R: 120 } }, reps: { L: 3, R: 3 }, status: 'valid' }];
 check('por lado: cada lado tiene su propia referencia', P.buildReference({ sessions: sl, variable: rl, side: 'L', players: { 1: {} } })[0].value === 100 && P.buildReference({ sessions: sl, variable: rl, side: 'R', players: { 1: {} } })[0].value === 120);
+// Rango de toda la base de datos para una variable (26/11/2026): fija la escala de los gráficos de evolución para que un cambio pequeño no llene
+// la pantalla. Entran todos los jugadores, salen los sintéticos y las sesiones no válidas.
+{
+  const v = { id: 5, testId: 1, sides: 'LR' };
+  const ss = [
+    { id: 1, playerId: 1, testId: 1, status: 'valid', values: { 5: { L: 100, R: 120 } } },
+    { id: 2, playerId: 2, testId: 1, status: 'valid', values: { 5: { L: 80, R: 200 } } },
+    { id: 3, playerId: 3, testId: 1, status: 'excluded', values: { 5: { L: 10, R: 900 } } },   // excluida: no cuenta
+    { id: 4, playerId: 9, testId: 1, status: 'valid', values: { 5: { L: 1, R: 999 } } },        // sintético: no cuenta
+    { id: 5, playerId: 1, testId: 2, status: 'valid', values: { 5: { L: 5, R: 5 } } },          // otro test: no cuenta
+  ];
+  const players = { 1: { id: 1 }, 2: { id: 2 }, 3: { id: 3 }, 9: { id: 9, synthetic: 1 } };
+  const r = P.rangoGlobal(ss, v, players);
+  check('rango global: el mínimo y el máximo de toda la base, por los dos lados', r.defined && r.min === 80 && r.max === 200, JSON.stringify(r));
+  check('rango global: no cuentan las sesiones excluidas, los sintéticos ni otros tests', r.min !== 1 && r.max !== 999 && r.max !== 900);
+  const unaSola = P.rangoGlobal([{ id: 1, playerId: 1, testId: 1, status: 'valid', values: { 5: { L: 7, R: 7 } } }], v, players);
+  check('rango global: con un solo valor no hay rango (el gráfico vuelve a su escala de siempre)', !unaSola.defined && unaSola.min === 7);
+  check('rango global: sin datos devuelve nulos', !P.rangoGlobal([], v, players).defined);
+  const uni = P.rangoGlobal([{ id: 1, playerId: 1, testId: 1, status: 'valid', values: { 7: { S: 42 } } }, { id: 2, playerId: 2, testId: 1, status: 'valid', values: { 7: { S: 10 } } }], { id: 7, testId: 1, sides: 'S' }, players);
+  check('rango global: variables de un solo valor', uni.defined && uni.min === 10 && uni.max === 42);
+}
+
 process.exit(failed ? 1 : 0);

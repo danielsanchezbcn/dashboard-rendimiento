@@ -33,12 +33,12 @@ check('datos que faltan o inválidos devuelven null, nunca 0', C.asymmetryPct(nu
 // ---- Esquema y catálogo inicial
 {
   const db = await fresh(false);
-  check('esquema 6 con 21 tablas', db.verno === 6 && db.tables.length === 21);
+  check('esquema 8 con 21 tablas', db.verno === 8 && db.tables.length === 21);
   check('antes de sembrar no hay catálogo', (await db.tests.count()) === 0 && (await db.manifestations.count()) === 0);
   const r = await I.seedInitialCatalog(db);
-  check('siembra: 39 tests y 164 variables (150 + los dos tests de una pierna del 14/11/2026: 7 del SL Hop Test y 7 del SL Drop Jump 30 cm)', r.sembrado && r.tests === 39 && r.variables === 164, JSON.stringify(r));
+  check('siembra: 39 tests y 177 variables (172 + las 5 del Standing 90°/20° Hamstring Test, que estaba en el catálogo pero vacío, del 25/11/2026)', r.sembrado && r.tests === 39 && r.variables === 177, JSON.stringify(r));
   const again = await I.seedInitialCatalog(db);
-  check('siembra idempotente', again.sembrado === false && (await db.tests.count()) === 39 && (await db.variables.count()) === 164);
+  check('siembra idempotente', again.sembrado === false && (await db.tests.count()) === 39 && (await db.variables.count()) === 177);
   const cat = await C.listCatalog(db);
   check('tres bloques; Perímetros con su único test de 5 variables por lado en cm (sin dirección); NME: Jurdan Test (4 variables) y Toe-Touch Test (1, en cm), sin dirección', cat.blocks.map((b) => b.key).join() === 'fuerza,perimetros,nme' && cat.tests.filter((t) => t.blockKey !== 'fuerza').map((t) => t.blockKey + ':' + t.name).join() === 'perimetros:Perímetros,nme:Jurdan Test,nme:Toe-Touch Test'
     && cat.variables.filter((v) => v.testId === cat.tests.find((t) => t.blockKey === 'perimetros').id).length === 5 && cat.variables.filter((v) => v.testId === cat.tests.find((t) => t.blockKey === 'perimetros').id).every((v) => v.unit === 'cm' && v.sides === 'LR' && v.direction === null)
@@ -61,16 +61,20 @@ check('datos que faltan o inválidos devuelven null, nunca 0', C.asymmetryPct(nu
   const leg = varsOf('Supine Isometric 90°/90° Leg Curl Test');
   check('Seated Calf Raise y Leg Curl 90/90 con las 5 variables del Iso-Push', [seat, leg].every((vs) => vs.map((v) => v.name).join('|') === 'Peak Force|Peak Force relativo (SW)|Peak Force asimetría (%)|RFD at 100 ms|Force at 100 ms' && vs[3].unit === 'N/s' && vs[4].unit === 'N' && vs[0].unit === 'N'));
   check('SW: Leg Curl 90/90 al 29 %; Seated Calf Raise al 5 %; Knee y Ankle BW', leg[1].formula.op === 'REL_SW' && leg[1].formula.params.factor === 0.29 && seat[1].formula.op === 'REL_SW' && seat[1].formula.params.factor === 0.05 && seat[1].unit === 'SW' && /5 %/.test(seat[1].notes));
-  check('Seated Isometric 90/90 Knee Extension: Peak Force por lado y su relativa al peso (12/11/2026); el 90/20 sigue sin variables', varsOf('Seated Isometric 90°/90° Knee Extension Test').map((v) => `${v.name}|${v.sides}|${v.unit}`).join(' · ') === 'Peak Force|LR|N · Peak Force relativo (BW)|LR|BW' && varsOf('Standing Isometric 90°/20° Hamstring Test').length === 0);
+  check('Seated Isometric 90/90 Knee Extension: Peak Force por lado y su relativa al peso (12/11/2026)', varsOf('Seated Isometric 90°/90° Knee Extension Test').map((v) => `${v.name}|${v.sides}|${v.unit}`).join(' · ') === 'Peak Force|LR|N · Peak Force relativo (BW)|LR|BW');
+  // 25/11/2026: el 90°/20° deja de estar vacío — recibe las mismas variables que el Supine 90°/90°, con el relativo al SW del 29 %.
+  check('Standing 90°/20° Hamstring Test: las mismas variables que el 90°/90°, con relativo al SW', varsOf('Standing Isometric 90°/20° Hamstring Test').map((v) => `${v.name}|${v.sides}`).join(' · ') === varsOf('Supine Isometric 90°/90° Leg Curl Test').map((v) => `${v.name}|${v.sides}`).join(' · '));
   check('Hip: relativo con SW 0,29; Knee y Ankle con BW', hip[1].formula.op === 'REL_SW' && hip[1].formula.params.factor === 0.29 && ['Knee', 'Ankle'].every((z) => varsOf(`Run-Specific ${z} Iso-Push`)[1].formula.op === 'REL_BW'));
   check('asimetría con la operación del usuario y unidad %', hip[2].formula.op === 'ASIMETRIA' && hip[2].unit === '%' && hip[2].formula.operands[0] === hip[0].id);
   check('RFD at 100 ms (N/s) y Force at 100 ms (N) sin fórmula; Hop/Drop Jump/Iso-Hold según el PDF', hip[3].unit === 'N/s' && hip[3].formula === null && hip[4].unit === 'N' && hip[4].formula === null && ['Knee', 'Ankle'].every((z) => varsOf(`Run-Specific ${z} Iso-Push`).length === 5) && varsOf('Hip Iso-Hold 20 s').length === 4);
   check('«DROP LANDING» se queda sin dirección a propósito: el fichero de VALD no deja claro qué mide', cat.variables.filter((v) => v.name === 'DROP LANDING').every((v) => (v.direction ?? null) === null) && cat.variables.some((v) => v.name === 'DROP LANDING'));
-  check('la dirección por defecto es «más alto es mejor», «más bajo» en el tiempo de contacto, y las asimetrías (%) quedan sin dirección (D50)', cat.variables.filter((v) => v.source === 'inicial' && v.unit !== 'cm' && v.unit !== '°' && v.name !== 'TOE-TOUCH TEST' && v.name !== 'DROP LANDING' && v.formula?.op !== 'ISO_PIMA' && !/^ISO_|RM_EST/.test(v.formula?.op ?? '')).every((v) => v.direction === (v.unit === '%' ? null : I.LOWER_IS_BETTER.test(v.name) ? 'lower' : 'higher')) && cat.variables.some((v) => v.unit === '%') && cat.variables.some((v) => /^(mean )?contact time$/i.test(v.name) && v.direction === 'lower'));
+  check('la dirección por defecto es «más alto es mejor», «más bajo» en el tiempo de contacto, y las asimetrías (%) quedan sin dirección (D50)', cat.variables.filter((v) => v.source === 'inicial' && v.unit !== 'cm' && v.unit !== '°' && v.name !== 'TOE-TOUCH TEST' && v.name !== 'DROP LANDING' && v.formula?.op !== 'ISO_PIMA' && !/^ISO_|RM_EST|LOAD_BW/.test(v.formula?.op ?? '')).every((v) => v.direction === (v.unit === '%' ? null : I.LOWER_IS_BETTER.test(v.name) ? 'lower' : 'higher')) && cat.variables.some((v) => v.unit === '%') && cat.variables.some((v) => /^(mean )?contact time$/i.test(v.name) && v.direction === 'lower'));
   check('Nordic: Max Force (N, I/D), Max Force Asymmetry (%, valor único), Torque (Nm, I/D) y Max Force relativo (BW, I/D)', JSON.stringify(varsOf('Nordic Hamstring Exercise').map((v) => [v.name, v.unit, v.sides])) === JSON.stringify([['Max Force', 'N', 'LR'], ['Max Force Asymmetry', '%', 'single'], ['Torque', 'Nm', 'LR'], ['Max Force relativo (BW)', 'BW', 'LR']]));
-check('RM: «Carga máxima (kg)»; Iso-Hold: «Carga externa (kg)» + MVIC, %PIMA y %BW en los cuatro (14/11/2026); 12RM: 1RM estimado', ['Hamstring Bridge 30 cm 8RM', 'Single-Leg Seated Calf Raise 6RM'].every((n) => varsOf(n).length === 1 && varsOf(n)[0].name === 'Carga máxima (kg)') && JSON.stringify(varsOf('Hip Iso-Hold 20 s').map((v) => v.name)) === JSON.stringify(['Carga externa (kg)', 'MVIC iso-push (kg)', '%PIMA', '%BW']) && varsOf('Knee Iso-Hold 20 s').at(-1).name === '%BW' && varsOf('Ankle Iso-Hold 20 s').at(-1).name === '%BW' && varsOf('Seated Calf Raise Iso-Hold 20 s').at(-1).name === '%BW' && varsOf('Seated Calf Raise Iso-Hold 20 s').at(-1).formula.op === 'ISO_LOAD_BW' && varsOf('Single-Leg Standing Calf Raise 12RM').at(-1).name === '1RM estimado (kg)' && varsOf('Single-Leg Standing Calf Raise 12RM').at(-1).formula.params.factor === 1.4);
+check('RM: «Carga máxima (kg)»; Iso-Hold: «Carga externa (kg)» + MVIC, %PIMA y %BW en los cuatro (14/11/2026); 12RM: 1RM estimado', varsOf('Hamstring Bridge 30 cm 8RM').map((v) => `${v.name}|${v.sides}`).join(' · ') === 'Carga máxima (kg)|LR · %BW|LR'
+  && varsOf('Single-Leg Seated Calf Raise 6RM').map((v) => `${v.name}|${v.sides}`).join(' · ') === 'Carga máxima (kg)|LR · 1RM estimado (kg)|LR · %BW|LR'
+  && JSON.stringify(varsOf('Single-Leg Seated Calf Raise 6RM').find((v) => v.formula?.op === 'RM_EST').formula.params) === JSON.stringify({ factor: 1.2, massFactor: 0.05 }) && JSON.stringify(varsOf('Hip Iso-Hold 20 s').map((v) => v.name)) === JSON.stringify(['Carga externa (kg)', 'MVIC iso-push (kg)', '%PIMA', '%BW']) && varsOf('Knee Iso-Hold 20 s').at(-1).name === '%BW' && varsOf('Ankle Iso-Hold 20 s').at(-1).name === '%BW' && varsOf('Seated Calf Raise Iso-Hold 20 s').at(-1).name === '%BW' && varsOf('Seated Calf Raise Iso-Hold 20 s').at(-1).formula.op === 'ISO_LOAD_BW' && varsOf('Single-Leg Standing Calf Raise 12RM').map((v) => `${v.name}|${v.sides}`).join(' · ') === 'Carga máxima (kg)|LR · 1RM estimado (kg)|LR · %BW|LR' && JSON.stringify(varsOf('Single-Leg Standing Calf Raise 12RM').find((v) => v.formula?.op === 'RM_EST').formula.params) === JSON.stringify({ factor: 1.4, massFactor: 1 }));
   { const nv = varsOf('Nordic Hamstring Exercise'); const rel = nv.find((v) => v.name === 'Max Force relativo (BW)'); check('Nordic relativo: REL_BW sobre Max Force, más alto es mejor', rel.kind === 'derived' && rel.formula.op === 'REL_BW' && rel.formula.operands[0] === nv.find((v) => v.name === 'Max Force').id && rel.direction === 'higher'); }
-  check('historial de fórmulas: una versión por variable calculada', (await db.formulaHistory.count()) === 30 && cat.variables.filter((v) => v.formula).every((v) => v.formulaVersion === 1));
+  check('historial de fórmulas: una versión por variable calculada', (await db.formulaHistory.count()) === 40 && cat.variables.filter((v) => v.formula).every((v) => v.formulaVersion === 1));
   check('registro de acciones: una sola entrada de carga inicial', (await db.auditLog.where('action').equals('catalogo-inicial-cargado').count()) === 1);
 }
 
@@ -106,12 +110,20 @@ check('RM: «Carga máxima (kg)»; Iso-Hold: «Carga externa (kg)» + MVIC, %PIM
   const dj = await named('DL Drop Jump 30 cm');
   const contact = (await db.variables.where('testId').equals(dj.id).toArray()).find((x) => x.name === 'CONTACT TIME');
   await db.variables.update(contact.id, { unit: 'ms' });
+  // 23/11/2026: se simula una base anterior al Leg Press con dos medidas (como la del usuario): la carga del unilateral era de valor único y no había %BW.
+  const lpD = await named('Double-Leg Leg Press 45° 8RM'), lpU = await named('Single-Leg Leg Press 45° 8RM');
+  const cargaU = (await db.variables.where('testId').equals(lpU.id).toArray()).find((x) => x.name === 'Carga máxima (kg)');
+  await db.variables.update(cargaU.id, { sides: 'single' });
+  for (const t of [lpD, lpU]) for (const x of (await db.variables.where('testId').equals(t.id).toArray()).filter((y) => y.name === '%BW')) { await db.variables.delete(x.id); await db.formulaHistory.where('variableId').equals(x.id).delete(); }
   const meta = await db.meta.get('catalogSeeded');
   await db.meta.put({ key: 'catalogSeeded', value: { ...meta.value, version: 1 } });
   const r = await I.seedInitialCatalog(db);
-  check('migración: se ejecuta, no vuelve a sembrar y cuenta lo añadido', r.sembrado === false && r.migrado === true && r.variablesAnadidas === 12 && r.unidadesRellenadas === 20 && r.isoHoldMovidos === 4 && r.duplicadoEliminado === true, JSON.stringify(r));
+  check('migración: se ejecuta, no vuelve a sembrar y cuenta lo añadido', r.sembrado === false && r.migrado === true && r.variablesAnadidas === 14 && r.unidadesRellenadas === 20 && r.isoHoldMovidos === 4 && r.duplicadoEliminado === true, JSON.stringify(r));
   const after = await C.listCatalog(db);
-  check('migración: 39 tests y 164 variables otra vez', after.tests.length === 39 && after.variables.length === 164, `${after.tests.length}/${after.variables.length}`);
+  const cargaUpost = after.variables.find((x) => x.id === cargaU.id);
+  check('migración de los RM: la carga del unilateral pasa a ser por pierna (sin datos que migrar)', cargaUpost.sides === 'LR' && r.rmPorPierna >= 1, `${cargaUpost.sides} / ${r.rmPorPierna}`);
+  check('migración de los RM: los dos tests recuperan su %BW calculado', [lpD, lpU].every((t) => { const v = after.variables.find((x) => x.testId === t.id && x.name === '%BW'); return v && v.formula.op === 'LOAD_BW' && v.unit === '%'; }) && after.variables.find((x) => x.testId === lpU.id && x.name === '%BW').sides === 'LR');
+  check('migración: 39 tests y 177 variables otra vez', after.tests.length === 39 && after.variables.length === 177, `${after.tests.length}/${after.variables.length}`);
   check('migración: Iso-Hold en Max Isometric, Ankle Iso-Hold visible y sin duplicado', ['Hip Iso-Hold 20 s', 'Knee Iso-Hold 20 s', 'Ankle Iso-Hold 20 s', 'Seated Calf Raise Iso-Hold 20 s'].every((n) => after.tests.find((t) => t.name === n)?.manifestationId === man) && after.tests.find((t) => t.name === 'Ankle Iso-Hold 20 s').archived === false && !after.tests.some((t) => t.name.startsWith('Run-Specific Ankle Iso-Hold')));
   const cmjVars = after.variables.filter((x) => x.testId === cmj.id);
   check('migración: unidades rellenadas, variable nueva y tipo de valor', cmjVars.length === 20 && cmjVars.every((x) => x.unit && x.sides === 'single'));
@@ -122,7 +134,7 @@ check('migración: alinea la unidad escrita a mano con la definitiva y lo deja e
   const again = await I.seedInitialCatalog(db);
   const seatV = after.variables.filter((x) => x.testId === (after.tests.find((t) => t.name === 'Seated Calf Raise Iso-Push')).id);
   check('migración: Seated Calf Raise recibe 5 variables, SW al 5 % y fórmulas versionadas', seatV.length === 5 && seatV[1].formula.params.factor === 0.05 && seatV[2].formula.operands[0] === seatV[0].id && (await db.formulaHistory.where('variableId').equals(seatV[1].id).count()) === 1);
-  check('migración: no se repite', again.sembrado === false && again.migrado === false && (await db.variables.count()) === 164);
+  check('migración: no se repite', again.sembrado === false && again.migrado === false && (await db.variables.count()) === 177);
   check('migración: queda en el registro de acciones', (await db.auditLog.toArray()).filter((a) => a.action === 'catalogo-inicial-actualizado').length === 1);
 }
 
@@ -201,7 +213,7 @@ check('migración: alinea la unidad escrita a mano con la definitiva y lo deja e
   const m = (await db.manifestations.toArray())[0].id;
   const t = await C.createTest(db, { name: 'Test del usuario', manifestationId: m });
   const backup = await B.buildBackup(db, D.APP_VERSION);
-  check('la copia incluye las tablas del catálogo', ['blocks', 'manifestations', 'zones', 'tests', 'protocols', 'variables', 'formulaHistory'].every((k) => k in backup.tables) && backup.schemaVersion === 6);
+  check('la copia incluye las tablas del catálogo', ['blocks', 'manifestations', 'zones', 'tests', 'protocols', 'variables', 'formulaHistory'].every((k) => k in backup.tables) && backup.schemaVersion === 8);
   await db.tests.delete(t);
   await db.tests.add({ name: 'Basura', blockKey: 'fuerza', manifestationId: m, zoneId: null, archived: false, order: 999 });
   const val = await B.validateBackup(db, backup);
@@ -220,7 +232,7 @@ check('migración: alinea la unidad escrita a mano con la definitiva y lo deja e
   const v2 = await B.validateBackup(db, old);
   check('copia del esquema 2: válida con aviso de tablas nuevas vacías', v2.ok === true && v2.warnings.length === 7, JSON.stringify(v2.errors));
   const r2 = await B.restoreBackup(db, old);
-  check('copia del esquema 2: tras restaurar se añade el catálogo inicial una sola vez', r2.verificado && r2.catalogoInicialAnadido === true && (await db.tests.count()) === 39 && (await db.variables.count()) === 164);
+  check('copia del esquema 2: tras restaurar se añade el catálogo inicial una sola vez', r2.verificado && r2.catalogoInicialAnadido === true && (await db.tests.count()) === 39 && (await db.variables.count()) === 177);
   const r3 = await I.seedInitialCatalog(db);
   check('y no se vuelve a sembrar', r3.sembrado === false && (await db.tests.count()) === 39);
 }

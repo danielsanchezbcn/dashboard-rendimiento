@@ -11,9 +11,9 @@ const check = (name, cond, extra = '') => { console.log(`${cond ? 'OK  ' : 'FAIL
 // 1. Base y esquema
 const db = D.createDb('test-1b');
 await D.initDb(db);
-check('esquema 6 con 21 tablas', db.verno === 6 && db.tables.map((t) => t.name).sort().join() === 'anthropometry,auditLog,blocks,formulaHistory,fvProfiles,importBatches,importMappings,local,manifestations,meta,playerAliases,playerPositions,players,positions,protocols,sessions,settings,targets,tests,variables,zones');
+check('esquema 8 con 21 tablas (sin targets, retirados el 26/11/2026)', db.verno === 8 && db.tables.map((t) => t.name).sort().join() === 'anthropometry,auditLog,blocks,formulaHistory,fvProfiles,importBatches,importMappings,isoRack,local,manifestations,meta,playerAliases,playerPositions,players,positions,protocols,sessions,settings,tests,variables,zones');
 check('meta.createdAt y auditoría inicial', !!(await db.meta.get('createdAt')) && (await db.auditLog.count()) === 1);
-check('la copia excluye la tabla local', B.backupTableNames(db).join() === 'anthropometry,auditLog,blocks,formulaHistory,fvProfiles,importBatches,importMappings,manifestations,meta,playerAliases,playerPositions,players,positions,protocols,sessions,settings,targets,tests,variables,zones');
+check('la copia excluye la tabla local', B.backupTableNames(db).join() === 'anthropometry,auditLog,blocks,formulaHistory,fvProfiles,importBatches,importMappings,isoRack,manifestations,meta,playerAliases,playerPositions,players,positions,protocols,sessions,settings,tests,variables,zones');
 
 await D.setSetting(db, 'backupReminderDays', 14);
 await D.setLocal(db, 'lastBackup', { at: 'x' });
@@ -40,7 +40,7 @@ for (const [gzip, pw] of [[false, ''], [true, ''], [false, 'clave-segura-1'], [t
 {
   const t = structuredClone(snap); t.tables.settings[0].value = 99;
   check('alteración detectada', (await B.validateBackup(db, t)).errors.some((e) => e.includes('suma de verificación')));
-  const n = structuredClone(snap); n.schemaVersion = 7;
+  const n = structuredClone(snap); n.schemaVersion = 9;
   check('esquema posterior rechazado', (await B.validateBackup(db, n)).errors.some((e) => e.includes('posterior')));
   const u = structuredClone(snap); u.tables.extra = []; u.counts.extra = 0;
   check('tabla desconocida rechazada', (await B.validateBackup(db, u)).errors.some((e) => e.includes('desconocida')));
@@ -96,10 +96,10 @@ for (const [gzip, pw] of [[false, ''], [true, ''], [false, 'clave-segura-1'], [t
   const db3 = new Dexie('test-1b-v3');
   db3.version(1).stores({ settings: 'key', auditLog: '++id, timestamp, action', meta: 'key', local: 'key' });
   db3.version(2).stores({ players: '++id, jerseyName, synthetic', playerAliases: '++id, playerId, source, normalizedKey, synthetic', positions: '++id, name, order, synthetic', playerPositions: '++id, playerId, positionId, validFrom, synthetic', anthropometry: '++id, playerId, date, synthetic' });
-  db3.version(7).stores({ extra: '++id' });
+  db3.version(9).stores({ extra: '++id' });
   await db3.open();
   const snap3 = await B.buildBackup(db3, 'futura');
-  check('copia de un esquema posterior (7) rechazada por la base actual (6)', (await B.validateBackup(db, snap3)).errors.some((e) => e.includes('posterior')));
+  check('copia de un esquema posterior (9) rechazada por la base actual (8)', (await B.validateBackup(db, snap3)).errors.some((e) => e.includes('posterior')));
   old.close(); db3.close();
 }
 

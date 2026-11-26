@@ -55,4 +55,23 @@ r = buildRadar({ profile, test, variables, sessions, players, histories: H, play
 check('multi: sin posición elegida, las referencias por posición no están disponibles', r.complete.p50pos === false && r.complete.p75pos === false && r.complete.p50 === true);
 r = buildRadar({ profile, test, variables, sessions, players, histories: H, playerId: 4, basis: 'pa', positionId: 20, minN: 10, multi: true });
 check('multi: posición con menos jugadores que el mínimo → no disponible', r.complete.p50pos === false);
+// Orden cronológico de las referencias con fecha (26/11/2026, pedido del usuario): la medida más antigua primero, en la leyenda del radar y en las
+// columnas de la tabla de valores originales. Las que no llevan fecha conservan su sitio.
+{
+  const { ordenCronologico } = await import('./pages-radar.js');
+  const dates = { first: ['2026-09-04', '2026-09-04'], last: ['2026-11-26', '2026-11-26'] };
+  check('la medida más antigua va primero aunque se marcara después', ordenCronologico(['last', 'first'], dates).join() === 'first,last');
+  check('no se toca lo que ya está en orden', ordenCronologico(['first', 'last'], dates).join() === 'first,last');
+  check('las referencias sin fecha se quedan donde estaban', ordenCronologico(['p50', 'last', 'premier50', 'first'], dates).join() === 'p50,first,premier50,last');
+  check('sin fechas no cambia nada', ordenCronologico(['last', 'first'], null).join() === 'last,first');
+}
+// Un solo nombre para la referencia posicional en TODO el dashboard (26/11/2026, pedido del usuario): el filtro del radar de Composite, su leyenda
+// y el filtro de la escala de Benchmark-Contextualized Positioning tienen que decir exactamente lo mismo.
+{
+  const { etiquetaRefPos } = await import('./pages-composite.js');
+  check('la referencia posicional se llama igual en el filtro y en la leyenda', etiquetaRefPos('p50pos', 'External Midfielder') === 'P50 La Liga (External Midfielder)', etiquetaRefPos('p50pos', 'External Midfielder'));
+  check('P75 usa el mismo molde', etiquetaRefPos('p75pos', 'External Midfielder') === 'P75 La Liga (External Midfielder)', etiquetaRefPos('p75pos', 'External Midfielder'));
+  check('sin posición principal no se cuela «posición» en español', etiquetaRefPos('p50pos', null) === 'P50 La Liga (by position)', etiquetaRefPos('p50pos', null));
+}
+
 process.exit(fail);

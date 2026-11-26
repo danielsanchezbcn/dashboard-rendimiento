@@ -59,8 +59,10 @@ export function profileFromSetting(cfg) {
 export const RADAR_REFS = [
   { key: 'p50', label: 'P50 La Liga', group: 'liga' },
   { key: 'p75', label: 'P75 La Liga', group: 'liga' },
-  { key: 'p50pos', label: 'P50 La Liga by position', group: 'liga', needsPosition: true },
-  { key: 'p75pos', label: 'P75 La Liga by position', group: 'liga', needsPosition: true },
+  // 26/11/2026: el rótulo lleva el nombre de la posición entre paréntesis —«P50 La Liga (External Midfielder)»—, igual que en el resto del
+  // dashboard. `refLabel` lo compone; aquí va solo la parte fija.
+  { key: 'p50pos', label: 'P50 La Liga', group: 'liga', needsPosition: true },
+  { key: 'p75pos', label: 'P75 La Liga', group: 'liga', needsPosition: true },
   { key: 'premier50', label: 'P50 Premier League', group: 'premier' },
   { key: 'premier75', label: 'P75 Premier League', group: 'premier' },
   { key: 'first', label: 'Player first measurement', group: 'jugador' },

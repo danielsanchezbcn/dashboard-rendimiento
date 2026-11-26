@@ -9,7 +9,7 @@ import { locate } from './relaciones.js';
 import { RADAR_PROFILES } from './radar.js';
 import { NATERA } from './natera.js';
 import { PREMIER_REFERENCES } from './premier.js';
-import { ISO_PAIRS, RM12_TESTS, LOAD_VARIABLE_NAMES } from './isohold.js';
+import { ISO_PAIRS, RM_EST_TESTS, LOAD_VARIABLE_NAMES } from './isohold.js';
 import { CUALIDADES, T as CT, V as CV, IMPULSOS_REL } from './composite.js';
 import { mismoTest } from './nombres.js';
 import { updateTest } from './catalogo.js';
@@ -48,7 +48,7 @@ check('premier.js: en los tests que existen, la variable de la referencia tambi�
 check('premier.js: no hay referencias a tests que el catálogo no tiene', testsPremierSinCatalogo.length === 0, testsPremierSinCatalogo.join(', '));
 
 // ---- 5. Iso-Hold: las dos mitades de cada pareja (el Iso-Hold y su Iso-Push), y los tests de 12RM.
-const sinIso = [...Object.entries(ISO_PAIRS).flatMap(([hold, push]) => [...(test(hold) ? [] : [`iso-hold «${hold}»`]), ...(test(push) ? [] : [`iso-push «${push}»`])]), ...RM12_TESTS.filter((n) => !test(n)).map((n) => `12RM «${n}»`)];
+const sinIso = [...Object.entries(ISO_PAIRS).flatMap(([hold, push]) => [...(test(hold) ? [] : [`iso-hold «${hold}»`]), ...(test(push) ? [] : [`iso-push «${push}»`])]), ...RM_EST_TESTS.map((e) => e.test).filter((n) => !test(n)).map((n) => `1RM estimado «${n}»`)];
 check('isohold.js: las parejas iso-hold/iso-push y los 12RM existen', sinIso.length === 0, sinIso.join(', '));
 
 // ---- 6. COMPOSITE PROFILE SCORE: el test y la variable de cada puntuación, cada interpretativa y cada regla.

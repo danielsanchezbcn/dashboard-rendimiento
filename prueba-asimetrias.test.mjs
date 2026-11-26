@@ -55,4 +55,40 @@ check('nombres: variables y tests en minúscula, bloques en mayúscula', dn('RSI
   check('variable ASYM de VALD: el cambio frente a la sesión anterior son −2 puntos porcentuales', fa('last').variPuntos === -2, String(fa('last').variPuntos));
   check('variable ASYM de VALD: no se le calcula un % de variación por lado', fa('last').variL === undefined && fa('last').vald === true);
 }
+
+// ---- Tests de RM con carga por pierna (24/11/2026) y sesiones excluidas (25/11/2026) ----
+{
+  const lp = T('Single-Leg Leg Press 45° 8RM');
+  const carga = cat.variables.find((v) => v.testId === lp.id && v.name === 'Carga máxima (kg)');
+  const bw = cat.variables.find((v) => v.testId === lp.id && v.name === '%BW');
+  const ses = [{ id: 10, playerId: 1, testId: lp.id, date: '2026-11-10', time: '', values: { [carga.id]: { L: 40, R: 50 }, [bw.id]: { L: 50, R: 62.5 } }, reps: { L: 1, R: 1, total: 1 }, status: 'valid' }];
+  const filas = filasAsimetria(lp, cat, ses, 'last');
+  // 26/11/2026 (pedido del usuario): en un test de RM solo se lista el %BW. La carga en kilos y el 1RM estimado dan EXACTAMENTE la misma asimetría
+  // —son la misma medida dividida por una constante—, así que la tabla repetía tres veces la misma fila.
+  check('RM por pierna: solo se lista el %BW', filas.length === 1 && filas[0].v.id === bw.id, JSON.stringify(filas.map((f) => f.v.name)));
+  check('RM por pierna: la carga en kilos no se repite', !filas.some((f) => f.v.id === carga.id));
+  check('y la asimetría del %BW es la misma que la de los kilos', Math.round(filas[0].pct * 100) / 100 === 20, String(filas[0].pct));
+  check('asimetría = (R − L) ÷ mayor × 100, positiva cuando domina la derecha', Math.round(filas[0].pct * 100) / 100 === 20, String(filas[0].pct));
+  const invert = [{ ...ses[0], values: { [carga.id]: { L: 50, R: 40 }, [bw.id]: { L: 62.5, R: 50 } } }];
+  check('con la izquierda dominante, la asimetría es negativa y de la misma magnitud', Math.round(filasAsimetria(lp, cat, invert, 'last')[0].pct * 100) / 100 === -20);
+  const iguales = [{ ...ses[0], values: { [carga.id]: { L: 45, R: 45 }, [bw.id]: { L: 56.25, R: 56.25 } } }];
+  check('misma carga en las dos piernas (los calf raise) = asimetría 0', filasAsimetria(lp, cat, iguales, 'last')[0].pct === 0);
+  const excluida = [{ ...ses[0], status: 'excluded' }];
+  check('una sesión excluida no genera fila de asimetría', filasAsimetria(lp, cat, excluida, 'last').length === 0);
+  const dos = [{ ...ses[0], id: 11, date: '2026-10-01', values: { [carga.id]: { L: 30, R: 30 }, [bw.id]: { L: 37.5, R: 37.5 } } }, { ...ses[0], id: 12, date: '2026-11-10', status: 'excluded' }];
+  check('con la última excluida, la asimetría es la de la sesión válida anterior', filasAsimetria(lp, cat, dos, 'last')[0].pct === 0, JSON.stringify(filasAsimetria(lp, cat, dos, 'last').map((f) => f.pct)));
+}
+
+// ---- Ángulos: la asimetría va en GRADOS, no en porcentaje ----
+{
+  const jur = cat.tests.find((t) => /jurdan/i.test(t.name));
+  if (jur) {
+    const ang = cat.variables.find((v) => v.testId === jur.id && v.sides === 'LR' && (v.unit ?? '').includes('°'));
+    if (ang) {
+      const ses = [{ id: 20, playerId: 1, testId: jur.id, date: '2026-11-10', time: '', values: { [ang.id]: { L: 40, R: 46 } }, reps: { L: 1, R: 1, total: 1 }, status: 'valid' }];
+      const f = filasAsimetria(jur, cat, ses, 'last').find((x) => x.v.id === ang.id);
+      check('variable en grados: la asimetría es la RESTA en grados y se marca como tal', f && f.deg === true && f.pct === 6, JSON.stringify({ deg: f?.deg, pct: f?.pct }));
+    }
+  }
+}
 console.log(fail ? 'HAY FALLOS' : 'Todo bien'); process.exit(fail);

@@ -59,7 +59,13 @@ const std = (load, date = '2026-03-10') => ({ id: 20, playerId: p1, testId: T('S
 const rm = (anthro, s = std(50)) => expandRelative(variables, T('Single-Leg Standing Calf Raise 12RM').id, [s], anthro, { tests, allSessions: [] }, today);
 check('1RM estimado = (carga + masa) × 1,4 con la masa medida más cercana a la fecha (90 kg el 10/3)', close(rm(an).sessions[0].values[V('Single-Leg Standing Calf Raise 12RM', '1RM estimado (kg)').id].S, (50 + 90) * 1.4));
 check('1RM estimado: sin masa ni peso de referencia no se calcula y se cuenta; con peso de referencia sí', rm([]).sessions[0].values[V('Single-Leg Standing Calf Raise 12RM', '1RM estimado (kg)').id] === undefined && rm([]).omitted[V('Single-Leg Standing Calf Raise 12RM', '1RM estimado (kg)').id] === 1 && close(rm(withReferenceWeights([], players)).sessions[0].values[V('Single-Leg Standing Calf Raise 12RM', '1RM estimado (kg)').id].S, (50 + 75.5) * 1.4));
-check('1RM solo en 12RM: el 6RM y el 8RM no tienen esa variable; sin Personal Average se aplica en pantalla (variable de carga única)', !V('Single-Leg Seated Calf Raise 6RM', '1RM estimado (kg)') && !V('Hamstring Bridge 30 cm 8RM', '1RM estimado (kg)'));
+// 25/11/2026: el Seated Calf Raise 6RM también estima 1RM, pero sentado solo participa el 5 % de la masa corporal y el factor es 1,2 (criterio del usuario).
+const seat = (load) => ({ id: 21, playerId: p1, testId: T('Single-Leg Seated Calf Raise 6RM').id, date: '2026-03-10', values: { [V('Single-Leg Seated Calf Raise 6RM', 'Carga máxima (kg)').id]: { L: load, R: load } }, reps: {}, status: 'valid' });
+const rmSeat = (anthro, load = 40) => expandRelative(variables, T('Single-Leg Seated Calf Raise 6RM').id, [seat(load)], anthro, { tests, allSessions: [] }, today);
+const vSeat = V('Single-Leg Seated Calf Raise 6RM', '1RM estimado (kg)');
+check('1RM del 6RM sentado = (carga + 5 % de la masa) × 1,2, en las dos piernas', vSeat && close(rmSeat(an).sessions[0].values[vSeat.id].L, (40 + 0.05 * 90) * 1.2) && close(rmSeat(an).sessions[0].values[vSeat.id].R, (40 + 0.05 * 90) * 1.2));
+check('1RM del 6RM: no usa el factor del de pie', Math.abs(rmSeat(an).sessions[0].values[vSeat.id].L - (40 + 90) * 1.4) > 1);
+check('1RM: el 8RM sigue sin esa variable', !V('Hamstring Bridge 30 cm 8RM', '1RM estimado (kg)'));
 check('variables calculadas visibles y con dato: MVIC, %PIMA, %BW, 1RM', [['Hip Iso-Hold 20 s', 'MVIC iso-push (kg)'], ['Hip Iso-Hold 20 s', '%PIMA'], ['Hip Iso-Hold 20 s', '%BW'], ['Single-Leg Standing Calf Raise 12RM', '1RM estimado (kg)']].every(([t, n]) => isViewable(V(t, n))) && hasData(V('Hip Iso-Hold 20 s', '%PIMA'), [hold('Hip Iso-Hold 20 s', 1, 40)]));
 check('pairContext: devuelve las sesiones del Iso-Push emparejado y nada en un test sin pareja', (await pairContext(db, tests, T('Knee Iso-Hold 20 s'))).allSessions.length === 0 && (await pairContext(db, tests, T('CMJ'))).allSessions.length === 0);
 await clearReferenceWeight(db, p1);
