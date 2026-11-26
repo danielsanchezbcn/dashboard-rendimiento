@@ -2,11 +2,11 @@
 // Selección explícita de dos variables (test + variable + lado), periodo y población. Transversal: UNA observación por jugador
 // (su Personal Average en el periodo; las medidas repetidas no se tratan como independientes). Intra-jugador: pares del mismo jugador
 // y el mismo día, con correlación de medidas repetidas. Solo sesiones válidas; las excluidas no cuentan. Nada se rellena ni se estima.
-import { buildSeries, personalAverage } from './evolucion.js';
+import { buildSeries, personalAverage, personalBest, personalBestFor, currentResult } from './evolucion.js';
 import { isViewable, hasData } from './relativos.js';
 import { positionOnDate } from './posiciones.js';
 import { pearsonResult, spearmanResult, rmcorr } from './estadistica.js';
-import { playerLabel } from './jugadores.js';
+import { playerLabel, aliasOf } from './jugadores.js';
 
 export const SIDE_LABEL = { L: 'Izquierda', R: 'Derecha', M: 'Media de las dos piernas', S: '' };
 export const keyOf = (v, side) => `${v.testId}.${v.id}.${side}`;
@@ -42,15 +42,34 @@ const pointsOf = (sessions, playerId, o, from, to) => {
   return izq.map((p) => { const r = der.get(p.sessionId); return r ? { ...p, value: (p.value + r.value) / 2, reps: Math.min(p.reps ?? 1, r.reps ?? 1) } : null; }).filter(Boolean);
 };
 
-export function crossSectional({ sessions, players, histories, x, y, from, to, posQ = 'all', includeSynthetic = false, minN = 10 }) {
+// Bases de la sección (26/11/2026, pedido del usuario): el valor de cada jugador puede ser su Personal Average, su Personal Best o el último.
+export const BASES_TW = [['last', 'Latest'], ['pa', 'Personal Average'], ['pb', 'Personal Best']];
+// Un valor por jugador y variable, con la misma definición que usa el resto del dashboard:
+//   · Personal Average: media de sus sesiones válidas del periodo, ponderada por repeticiones.
+//   · Personal Best: `personalBestFor`, que respeta el criterio «mejor sesión» de los tests que lo tienen (RSI en CMJ, Drop Jump…).
+//     En el lado «media de las dos piernas» no existe esa función, así que ahí se usa el mejor valor según la dirección de la variable.
+//   · Latest: el valor de su última sesión válida del periodo.
+export function valorDeJugador(sessions, playerId, o, from, to, basis) {
+  const pts = pointsOf(sessions, playerId, o, from, to);
+  if (basis === 'last') { const c = currentResult(pts); return c ? { defined: true, value: c.value, from: c.date, to: c.date, date: c.date } : { defined: false, reason: 'Sin sesiones válidas en el periodo.' }; }
+  if (basis === 'pb') {
+    const b = o.side === 'M'
+      ? personalBest(pts, o.variable.direction)
+      : personalBestFor(sessions.filter((s) => s.playerId === playerId && s.testId === o.test.id), o.variable, o.side, { from: from || null, to: to || null });
+    return b.defined ? { ...b, from: b.date, to: b.date } : b;
+  }
+  return personalAverage(pts);
+}
+
+export function crossSectional({ sessions, players, histories, x, y, from, to, posQ = 'all', includeSynthetic = false, minN = 10, basis = 'pa' }) {
   const obs = [];
   for (const p of population({ players, histories, posQ, includeSynthetic })) {
-    const a = personalAverage(pointsOf(sessions, p.id, x, from, to)), b = personalAverage(pointsOf(sessions, p.id, y, from, to));
-    if (a.defined && b.defined) obs.push({ id: p.id, name: playerLabel(p), x: a.value, y: b.value, from: a.from < b.from ? a.from : b.from, to: a.to > b.to ? a.to : b.to, synthetic: !!p.synthetic });
+    const a = valorDeJugador(sessions, p.id, x, from, to, basis), b = valorDeJugador(sessions, p.id, y, from, to, basis);
+    if (a.defined && b.defined) obs.push({ id: p.id, name: playerLabel(p), alias: aliasOf(p) || playerLabel(p), x: a.value, y: b.value, from: a.from < b.from ? a.from : b.from, to: a.to > b.to ? a.to : b.to, synthetic: !!p.synthetic });
   }
   const xs = obs.map((o) => o.x), ys = obs.map((o) => o.y);
   const sufficient = obs.length >= minN;
-  return { mode: 'cross', obs, n: obs.length, minN, sufficient, spearman: sufficient ? spearmanResult(xs, ys) : null, pearson: sufficient ? pearsonResult(xs, ys) : null, hasSynthetic: obs.some((o) => o.synthetic) };
+  return { mode: 'cross', basis, obs, n: obs.length, minN, sufficient, spearman: sufficient ? spearmanResult(xs, ys) : null, pearson: sufficient ? pearsonResult(xs, ys) : null, hasSynthetic: obs.some((o) => o.synthetic) };
 }
 
 export function withinPlayer({ sessions, players, histories, x, y, from, to, posQ = 'all', includeSynthetic = false, minN = 10 }) {
@@ -58,7 +77,7 @@ export function withinPlayer({ sessions, players, histories, x, y, from, to, pos
   for (const p of population({ players, histories, posQ, includeSynthetic })) {
     const byDate = (o) => { const m = new Map(); for (const pt of pointsOf(sessions, p.id, o, from, to)) (m.get(pt.date) ?? m.set(pt.date, []).get(pt.date)).push(pt); return new Map([...m].map(([d, g]) => [d, personalAverage(g).value])); };
     const bx = byDate(x), by = byDate(y);
-    const pairs = [...bx.keys()].filter((d) => by.has(d)).sort().map((d) => ({ id: p.id, name: playerLabel(p), date: d, x: bx.get(d), y: by.get(d), synthetic: !!p.synthetic }));
+    const pairs = [...bx.keys()].filter((d) => by.has(d)).sort().map((d) => ({ id: p.id, name: playerLabel(p), alias: aliasOf(p) || playerLabel(p), date: d, x: bx.get(d), y: by.get(d), synthetic: !!p.synthetic }));
     if (pairs.length >= 2) obs.push(...pairs); // un único par no aporta nada al análisis intra-jugador
   }
   const sufficient = obs.length >= minN;

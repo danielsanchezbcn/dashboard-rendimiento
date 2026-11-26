@@ -15,9 +15,9 @@ import { Angulos, EnlaceAngulos } from './pages-angulos.js';
 
 export const NAV = [
   { id: 'inicio', label: 'Inicio' },
-  { id: 'jugadores', label: 'Jugadores' },
+  { id: 'jugadores', label: 'Players' },
   { id: 'fuerza', label: 'Manifestaciones de la fuerza' },
-  { id: 'relaciones', label: 'Relaciones entre variables' },
+  { id: 'relaciones', label: 'Team-Wide Analysis' },
   { id: 'isorack', label: 'Configuración ISO-rack' },
   { id: 'perimetros', label: 'Datos antropométricos' },
   { id: 'nme', label: 'NME' },
@@ -30,8 +30,8 @@ export const NAV = [
 // Menú lateral (10/11/2026): cinco entradas. Las secciones agrupadas se alcanzan con pestañas dentro de la propia página; las rutas por hash no cambian.
 export const NAV_GRUPOS = [
   { id: 'inicio', label: 'Inicio', miembros: ['inicio', 'copias', 'configuracion'], pestanas: [['inicio', 'Copias de seguridad'], ['configuracion', 'Configuración']] },
-  { id: 'jugadores', label: 'Jugadores', miembros: ['jugadores'] },
-  { id: 'relaciones', label: 'Relaciones entre variables', miembros: ['relaciones'] },
+  { id: 'jugadores', label: 'Players', miembros: ['jugadores'] },
+  { id: 'relaciones', label: 'Team-Wide Analysis', miembros: ['relaciones'] },
   { id: 'isorack', label: 'Configuración ISO-rack', miembros: ['isorack'] },
   { id: 'fuerza', label: 'Catálogo de tests', miembros: ['fuerza', 'nme', 'perimetros', 'catalogo'], pestanas: [['fuerza', 'Manifestaciones de la fuerza'], ['nme', 'NME'], ['perimetros', 'Datos antropométricos'], ['catalogo', 'Catálogo y edición']] },
   { id: 'importar', label: 'Importar', miembros: ['importar'] },

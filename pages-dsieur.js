@@ -49,7 +49,7 @@ export function DsiEurTodos({ query = {} }) {
   const origen = query.j ? Number(query.j) : null;
   const nombre = (f) => playerLabel(f.player);
   const filas = ordenar(data.filas, orden, nombre);
-  const crumbs = [{ label: 'Jugadores', href: '#jugadores' },
+  const crumbs = [{ label: 'Players', href: '#jugadores' },
     ...(origen && data.porId[origen] ? [{ label: playerLabel(data.porId[origen]), href: buildHash(`jugador-${origen}`, { b: 'fuerza' }) }] : []),
     { label: 'DSI y EUR · todos los jugadores' }];
   const exportCsv = () => {

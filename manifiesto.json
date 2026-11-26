@@ -1,5 +1,5 @@
 {
-"version": "10i-0.15.0",
+"version": "10i-0.17.0",
 "archivos": {
 "alta-manual.js": {
 "bytes": 3994,
@@ -74,16 +74,16 @@
 "sha": "4fda6bedae300b70"
 },
 "app.js": {
-"bytes": 7596,
-"sha": "661d4bc2db15deb6"
+"bytes": 7576,
+"sha": "bc170a06456fab8d"
 },
 "asim-ui.js": {
 "bytes": 502,
 "sha": "af61f2c204cd984c"
 },
 "asociaciones.js": {
-"bytes": 4992,
-"sha": "9d52520522e97c44"
+"bytes": 6625,
+"sha": "e5a46639088d2f9b"
 },
 "atletas.js": {
 "bytes": 6234,
@@ -135,7 +135,7 @@
 },
 "db.js": {
 "bytes": 7523,
-"sha": "e31bf8fec800a30f"
+"sha": "28d9e97a63acbfcf"
 },
 "dsieur.js": {
 "bytes": 4174,
@@ -246,8 +246,8 @@
 "sha": "46fa6717efac5724"
 },
 "pages-asociaciones.js": {
-"bytes": 12466,
-"sha": "5a3ed4c63a210c68"
+"bytes": 24036,
+"sha": "a785851b4a9b5308"
 },
 "pages-cargas-dos.js": {
 "bytes": 9962,
@@ -270,12 +270,12 @@
 "sha": "62d1cfac8b758702"
 },
 "pages-dsieur.js": {
-"bytes": 6939,
-"sha": "bfb3cb52b2898d56"
+"bytes": 6937,
+"sha": "6c847734a7b56608"
 },
 "pages-evolucion.js": {
-"bytes": 49553,
-"sha": "2ef10409dc1d2db4"
+"bytes": 49612,
+"sha": "ffc16d294bc0db11"
 },
 "pages-fv.js": {
 "bytes": 22085,
@@ -294,8 +294,8 @@
 "sha": "a1c1364e2be9d73f"
 },
 "pages-jugadores.js": {
-"bytes": 24859,
-"sha": "054a8ec653fd9ee5"
+"bytes": 24857,
+"sha": "933ec996e7332150"
 },
 "pages-normativo.js": {
 "bytes": 22752,
@@ -314,8 +314,8 @@
 "sha": "2d1034f464527b78"
 },
 "pages-test.js": {
-"bytes": 31803,
-"sha": "93c7a3e97f23bcbe"
+"bytes": 31801,
+"sha": "4b81f1c58ec1014d"
 },
 "pages.js": {
 "bytes": 18001,
@@ -354,8 +354,12 @@
 "sha": "87fa4a0f0d89719d"
 },
 "style.css": {
-"bytes": 63603,
-"sha": "5718edc32e5eba7a"
+"bytes": 67047,
+"sha": "1a18f89708f513e5"
+},
+"teamwide.js": {
+"bytes": 6845,
+"sha": "66af98d0409169d7"
 },
 "usos.js": {
 "bytes": 5736,

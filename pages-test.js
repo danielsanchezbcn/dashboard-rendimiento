@@ -122,7 +122,7 @@ export function VistaTest({ id, query = {} }) {
   const playersById = Object.fromEntries(players.map((p) => [p.id, p]));
   const histories = {}; for (const r of records) (histories[r.playerId] ??= []).push(r);
   const backLink = (pid) => buildHash(`jugador-${pid}`, { ...KEEP(query), t: id, v: variable?.id, b: 'fuerza' });
-  const crumbs = [{ label: 'Jugadores', href: '#jugadores' }, ...(origin ? [{ label: playerLabel(origin), href: backLink(origin.id) }] : []), { label: `${dn(test.name)} · todos los jugadores` }];
+  const crumbs = [{ label: 'Players', href: '#jugadores' }, ...(origin ? [{ label: playerLabel(origin), href: backLink(origin.id) }] : []), { label: `${dn(test.name)} · todos los jugadores` }];
   if (!variable) return html`<${Card} titulo=${dn(test.name)}><${Migas} items=${crumbs} /><p class="muted">Ningún jugador tiene sesiones válidas de este test con variables que mostrar.</p><//>`;
   // Filtro de posición (la posición única del jugador): 'all', 'none' (sin posición) o el id de una posición.
   const posQ = query.pos ?? 'all';

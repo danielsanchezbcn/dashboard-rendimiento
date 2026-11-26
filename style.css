@@ -696,3 +696,41 @@ table.dsieur th[scope="row"] { text-align: left; font-weight: 600; white-space: 
 .card .card > h2 { margin: -1.35rem -1.6rem 1.1rem; }
 /* Cifras que cuadran en columna: todos los dígitos ocupan lo mismo. */
 table, .num, .band { font-variant-numeric: tabular-nums; }
+
+/* Dispersión de «Team-Wide Analysis» (26/11/2026): el alias del jugador en vez de un punto, con un halo fino para que se lea sobre la rejilla. */
+svg.scatter text.scatter-alias { font-size: 9px; font-weight: 650; fill: var(--text); paint-order: stroke; stroke: var(--bg); stroke-width: 2.5px; stroke-linejoin: round; }
+svg.scatter circle.scatter-pt { fill: var(--muted); opacity: .75; }
+
+/* Cuadros de «Team-Wide Analysis» (26/11/2026): mapa de calor, ranking y matriz de correlaciones. El color nunca es el único canal: la celda
+   siempre lleva el número. */
+table.calor td.calor-c { text-align: center; padding: .3rem .4rem; white-space: nowrap; }
+table.calor .calor-v { font-weight: 650; font-variant-numeric: tabular-nums; }
+table.calor .calor-p { display: block; font-size: .68rem; opacity: .85; font-variant-numeric: tabular-nums; }
+table.calor thead th { vertical-align: bottom; }
+table.calor .calor-var { display: block; max-width: 7.5rem; white-space: normal; line-height: 1.15; }
+table.calor th[scope="row"] { white-space: nowrap; font-weight: 650; }
+
+svg.ranking text { fill: var(--text); font-size: 10px; }
+svg.ranking .ranking-nm { font-weight: 650; }
+svg.ranking .ranking-v { font-size: 9.5px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+svg.ranking .ranking-b { fill: var(--muted); opacity: .9; }
+svg.ranking .ranking-ref { stroke-dasharray: 4 3; opacity: .8; }
+svg.ranking .ranking-reft { font-size: 9px; fill: var(--muted); }
+
+table.matriz td.matriz-c { text-align: center; font-variant-numeric: tabular-nums; padding: .3rem .45rem; }
+table.matriz td.m-misma { opacity: .4; }
+table.matriz td.m-alta { background: rgba(255, 255, 255, .17); font-weight: 700; }
+table.matriz td.m-media { background: rgba(255, 255, 255, .1); }
+table.matriz td.m-baja { background: rgba(255, 255, 255, .04); }
+table.matriz th[scope="row"] { white-space: nowrap; }
+/* Las barras del ranking son SVG: el color de banda se aplica con `fill`, no con `background`. Mismas variables que las píldoras de percentil. */
+svg.ranking rect.band-rojo { fill: var(--b1); } svg.ranking rect.band-naranja { fill: var(--b2); } svg.ranking rect.band-amarillo-suave { fill: var(--b3); }
+svg.ranking rect.band-amarillo { fill: var(--b4); } svg.ranking rect.band-verde-suave { fill: var(--b5); } svg.ranking rect.band-verde { fill: var(--b6); }
+table.calor td.band-rojo { color: var(--b1t); } table.calor td.band-naranja { color: var(--b2t); } table.calor td.band-amarillo-suave { color: var(--b3t); }
+table.calor td.band-amarillo { color: var(--b4t); } table.calor td.band-verde-suave { color: var(--b5t); } table.calor td.band-verde { color: var(--b6t); }
+table.calor td.calor-c.band-rojo, table.calor td.calor-c.band-naranja, table.calor td.calor-c.band-amarillo-suave,
+table.calor td.calor-c.band-amarillo, table.calor td.calor-c.band-verde-suave, table.calor td.calor-c.band-verde { border: 1px solid rgba(0, 0, 0, .25); }
+/* El color de banda tiene que ganar al resaltado de la fila bajo el ratón (`tr:hover td`), que si no deja la celda sin color. */
+table.calor td.calor-c.band-rojo { background: var(--b1); } table.calor td.calor-c.band-naranja { background: var(--b2); }
+table.calor td.calor-c.band-amarillo-suave { background: var(--b3); } table.calor td.calor-c.band-amarillo { background: var(--b4); }
+table.calor td.calor-c.band-verde-suave { background: var(--b5); } table.calor td.calor-c.band-verde { background: var(--b6); }

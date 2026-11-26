@@ -230,9 +230,9 @@ function CompararPanel({ variable, sides, series, cmp, setCmp, stats }) {
       <div class="table-wrap"><table class="comparar-tabla"><caption>${dn(variable.name)}${sides.length === 2 ? ` · ${sideName[side]}` : ''}: ${fmtDay(ant.date)} → ${fmtDay(pos.date)}</caption><tbody>
         <tr><th scope="row">Medida anterior</th><td>${fmtDay(ant.date)}${ant.time ? ' ' + ant.time : ''}</td><td class="num">${nf(ant.value)}${u}</td></tr>
         <tr><th scope="row">Medida posterior</th><td>${fmtDay(pos.date)}${pos.time ? ' ' + pos.time : ''}</td><td class="num">${nf(pos.value)}${u}</td></tr>
-        <tr class="grupo-ini"><th scope="row">Diferencia entre las dos medidas</th><td class="muted">posterior − anterior</td><td class="num">${celda(dif(ant.value))}</td></tr>
-        <tr><th scope="row">Diferencia con el Personal Average</th><td class="muted">${vPA === null ? (st?.pa?.reason ?? 'sin Personal Average') : `PA = ${nf(vPA)}${u}`}</td><td class="num">${celda(dif(vPA))}</td></tr>
-        <tr><th scope="row">Diferencia con el Personal Best</th><td class="muted">${vPB === null ? (st?.pb?.reason ?? 'sin Personal Best') : `PB = ${nf(vPB)}${u}${st.pb.date ? ` · ${fmtDay(st.pb.date)}` : ''}`}</td><td class="num">${celda(dif(vPB))}</td></tr>
+        <tr class="grupo-ini"><th scope="row">Diferencia (${fmtDay(pos.date)}) vs (${fmtDay(ant.date)})</th><td class="muted">posterior − anterior</td><td class="num">${celda(dif(ant.value))}</td></tr>
+        <tr><th scope="row">Diferencia (${fmtDay(pos.date)}) vs Personal Average</th><td class="muted">${vPA === null ? (st?.pa?.reason ?? 'sin Personal Average') : `PA = ${nf(vPA)}${u}`}</td><td class="num">${celda(dif(vPA))}</td></tr>
+        <tr><th scope="row">Diferencia (${fmtDay(pos.date)}) vs Personal Best</th><td class="muted">${vPB === null ? (st?.pb?.reason ?? 'sin Personal Best') : `PB = ${nf(vPB)}${u}${st.pb.date ? ` · ${fmtDay(st.pb.date)}` : ''}`}</td><td class="num">${celda(dif(vPB))}</td></tr>
       </tbody></table></div>` : null}
   </section>`;
 }
@@ -455,7 +455,7 @@ export function ResultadosJugador({ player, query = {}, edicion = null, antrop =
       <div class=${`test-list cols-${Math.min(5, groups.length)}`}>${groups.map((g) => html`<div key=${g}>${g === 'Sin manifestación' ? null : html`<h3>${g}</h3>`}<div class="test-items">${ordered(g).map((t) => { const ok = selectable(t); return html`<button type="button" key=${t.id} disabled=${!ok} title=${!ok ? 'Sin sesiones de este test' : sinAsignar(t) ? 'Tiene un perfil sin test asignado: ábrelo y asígnalo' : conDatos(t) ? t.name : 'Aún sin datos: pulsa para añadirlos'} class=${(test && t.id === test.id ? 'test-item on' : 'test-item') + (!conDatos(t) && ok ? ' vacio' : '')} aria-pressed=${!!test && t.id === test.id} onClick=${() => elegirTest(t.id)}>${zName(t) ? zName(t) + ' · ' : ''}${dn(t.name)}${!conDatos(t) && ok ? html` <span class="sin-datos">· sin datos aún</span>` : null}</button>`; })}</div></div>`)}</div>
       ${cuerpoTest()}`;
   return html`<${Card} titulo="Resultados por bloque">
-    ${test ? html`<${Migas} items=${[{ label: 'Jugadores', href: '#jugadores' }, { label: playerLabel(player) }, { label: dn(test.name) }]} />` : null}
+    ${test ? html`<${Migas} items=${[{ label: 'Players', href: '#jugadores' }, { label: playerLabel(player) }, { label: dn(test.name) }]} />` : null}
     <div role="tablist" aria-label="Bloques" class="tabs">${BLOQUES.map(([k, n]) => html`<button type="button" role="tab" key=${k} aria-selected=${block === k} class=${block === k ? 'tab on' : 'tab'} onClick=${() => setQ({ b: k, t: undefined, v: undefined, va: undefined })}>${n}${['edicion', 'asimetrias', 'deficits', 'composite'].includes(k) ? '' : html` <span class="muted">(${allOf(k).filter(hasSessions).length})</span>`}</button>`)}</div>
     ${block === 'edicion' ? edicion : block === 'composite' ? html`<${CompositeProfile} player=${player} positionId=${positionId} />` : block === 'deficits' ? html`<${Deficits} player=${player} />` : block === 'asimetrias' ? html`<${PanelAsimetrias} catalog=${catalog} sessions=${sessions} q=${query} setQ=${setQ} jugador=${playerLabel(player)} />` : block === 'perimetros' ? html`${listaTests()}${antrop}` : listaTests()}
   <//>`;

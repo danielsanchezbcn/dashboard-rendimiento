@@ -50,7 +50,7 @@ export function Jugadores() {
     return id;
   }, 'jugador creado.');
   return html`
-    <h2 class="page-title">Jugadores</h2>
+    <h2 class="page-title">Players</h2>
     ${totalOf(data.synth) > 0 ? html`<div class="banner info" role="status">Hay datos sintéticos de demostración (${totalOf(data.synth)} registros), marcados como <${Sintetico} />. Se eliminan todos juntos desde <a href="#configuracion">Configuración</a>.</div>` : null}
     ${(() => { const sinPeso = playersWithoutMass(data.players, data.anthropometry); return sinPeso.length ? html`<p class="status warn">${sinPeso.length === 1 ? 'Un jugador activo no tiene ni medición de peso ni peso de referencia' : `${sinPeso.length} jugadores activos no tienen ni medición de peso ni peso de referencia`}, así que no se les calculan los valores ni los percentiles relativos al peso corporal (BW, SW, N·m/kg): ${sinPeso.map((p) => html`<a key=${p.id} href=${`#jugador-${p.id}`}>${playerLabel(p)}</a>`).flatMap((x, i) => (i ? [' · ', x] : [x]))}.</p>` : null; })()}
     <${Card} titulo=${`Lista (${rows.length})`}>
