@@ -215,7 +215,7 @@ export async function findCandidates(db, text, { source } = {}) {
 }
 
 // ---------- Unificar y eliminar jugadores ----------
-const PLAYER_TABLES = ['sessions', 'fvProfiles', 'anthropometry', 'targets', 'playerPositions', 'playerAliases'];
+const PLAYER_TABLES = ['sessions', 'fvProfiles', 'anthropometry', 'playerPositions', 'playerAliases']; // 26/11/2026: sin targets, retirados del dashboard
 
 // Cuántos registros cuelgan de un jugador (para decidir si se puede eliminar y para avisar al unificar).
 export async function playerDataCounts(db, id) {
@@ -224,13 +224,13 @@ export async function playerDataCounts(db, id) {
   return out;
 }
 
-// Elimina un jugador SOLO si no tiene sesiones, perfiles carga-velocidad, antropometría ni targets. Sus alias y su historial de posiciones se borran con él.
+// Elimina un jugador SOLO si no tiene sesiones, perfiles carga-velocidad ni antropometría. Sus alias y su historial de posiciones se borran con él.
 export async function deleteEmptyPlayer(db, id) {
   return db.transaction('rw', [db.players, ...PLAYER_TABLES.map((t) => db[t]), db.auditLog], async () => {
     if (!(await db.players.get(id))) throw new Error('El jugador no existe.');
     const c = await playerDataCounts(db, id);
-    const withData = c.sessions + c.fvProfiles + c.anthropometry + c.targets;
-    if (withData > 0) throw new Error(`No se puede eliminar: tiene datos guardados (${c.sessions} sesiones, ${c.anthropometry} mediciones antropométricas, ${c.fvProfiles} perfiles carga-velocidad, ${c.targets} targets). Para conservarlo sin usarlo, desactívalo; si es un duplicado, unifícalo con el otro.`);
+    const withData = c.sessions + c.fvProfiles + c.anthropometry;
+    if (withData > 0) throw new Error(`No se puede eliminar: tiene datos guardados (${c.sessions} sesiones, ${c.anthropometry} mediciones antropométricas, ${c.fvProfiles} perfiles carga-velocidad). Para conservarlo sin usarlo, desactívalo; si es un duplicado, unifícalo con el otro.`);
     await db.playerAliases.where('playerId').equals(id).delete();
     await db.playerPositions.where('playerId').equals(id).delete();
     await db.players.delete(id);
@@ -238,7 +238,7 @@ export async function deleteEmptyPlayer(db, id) {
   });
 }
 
-// Elimina un jugador Y todo lo suyo (sesiones, perfiles carga-velocidad, antropometría, targets individuales, alias y posiciones). Permanente.
+// Elimina un jugador Y todo lo suyo (sesiones, perfiles carga-velocidad, antropometría, alias y posiciones). Permanente.
 // La auditoría guarda solo identificadores y recuentos, nunca valores.
 export async function deletePlayerWithData(db, id) {
   return db.transaction('rw', [db.players, ...PLAYER_TABLES.map((t) => db[t]), db.auditLog], async () => {

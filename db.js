@@ -12,7 +12,7 @@
 
 import { Dexie } from './libs.js';
 
-export const APP_VERSION = '10i-0.14.0';
+export const APP_VERSION = '10i-0.15.0';
 export const DB_NAME = 'dashboard-rendimiento';
 export const NON_BACKUP_TABLES = ['local'];
 
@@ -61,6 +61,11 @@ export function createDb(name = DB_NAME) {
   // Esquema 7 (15/11/2026): configuración del rack de los iso-push por jugador. Es un registro permanente (uno por jugador), sin fecha ni historial.
   db.version(7).stores({
     isoRack: '++id, playerId',
+  });
+  // Esquema 8 (26/11/2026): se retiran los targets del dashboard por decisión del usuario, con sus datos. `targets: null` borra la tabla entera al
+  // subir de esquema; no toca ninguna otra. Es permanente: solo se recupera restaurando una copia de seguridad anterior a esta versión.
+  db.version(8).stores({
+    targets: null,
   });
   return db;
 }

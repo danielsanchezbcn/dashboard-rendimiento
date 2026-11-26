@@ -5,7 +5,7 @@
 import { audit } from './db.js';
 
 // Orden de borrado: primero lo que depende de otras tablas.
-export const SYNTHETIC_TABLES = ['sessions', 'playerPositions', 'anthropometry', 'playerAliases', 'players', 'positions', 'targets', 'fvProfiles'];
+export const SYNTHETIC_TABLES = ['sessions', 'playerPositions', 'anthropometry', 'playerAliases', 'players', 'positions', 'fvProfiles'];
 
 export const countSynthetic = async (db) => {
   const out = {};

@@ -1,5 +1,5 @@
 {
-"version": "10i-0.14.0",
+"version": "10i-0.15.0",
 "archivos": {
 "alta-manual.js": {
 "bytes": 3994,
@@ -93,10 +93,6 @@
 "bytes": 10662,
 "sha": "d7ca0e135310b91c"
 },
-"cambio.js": {
-"bytes": 4928,
-"sha": "95fde752bb66e04c"
-},
 "cargas-excel.js": {
 "bytes": 11673,
 "sha": "1233f013fe906d21"
@@ -110,8 +106,8 @@
 "sha": "e10ca640fa420ed4"
 },
 "colores.js": {
-"bytes": 1264,
-"sha": "5f759cb4542d3f22"
+"bytes": 1207,
+"sha": "4644fca9709150a8"
 },
 "comparativa.js": {
 "bytes": 6119,
@@ -138,8 +134,8 @@
 "sha": "aff09b24d82f46ca"
 },
 "db.js": {
-"bytes": 7186,
-"sha": "cb026aaa9df7770d"
+"bytes": 7523,
+"sha": "e31bf8fec800a30f"
 },
 "dsieur.js": {
 "bytes": 4174,
@@ -174,8 +170,8 @@
 "sha": "6c24322bcac47877"
 },
 "iconos.js": {
-"bytes": 18798,
-"sha": "3ac0207302a00aa8"
+"bytes": 13984,
+"sha": "4eacfd08d11e6316"
 },
 "imagen-antropometria.js": {
 "bytes": 9196,
@@ -206,8 +202,8 @@
 "sha": "1258ffc5a875018c"
 },
 "jugadores.js": {
-"bytes": 17866,
-"sha": "d9b3eb54989f3e6b"
+"bytes": 17842,
+"sha": "5b0fdd41b491e2ba"
 },
 "libs.js": {
 "bytes": 337915,
@@ -246,8 +242,8 @@
 "sha": "79785a2f115f85a4"
 },
 "pages-asimetrias.js": {
-"bytes": 10617,
-"sha": "27e2c68798e0b52a"
+"bytes": 11257,
+"sha": "46fa6717efac5724"
 },
 "pages-asociaciones.js": {
 "bytes": 12466,
@@ -278,8 +274,8 @@
 "sha": "bfb3cb52b2898d56"
 },
 "pages-evolucion.js": {
-"bytes": 60273,
-"sha": "5fbbf73a545a12ff"
+"bytes": 49553,
+"sha": "2ef10409dc1d2db4"
 },
 "pages-fv.js": {
 "bytes": 22085,
@@ -298,16 +294,16 @@
 "sha": "a1c1364e2be9d73f"
 },
 "pages-jugadores.js": {
-"bytes": 24934,
-"sha": "01b2ababa778e5cb"
+"bytes": 24859,
+"sha": "054a8ec653fd9ee5"
 },
 "pages-normativo.js": {
-"bytes": 21507,
-"sha": "7557a657f918242d"
+"bytes": 22752,
+"sha": "f758c8cd2cb703fe"
 },
 "pages-percentiles.js": {
-"bytes": 19852,
-"sha": "8c08249033d735a8"
+"bytes": 19434,
+"sha": "b3216d15a61f1095"
 },
 "pages-radar.js": {
 "bytes": 25662,
@@ -330,8 +326,8 @@
 "sha": "7c229c8985c67980"
 },
 "posiciones.js": {
-"bytes": 8727,
-"sha": "02074297b33c1c2e"
+"bytes": 8601,
+"sha": "86f5371232bac09b"
 },
 "premier.js": {
 "bytes": 12153,
@@ -354,16 +350,12 @@
 "sha": "fb0eddf7374049f5"
 },
 "sinteticos.js": {
-"bytes": 6262,
-"sha": "88eb500272001f21"
+"bytes": 6251,
+"sha": "87fa4a0f0d89719d"
 },
 "style.css": {
 "bytes": 63603,
 "sha": "5718edc32e5eba7a"
-},
-"targets.js": {
-"bytes": 4652,
-"sha": "8507ff452eb75792"
 },
 "usos.js": {
 "bytes": 5736,

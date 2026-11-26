@@ -254,12 +254,12 @@ function UnificarEliminar({ player }) {
   if (!data) return null;
   const o = data.players.find((p) => p.id === Number(other));
   const c = data.counts;
-  const withData = c.sessions + c.fvProfiles + c.anthropometry + c.targets;
+  const withData = c.sessions + c.fvProfiles + c.anthropometry;
   const merge = run(async () => {
     if (!o) throw new Error('Elige el otro jugador.');
     const keepId = keepThis === 'esta' ? player.id : o.id, dropId = keepThis === 'esta' ? o.id : player.id;
     const keepName = keepThis === 'esta' ? playerLabel(player) : playerLabel(o), dropName = keepThis === 'esta' ? playerLabel(o) : playerLabel(player);
-    if (!confirm(`Se unificarán dos fichas:\n\n· Se conserva: ${keepName}\n· Desaparece: ${dropName}\n\nTodas las sesiones, alias, posiciones, mediciones y targets de la segunda pasan a la primera. Es permanente: haz antes una copia de seguridad. ¿Continuar?`)) throw new Error('Unificación cancelada.');
+    if (!confirm(`Se unificarán dos fichas:\n\n· Se conserva: ${keepName}\n· Desaparece: ${dropName}\n\nTodas las sesiones, alias, posiciones y mediciones de la segunda pasan a la primera. Es permanente: haz antes una copia de seguridad. ¿Continuar?`)) throw new Error('Unificación cancelada.');
     const r = await mergePlayers(db, keepId, dropId);
     bump();
     if (r.posiblesDuplicadas) alert(`Fichas unificadas. Atención: hay ${r.posiblesDuplicadas} sesión(es) del mismo test, fecha y hora repetidas (venían de las dos fichas). Se han conservado todas; revísalas en el perfil.`);
@@ -268,7 +268,7 @@ function UnificarEliminar({ player }) {
   });
   const mergeAndReport = async (e) => { await merge(e); };
   const del = run(async () => {
-    const resumen = withData === 0 ? 'No tiene datos guardados.' : `Se borrarán también ${c.sessions} sesiones, ${c.anthropometry} mediciones, ${c.fvProfiles} perfiles carga-velocidad y ${c.targets} targets suyos.`;
+    const resumen = withData === 0 ? 'No tiene datos guardados.' : `Se borrarán también ${c.sessions} sesiones, ${c.anthropometry} mediciones, ${c.fvProfiles} perfiles carga-velocidad suyos.`;
     if (!confirm(`¿Eliminar definitivamente a «${playerLabel(player)}»?\n\n${resumen}\nEs permanente: haz antes una copia de seguridad.`)) throw new Error('Eliminación cancelada.');
     if (withData > 0 && !confirm(`Última confirmación: se perderán todos los datos de «${playerLabel(player)}». ¿Eliminar?`)) throw new Error('Eliminación cancelada.');
     await deletePlayerWithData(db, player.id);
@@ -284,8 +284,8 @@ function UnificarEliminar({ player }) {
     </form>
     <p class="muted">Las sesiones no se fusionan: si tras unificar hubiera dos del mismo test, fecha y hora, se conservan las dos y se te avisa. Los datos del jugador que desaparece no se sobrescriben sobre los del que se conserva.</p>
     <h4>Eliminar este jugador</h4>
-    ${withData === 0 ? html`<p>Esta ficha no tiene sesiones, mediciones, perfiles ni targets.</p>`
-      : html`<p class="muted">Esta ficha tiene datos (${c.sessions} sesiones, ${c.anthropometry} mediciones, ${c.fvProfiles} perfiles carga-velocidad, ${c.targets} targets). Si la eliminas se borran con ella. Si solo quieres dejar de usarla, desactívala en «Datos básicos»; si es un duplicado, unifícala arriba.</p>`}
+    ${withData === 0 ? html`<p>Esta ficha no tiene sesiones, mediciones ni perfiles.</p>`
+      : html`<p class="muted">Esta ficha tiene datos (${c.sessions} sesiones, ${c.anthropometry} mediciones, ${c.fvProfiles} perfiles carga-velocidad). Si la eliminas se borran con ella. Si solo quieres dejar de usarla, desactívala en «Datos básicos»; si es un duplicado, unifícala arriba.</p>`}
     <div class="actions"><button type="button" class="secondary" disabled=${busy} onClick=${del}>Eliminar jugador</button></div>
     <${Msg} msg=${msg} />
   <//>`;

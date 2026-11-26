@@ -73,8 +73,6 @@ export async function deletePosition(db, id) {
   const used = await positionUsage(db, id);
   if (used > 0) throw new Error(`No se puede eliminar: la usan ${used} registros del historial de posiciones. Archívala en su lugar.`);
   if (!(await db.positions.get(id))) throw new Error('La posición no existe.');
-  const tg = await db.targets.where('positionId').equals(id).primaryKeys();
-  if (tg.length) await db.targets.bulkDelete(tg);
   await db.positions.delete(id);
   await audit(db, 'posicion-eliminada', { posicionId: id });
 }

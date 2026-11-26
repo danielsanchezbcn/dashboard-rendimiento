@@ -17,7 +17,7 @@ import { BANDS, MIN_N_DEFAULT, referenciaPlantilla, evaluate, playerValue, perfQ
 import { PAL, colorLado } from './colores.js';
 import { isRelative, relFactor } from './relativos.js';
 import { Copiable } from './copiar.js';
-import { ICONO_LALIGA, ICONO_PREMIER, ICONO_TARGET, ICONO_NATERA } from './iconos.js';
+import { ICONO_LALIGA, ICONO_PREMIER, ICONO_NATERA } from './iconos.js';
 import { dn } from './nombres.js';
 
 const nf = (n, d = 1) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
@@ -40,12 +40,12 @@ export function CeldaPercentil({ ev }) {
 }
 
 // G4 completo (aspecto de los informes del usuario: fondo oscuro, azul = izquierda, naranja = derecha): escala MIN–MAX de la referencia de La Liga con las marcas
-// de referencia elegidas (icono de La Liga o de la Premier y «P50»/«P75», también por posición), el target (bandera) y, por cada base elegida del jugador
+// de referencia elegidas (icono de La Liga o de la Premier y «P50»/«P75», también por posición) y, por cada base elegida del jugador
 // (Latest, Personal Best, Personal Average), una fila de marcadores con su valor; en tests por lado, un corchete con la asimetría D25.
 // Si algo cae fuera del rango se amplía la escala y se avisa (provisional, D24).
-function EscalaG4({ filas, refs, unit, target }) {
+function EscalaG4({ filas, refs, unit }) {
   const rows0 = filas[0].rows;
-  const vals = filas.flatMap((f) => f.rows.flatMap((r) => [r.ev.min, r.ev.max, r.value, r.ev.p50])).concat(refs.map((m) => m.v), (target ?? []).map((t) => t?.value)).filter((v) => v != null);
+  const vals = filas.flatMap((f) => f.rows.flatMap((r) => [r.ev.min, r.ev.max, r.value, r.ev.p50])).concat(refs.map((m) => m.v)).filter((v) => v != null);
   const min = Math.min(...vals), max = Math.max(...vals), span = max - min || 1;
   const hayEtiq = filas.length > 1 || filas[0].base !== 'pa'; // etiquetas PA / PB / fecha a la izquierda, a la altura del valor
   const W = 640, L = hayEtiq ? 100 : 40, R = 40;
@@ -62,7 +62,7 @@ function EscalaG4({ filas, refs, unit, target }) {
   const rangoLaLiga = rows0.map((r) => [r.ev.min, r.ev.max]).filter(([a]) => a != null);
   const out = filas.some((f) => f.rows.some((r) => r.ev.min != null && (r.value < r.ev.min || r.value > r.ev.max))) || (rangoLaLiga.length > 0 && refs.some((m) => m.premier && (m.v < Math.min(...rangoLaLiga.map((r) => r[0])) || m.v > Math.max(...rangoLaLiga.map((r) => r[1])))));
   // marcas por encima de la línea; si dos quedan a menos de 64 px, la segunda sube un nivel
-  const marks = [...refs, ...(target ?? []).filter(Boolean).map((t, i) => ({ key: 'tg' + i, v: t.value, icon: ICONO_TARGET, color: PAL.target, txt: null, dash: true, label: `Target: ${nfv(t.value)} ${unit ?? ''}` }))].sort((a, b) => a.v - b.v);
+  const marks = [...refs].sort((a, b) => a.v - b.v);
   // Cada marca ocupa (icono + texto) un tramo horizontal. De derecha a izquierda, cada una sube por encima de las que se le solapan: así la línea de una marca nunca atraviesa el texto de otra.
   const tramo = (m) => [x(m.v) - 15, x(m.v) + 20 + (m.txt ? m.txt.length * 7.5 : 0)];
   [...marks].sort((a, b) => b.v - a.v).forEach((m, i, arr) => { const [l, r] = tramo(m); const lv = arr.slice(0, i).filter((o) => { const [ol, or] = tramo(o); return l < or && ol < r; }).map((o) => o.level + 1); m.level = lv.length ? Math.max(...lv) : 0; });
@@ -77,7 +77,7 @@ function EscalaG4({ filas, refs, unit, target }) {
     <line x1=${x(m.v)} x2=${x(m.v)} y1=${y0 - 24 - m.level * 36} y2=${y0} stroke=${m.color} stroke-width="2" ${m.dash ? 'stroke-dasharray="4 3"' : ''} />
     <image href=${m.icon} x=${x(m.v) - 13} y=${y0 - 56 - m.level * 36} width="26" height="30" preserveAspectRatio="xMidYMid meet" />
     ${m.txt ? html`<text x=${x(m.v) + 16} y=${y0 - 36 - m.level * 36} font-size="12" font-weight="700" fill=${m.color}>${m.txt}</text>` : null}</g>`;
-  return html`<${Copiable} nombre="percentiles-escala"><div class="doc-panel"><svg viewBox=${`0 0 ${W} ${Hs}`} width="100%" role="img" style="display:block" aria-label=${`Escala de ${nfv(min)} a ${nfv(max)} ${unit ?? ''}: referencias elegidas, target y valores del jugador`}>
+  return html`<${Copiable} nombre="percentiles-escala"><div class="doc-panel"><svg viewBox=${`0 0 ${W} ${Hs}`} width="100%" role="img" style="display:block" aria-label=${`Escala de ${nfv(min)} a ${nfv(max)} ${unit ?? ''}: referencias elegidas y valores del jugador`}>
     <rect width=${W} height=${Hs} fill=${PAL.fondo} />
     <line x1=${L} x2=${W - R} y1=${y0} y2=${y0} stroke=${T} stroke-opacity="0.5" stroke-width="3" />
     ${marks.map(marker)}
@@ -138,7 +138,7 @@ const BASES = [['last', 'Latest'], ['pb', 'Personal Best'], ['pa', 'Personal Ave
 
 // Escala «Benchmark-Contextualized Positioning» de la variable seleccionada. (El cuadro de percentiles es ahora «Normative Benchmarking», en pages-normativo.js.)
 // Con dos lados, la referencia de La Liga es UNA sola (los valores de ambos lados de todos los jugadores juntos), así que hay un único P50.
-export function PercentilesPanel({ player, test, variable, mine, q, setQ, filters, targets = {}, stats, current, refData, abs = null, posJugador = null, vars = [] }) {
+export function PercentilesPanel({ player, test, variable, mine, q, setQ, filters, stats, current, refData, abs = null, posJugador = null, vars = [] }) {
   if (!refData) return null;
   const { sessions: _s, positions, minN } = refData;
   const rp = q.rp ?? 'all';
@@ -189,7 +189,7 @@ export function PercentilesPanel({ player, test, variable, mine, q, setQ, filter
   const escala = html`<section class="refs"><fieldset class="modes filas"><legend class="sec-titulo">Benchmark-Contextualized Positioning</legend>
       ${vars.length > 1 ? html`<${SelectorVariable} vars=${vars} value=${variable.id} onChange=${(v) => setQ({ v })} ancla="escala" />` : null}
       ${agruparFiltros(filtros).map((fila, i) => html`<div class="ref-fila" key=${'f' + i}>${fila.map((o) => html`<label class="check" key=${o.key} title=${o.why}><input type="checkbox" disabled=${o.off} checked=${!o.off && chosenSm.includes(o.key)} onChange=${(e) => toggleSm(o.key, e.target.checked)} /> ${o.label}</label>`)}</div>`)}</fieldset>
-    ${filas.length ? html`<${EscalaG4} filas=${filas} refs=${refsSel} unit=${unit} target=${sides.map((sd) => targets[sd]).filter(Boolean).filter((t, i, a) => a.findIndex((v) => v.value === t.value) === i)} />` : html`<p class="muted">Marca al menos un marcador del jugador (Latest, Personal Best o Personal Average) para ver la escala.</p>`}
+    ${filas.length ? html`<${EscalaG4} filas=${filas} refs=${refsSel} unit=${unit} />` : html`<p class="muted">Marca al menos un marcador del jugador (Latest, Personal Best o Personal Average) para ver la escala.</p>`}
     ${insuf ? html`<p class="status warn">Muestra insuficiente para clasificar: no se dibuja la mediana ni se colorea (N inferior a ${minN}).</p>` : null}</section>`;
   return escala;
 }

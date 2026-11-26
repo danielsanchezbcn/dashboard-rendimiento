@@ -94,7 +94,7 @@ export function columnasNormativas({ player, test, catalog, sessions, refData, v
 }
 
 
-export function NormativeBenchmarking({ player, test, catalog, sessions, refData, q, setQ, selectedId, abs = null }) {
+export function NormativeBenchmarking({ player, test, catalog, sessions, refData, q, setQ, selectedId, abs = null, posJugador = null }) {
   const refTabla = useRef(null);
   const [ancho, setAncho] = useState(typeof window === 'undefined' ? 1440 : window.innerWidth);
   useEffect(() => { const h = () => setAncho(window.innerWidth); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h); }, []);
@@ -103,8 +103,9 @@ export function NormativeBenchmarking({ player, test, catalog, sessions, refData
   const from = q.from || null, to = q.to || null;
   const proto = q.p ?? 'all';
   const f = { from, to, protocolId: proto === 'all' ? undefined : proto === 'none' ? null : Number(proto) };
-  const rp = q.rp ?? 'all';
-  const positionId = rp === 'all' ? null : Number(rp);
+  // 26/11/2026 (pedido del usuario): se retira el selector «La Liga reference». El percentil de toda La Liga y el de la posición principal del
+  // jugador se enseñan SIEMPRE, cada uno en su fila, en vez de tener que cambiar de referencia a mano para ver uno u otro.
+  const positionId = null;
   const visibles = orderVars(catalog.variables.filter((v) => v.testId === test.id && isViewable(v) && hasData(v, sessions)));
   const normales = ordenIsoHold(visibles.filter((v) => !isAsymVariable(v)));
   const sel = visibles.find((v) => v.id === selectedId) ?? null;
@@ -115,6 +116,10 @@ export function NormativeBenchmarking({ player, test, catalog, sessions, refData
   const bases = vars.some(puedePB) ? BASES : BASES.filter(([k]) => k !== 'pb'); // sin criterio ni dirección en ninguna variable no hay «mejor»: sin Personal Best
   const base = bases.some(([k]) => k === q.pn) ? q.pn : 'last';
   const cols = columnasNormativas({ player, test, catalog, sessions, refData, vars, base, f, positionId });
+  // Percentil dentro de la posición principal del jugador. Es el MISMO cálculo, con la muestra reducida a esa posición: si no llega al mínimo,
+  // la celda lo dice («n<10») en vez de quedarse en blanco.
+  const colsPos = posJugador == null ? null : columnasNormativas({ player, test, catalog, sessions, refData, vars, base, f, positionId: posJugador });
+  const nombrePos = posJugador == null ? null : (positions.find((p) => p.id === posJugador)?.name ?? 'posición eliminada');
   const tienePl = cols.some((c) => c.hayPl), tieneNat = cols.some((c) => c.nat), tieneLR = cols.some((c) => c.sides.length === 2);
   const tieneEvAsim = cols.some((c) => c.evAsim);
   const fechas = (k) => cols.flatMap((c) => Object.values(c.lado).map((l) => l.x?.[k]).filter(Boolean));
@@ -141,9 +146,12 @@ export function NormativeBenchmarking({ player, test, catalog, sessions, refData
       ${blk.some((c) => c.sides.length === 2) ? html`<tr class="lados"><td class="pano-lab"></td>${blk.flatMap((c) => (c.sides.length === 2 ? [html`<th key=${c.v.id + 'L'} scope="col" class="l"><abbr title="Left">L</abbr></th>`, html`<th key=${c.v.id + 'R'} scope="col" class="r"><abbr title="Right">R</abbr></th>`] : [html`<th key=${c.v.id + 'S'} scope="col" class="sr">Value</th>`]))}</tr>` : null}</thead>
     <tbody>
       <tr><th scope="row" class="pano-lab" title=${tipVar}>${rotuloVar}</th>${blk.flatMap((c) => celdasLado(c, (l, sd) => (l.x ? html`<span class=${'val ' + (sd === 'L' ? 'l' : sd === 'R' ? 'r' : '') + (c.asy ? ' ' + asimClase(l.x.value) : '')} title=${tipVal(c, sd)}><strong>${valorTxt(c, l)}</strong>${fmtVar(l.vari) ? html` <small class="var">(${fmtVar(l.vari)})</small>` : null}</span>` : html`<span class="muted" title=${l.pbReason ?? ''}>—</span>`), 'num'))}</tr>
-      <tr><th scope="row" class="pano-lab" title="Percentile of each leg against the La Liga reference (both legs of every player pooled), for the selected basis">Value (La Liga percentile)</th>${blk.flatMap((c) => celdasLado(c, (l) => celdaPercentil(l.ev)))}</tr>
-      ${tienePl ? html`<tr><th scope="row" class="pano-lab" title="The Premier League publishes cut-offs (P5, P25, P50, P75, P95): the zone is shown, without interpolation. For relative measures it is an estimate (*).">Value (Premier League percentile)</th>${blk.flatMap((c) => (!c.hayPl ? [celdaUnica(c, html`<span class="muted" title="No Premier League reference">—</span>`)] : celdasLado(c, (l) => (l.pl?.placed ? html`<span class=${`badge band-${l.pl.band}`}>${l.pl.text}${c.est ? '*' : ''}</span>` : l.x ? html`<span class="muted">sin ubicar</span>` : html`<span class="muted">—</span>`))))}</tr>` : null}
-      ${tieneNat ? html`<tr><th scope="row" class="pano-lab" title="Natera classification (Run-Specific Iso-Push only, relative maximal strength)">Value (Natera)</th>${blk.flatMap((c) => (!c.nat ? [celdaUnica(c, html`<span class="muted">—</span>`)] : celdasLado(c, (l) => (l.nat ? html`<span class=${`badge band-${l.nat.band}`}>${l.nat.text}</span>` : html`<span class="muted">—</span>`))))}</tr>` : null}
+      <tr><th scope="row" class="pano-lab" title="Percentile of each leg against the La Liga reference (both legs of every player pooled), for the selected basis">La Liga percentile</th>${blk.flatMap((c) => celdasLado(c, (l) => celdaPercentil(l.ev)))}</tr>
+      <tr><th scope="row" class="pano-lab" title=${colsPos ? `Percentil dentro de la posición principal del jugador (${nombrePos}), con el mismo cálculo y la muestra reducida a esa posición` : 'El jugador no tiene posición principal asignada: asígnasela en su ficha'}>La Liga (position) percentile${nombrePos ? html` <small class="muted">${nombrePos}</small>` : null}</th>${colsPos
+        ? blk.flatMap((c) => { const cp = colsPos.find((x) => x.v.id === c.v.id); return celdasLado(c, (l, sd) => (cp?.lado[sd] ? celdaPercentil(cp.lado[sd].ev) : html`<span class="muted">—</span>`)); })
+        : [html`<td key="sinpos" colSpan=${blk.reduce((n, c) => n + c.span, 0)} class="muted">Este jugador no tiene posición principal asignada: se le asigna en su ficha.</td>`]}</tr>
+      ${tienePl ? html`<tr><th scope="row" class="pano-lab" title="The Premier League publishes cut-offs (P5, P25, P50, P75, P95): the zone is shown, without interpolation. For relative measures it is an estimate (*).">Premier League percentile</th>${blk.flatMap((c) => (!c.hayPl ? [celdaUnica(c, html`<span class="muted" title="No Premier League reference">—</span>`)] : celdasLado(c, (l) => (l.pl?.placed ? html`<span class=${`badge band-${l.pl.band}`}>${l.pl.text}${c.est ? '*' : ''}</span>` : l.x ? html`<span class="muted">sin ubicar</span>` : html`<span class="muted">—</span>`))))}</tr>` : null}
+      ${tieneNat ? html`<tr><th scope="row" class="pano-lab" title="Natera classification (Run-Specific Iso-Push only, relative maximal strength)">Natera benchmarks</th>${blk.flatMap((c) => (!c.nat ? [celdaUnica(c, html`<span class="muted">—</span>`)] : celdasLado(c, (l) => (l.nat ? html`<span class=${`badge band-${l.nat.band}`}>${l.nat.text}</span>` : html`<span class="muted">—</span>`))))}</tr>` : null}
       ${tieneLR ? html`<tr><th scope="row" class="pano-lab" title=${'Interlimb asymmetry: |R − L| ÷ max × 100 with the letter of the higher side (for variables in degrees: R − L, in degrees). Computed from both values of the selected basis.'}>Asymmetry</th>${blk.map((c) => celdaUnica(c, c.sides.length === 2 && Number.isFinite(c.asim) ? html`<${AsimTexto} pct=${c.asim} texto=${esGrados(c.v) ? `${nf(Math.abs(c.asim), 1)} °${asymSideLetter(c.asim) ? ' ' + asymSideLetter(c.asim) : ''}` : null} />` : '—'))}</tr>` : null}
       ${tieneEvAsim ? html`<tr><th scope="row" class="pano-lab" title="Indicative percentile of this asymmetry against the same measure in the other players, regardless of side. More asymmetry = worse: a low percentile means a large asymmetry for La Liga. Not computed for variables in degrees.">Asymmetry (La Liga percentile)</th>${blk.map((c) => celdaUnica(c, c.evAsim ? celdaPercentil(c.evAsim) : '—'))}</tr>` : null}
     </tbody></table></div>`;
@@ -158,7 +166,6 @@ export function NormativeBenchmarking({ player, test, catalog, sessions, refData
     <h4 class="sec-titulo">Normative Benchmarking</h4>
     <div class="filters">
       <fieldset class="modes"><legend>Value shown</legend>${bases.map(([k, n]) => html`<label class="check" key=${k}><input type="radio" name="pano-base" checked=${base === k} onChange=${() => setQ({ pn: k })} /> ${etq(k, n)}</label>`)}</fieldset>
-      <label>La Liga reference <select value=${rp} onChange=${(e) => setQ({ rp: e.target.value })}><option value="all">All positions</option>${positions.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></label>
     </div>
     <${BotonesImagen} obtener=${() => refTabla.current} nombre=${`normative-benchmarking_${dn(test.name)}_${base}`} titulo=${`${playerLabel(player)} · ${dn(test.name)} · Normative Benchmarking · ${etq(base, '')}`} />
     <div ref=${refTabla} class="pano-todas">${bloques.map(tabla)}</div>

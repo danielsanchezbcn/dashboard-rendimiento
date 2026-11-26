@@ -10,6 +10,7 @@ import { AsimTexto } from './asim-ui.js';
 import { fmtDay } from './fechas.js';
 import { dn } from './nombres.js';
 import { Desplegable, Plegable, BarraFija } from './componentes.js';
+import { esTestDeCarga, esPorcentajeBW } from './isohold.js';
 
 // Variables de asimetría (VALD) del catálogo de un test en las que este jugador no tiene ningún valor.
 export const asimSinDatos = (test, catalog, tsess) => orderVars(candidatas(test, catalog).filter((v) => isAsymVariable(v) && isViewable(v) && !hasData(v, tsess)));
@@ -31,7 +32,13 @@ const puntosBase = (sessions, v, side, base) => {
 // y las variables Torque, Force at 100 ms y RFD at 100 ms. Solo afecta a esta pestaña.
 const candidatas = (test, catalog) => (testExcluidoDeAsimetrias(test) ? [] : catalog.variables.filter((v) => v.testId === test.id && !v.archived && !variableExcluidaDeAsimetrias(v) && (v.sides === 'LR' || isAsymVariable(v))));
 export function filasAsimetria(test, catalog, tsess, base) {
-  const vars = orderVars(candidatas(test, catalog).filter((v) => isViewable(v) && !isRelative(v) && hasData(v, tsess)));
+  const conDatos = candidatas(test, catalog).filter((v) => isViewable(v) && hasData(v, tsess));
+  // 26/11/2026 (pedido del usuario, igual que en Déficits): en los tests cuya medida es una carga externa —los iso-hold y todos los RM— solo se lista
+  // el %BW. La carga en kilos, el 1RM estimado y el %PIMA se calculan desde esa misma carga, así que su asimetría es EXACTAMENTE la misma y la tabla
+  // repetía la misma fila con tres nombres. En el resto de tests se sigue dejando fuera lo relativo al peso por ese mismo motivo.
+  const vars = esTestDeCarga(test.id, catalog.variables)
+    ? orderVars(conDatos.filter(esPorcentajeBW))
+    : orderVars(conDatos.filter((v) => !isRelative(v)));
   const rows = [];
   for (const v of vars) {
     if (v.sides === 'LR') {
