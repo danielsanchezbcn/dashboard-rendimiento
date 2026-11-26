@@ -4,6 +4,17 @@ import { html, useState, useEffect } from './libs.js';
 export const Msg = ({ msg }) =>
   msg ? html`<p class=${'status ' + msg.level} role="status">${msg.level === 'ok' ? 'Correcto: ' : msg.level === 'fail' ? 'Error: ' : ''}${msg.text}</p>` : null;
 
+// Barra fija con el jugador y los mandos del panel (26/11/2026, pedido del usuario: al bajar por la pantalla se perdían de vista el nombre del
+// jugador y los mandos). Se queda pegada arriba mientras se desplaza el contenido. Una sola línea, para no comerse la pantalla.
+export const BarraFija = ({ jugador, children }) =>
+  html`<div class="barra-fija">${jugador ? html`<span class="barra-id">${jugador}</span>` : null}<div class="barra-mandos">${children}</div></div>`;
+
+// Bloque, subcategoría o test plegable (26/11/2026, pedido del usuario): todo se abre de inicio y se pliega pulsando su título, como en COMPOSITE.
+// Son <details> nativos: ni una línea de JavaScript para abrir y cerrar, funcionan con teclado y el estado de cada uno sobrevive a los repintados
+// (el prop `open` no cambia, así que Preact no vuelve a tocar el elemento). `extra` va a la derecha del título, fuera de la zona que pliega.
+export const Plegable = ({ titulo, clase, nivel, extra, children }) =>
+  html`<details class=${`plg plg-${nivel}`} open><summary class=${clase}><span class="plg-txt">${titulo}</span>${extra ? html`<span class="plg-extra">${extra}</span>` : null}</summary><div class="plg-cuerpo">${children}</div></details>`;
+
 export const Card = ({ titulo, children, id }) => html`<section class="card" id=${id}><h2>${titulo}</h2>${children}</section>`;
 
 export const Sintetico = () => html`<span class="badge sint" title="Dato sintético de demostración, no real">SINTÉTICO</span>`;

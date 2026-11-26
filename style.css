@@ -625,3 +625,74 @@ table.dsieur th[scope="row"] { text-align: left; font-weight: 600; white-space: 
 .dsieur-celda { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
 .dsieur-val { font-variant-numeric: tabular-nums; }
 .dsieur-ori { flex-basis: 100%; line-height: 1.25; color: var(--muted); font-size: .82rem; }
+
+/* ===================================================================================================================
+   26/11/2026 · Jerarquía y delimitación (pedido del usuario: «parece que todo es un continuo, con los bloques y tests
+   en tipografía y tamaño muy similar»). Tres niveles con peso visual claramente distinto, y cada uno plegable.
+   Solo blancos y grises; azul y naranja siguen siendo Left y Right.
+   =================================================================================================================== */
+.plg { margin: 0; }
+.plg > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: .55rem; user-select: none; }
+.plg > summary::-webkit-details-marker { display: none; }
+.plg > summary::before { content: ''; flex: none; width: 0; height: 0; border: .32rem solid transparent; border-left-color: currentColor; border-right: 0;
+  transition: transform .12s ease; transform-origin: 30% 50%; opacity: .75; }
+.plg[open] > summary::before { transform: rotate(90deg); }
+.plg > summary:hover::before { opacity: 1; }
+.plg > summary:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; border-radius: 6px; }
+.plg-extra { margin-left: auto; font-size: .76rem; font-weight: 500; letter-spacing: .04em; color: var(--muted); text-transform: none; }
+
+/* Nivel 1 · BLOQUE: cabecera de sección de verdad, con banda, barra blanca y aire por encima. */
+.plg-bloque { margin-top: 1.7rem; }
+.plg-bloque > summary.asim-h-bloque { margin: 0; padding: .55rem .8rem; border: 0; border-left: 3px solid #f1f1f1; border-radius: 8px;
+  background: rgba(255, 255, 255, .06); font-size: 1.02rem; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; color: var(--text); }
+.plg-bloque > .plg-cuerpo { padding: .2rem 0 .4rem .55rem; border-left: 1px solid rgba(255, 255, 255, .07); margin-left: 1px; }
+
+/* Nivel 2 · SUBCATEGORÍA: rótulo pequeño y apagado, con una regla fina que lo separa de lo anterior. */
+.plg-sub > summary.asim-h-sub { margin: .95rem 0 .45rem; padding: 0 0 .3rem; font-size: .78rem; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--muted); border-bottom: 1px solid rgba(255, 255, 255, .07); }
+.plg-sub > .plg-cuerpo { display: flex; flex-direction: column; gap: .7rem; }
+
+/* Nivel 3 · TEST: una caja cerrada, con su cabecera arriba y la tabla dentro. Es lo que delimita cada test del siguiente. */
+.plg-test { border: 1px solid rgba(255, 255, 255, .09); border-radius: 10px; overflow: hidden; background: rgba(255, 255, 255, .012); }
+.plg-test > summary.asim-h-test { padding: .5rem .75rem; background: rgba(255, 255, 255, .045); font-size: .93rem; font-weight: 600;
+  border-bottom: 1px solid rgba(255, 255, 255, .07); }
+.plg-test:not([open]) > summary.asim-h-test { border-bottom: 0; }
+.plg-test > summary .muted { font-weight: 400; }
+.plg-test > .plg-cuerpo > .table-wrap { margin: 0; }
+.plg-test table { margin: 0; }
+.plg-test table caption { display: none; }
+/* Las cabeceras de columna pesan menos que el nombre del test: versalitas pequeñas y apagadas, para que no compitan. */
+.plg-test table thead th { font-size: .71rem; text-transform: uppercase; letter-spacing: .07em; font-weight: 700; color: var(--muted); padding-top: .4rem; padding-bottom: .4rem; }
+.plg-test .asim-falta { margin: .5rem .75rem .6rem; }
+
+/* Barra fija de panel (26/11/2026): el jugador y los mandos no se pierden de vista al bajar por pantallas largas. */
+.barra-fija { position: sticky; top: 0; z-index: 18; display: flex; flex-wrap: wrap; align-items: center; column-gap: 1.4rem; row-gap: .2rem;
+  padding: .45rem .1rem .5rem; margin: 0 0 .9rem; background: rgba(8, 8, 8, .92); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, .09); }
+.barra-id { font-weight: 700; font-size: 1rem; letter-spacing: -.01em; white-space: nowrap; }
+.barra-mandos { display: flex; flex-wrap: wrap; align-items: center; column-gap: 1.4rem; row-gap: .2rem; }
+.barra-fija fieldset.modes { margin: 0; }
+.barra-fija legend { font-size: .68rem; text-transform: uppercase; letter-spacing: .11em; color: var(--muted); padding: 0; }
+.barra-fija label { font-size: .85rem; }
+.barra-fija input[type="number"] { width: 4.5rem; }
+/* En la pantalla de un test ya existe la barra con el jugador y el test: los mandos de Normative Benchmarking se quedan pegados justo debajo. Para que
+   el segundo no tape al primero, la barra de arriba es de UNA sola línea y de alto predecible: el nombre del test se recorta antes que partirse. */
+.test-sticky { flex-wrap: nowrap; align-items: center; }
+/* El margen de «.card h3» (1,4rem arriba) se colaba aquí y dejaba la barra en 73 px de alto: por eso el segundo panel fijo quedaba tapado. */
+.test-sticky h3 { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.test-sticky .sticky-link { margin-left: auto; flex: none; padding: .28rem .6rem; font-size: .8rem; }
+.panorama > .filters { position: sticky; top: 3.05rem; z-index: 16; background: rgba(8, 8, 8, .92); -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px); padding: .4rem .1rem .45rem; margin-bottom: .8rem; border-bottom: 1px solid rgba(255, 255, 255, .09); }
+
+/* Navegación: la sección en la que estás tiene que verse de lejos (26/11/2026). */
+.nav a.active { background: rgba(255, 255, 255, .14); color: #fff; font-weight: 700; box-shadow: inset 3px 0 0 #fff; }
+.nav a.active::after { content: ''; margin-left: auto; width: .35rem; height: .35rem; border-radius: 50%; background: #fff; opacity: .9; }
+.nav a { display: flex; align-items: center; }
+
+/* Cabecera de panel (26/11/2026): cada cuadro empieza con una banda con su título, separada del contenido por una línea. Es la parte VISUAL de la
+   propuesta del 26/11 —la que gustó—, sin los cuadros de métricas, que no añadían información de valor. */
+.card > h2 { margin: -1.35rem -1.6rem 1.1rem; padding: .62rem 1.6rem; background: rgba(255, 255, 255, .05);
+  border-bottom: 1px solid rgba(255, 255, 255, .08); font-size: .8rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.card .card > h2 { margin: -1.35rem -1.6rem 1.1rem; }
+/* Cifras que cuadran en columna: todos los dígitos ocupan lo mismo. */
+table, .num, .band { font-variant-numeric: tabular-nums; }

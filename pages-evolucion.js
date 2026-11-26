@@ -540,6 +540,6 @@ export function ResultadosJugador({ player, query = {}, edicion = null, antrop =
   return html`<${Card} titulo="Resultados por bloque">
     ${test ? html`<${Migas} items=${[{ label: 'Jugadores', href: '#jugadores' }, { label: playerLabel(player) }, { label: dn(test.name) }]} />` : null}
     <div role="tablist" aria-label="Bloques" class="tabs">${BLOQUES.map(([k, n]) => html`<button type="button" role="tab" key=${k} aria-selected=${block === k} class=${block === k ? 'tab on' : 'tab'} onClick=${() => setQ({ b: k, t: undefined, v: undefined, va: undefined })}>${n}${['edicion', 'asimetrias', 'deficits', 'composite'].includes(k) ? '' : html` <span class="muted">(${allOf(k).filter(hasSessions).length})</span>`}</button>`)}</div>
-    ${block === 'edicion' ? edicion : block === 'composite' ? html`<${CompositeProfile} player=${player} positionId=${positionId} />` : block === 'deficits' ? html`<${Deficits} player=${player} />` : block === 'asimetrias' ? html`<${PanelAsimetrias} catalog=${catalog} sessions=${sessions} q=${query} setQ=${setQ} />` : block === 'perimetros' ? html`${listaTests()}${antrop}` : listaTests()}
+    ${block === 'edicion' ? edicion : block === 'composite' ? html`<${CompositeProfile} player=${player} positionId=${positionId} />` : block === 'deficits' ? html`<${Deficits} player=${player} />` : block === 'asimetrias' ? html`<${PanelAsimetrias} catalog=${catalog} sessions=${sessions} q=${query} setQ=${setQ} jugador=${playerLabel(player)} />` : block === 'perimetros' ? html`${listaTests()}${antrop}` : listaTests()}
   <//>`;
 }

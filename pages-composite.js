@@ -4,7 +4,7 @@
 // Normative Benchmarking y alimenta Déficits: un número de aquí se puede rastrear hasta la tabla de su test.
 import { html, useState, useRef } from './libs.js';
 import { useApp } from './context.js';
-import { useLoad, Card, Desplegable } from './componentes.js';
+import { useLoad, Card, Desplegable, BarraFija } from './componentes.js';
 import { listCatalog } from './catalogo.js';
 import { listPositions, positionOnDate } from './posiciones.js';
 import { getSetting } from './db.js';
@@ -369,8 +369,10 @@ export function CompositeProfile({ player, positionId = null }) {
   };
 
   return html`<${Card} titulo="COMPOSITE PROFILE SCORE">
-    <div class="filters">
+    <${BarraFija} jugador=${playerLabel(player)}>
       <fieldset class="modes"><legend>Valor</legend>${BASES.map(([k, n]) => html`<label class="check" key=${k}><input type="radio" name="cps-base" checked=${base === k} onChange=${() => setBase(k)} /> ${n}</label>`)}</fieldset>
+    <//>
+    <div class="filters">
       <fieldset class="modes"><legend>Capas del radar</legend>${CAPAS.map(([k, n]) => { const sola = capas.length === 1 && capas.includes(k); return html`<label class="check" key=${k} title=${sola ? 'Tiene que quedar al menos una capa marcada.' : ''}><input type="checkbox" name="cps-capa" disabled=${sola} checked=${capas.includes(k)} onChange=${() => toggleCapa(k)} /> ${n}</label>`; })}</fieldset>
       <fieldset class="modes"><legend>Referencia posicional de La Liga (radar)</legend>${REFS.map(([k, n]) => { const off = posActual == null; return html`<label class="check" key=${k} title=${off ? 'El jugador no tiene posición principal.' : ''}><input type="checkbox" disabled=${off} checked=${!off && refs.includes(k)} onChange=${() => toggleRef(k)} /> ${n}</label>`; })}
         ${posActual == null ? html`<p class="muted" data-ancla="sin-posicion">Sin posición principal no hay referencia: asígnasela en su ficha.</p>` : null}</fieldset>

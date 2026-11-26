@@ -9,7 +9,7 @@ import { valorBase, valorPrevio, variacionBase, fmtVar, fmtPuntos, rotuloComp, T
 import { AsimTexto } from './asim-ui.js';
 import { fmtDay } from './fechas.js';
 import { dn } from './nombres.js';
-import { Desplegable } from './componentes.js';
+import { Desplegable, Plegable, BarraFija } from './componentes.js';
 
 // Variables de asimetría (VALD) del catálogo de un test en las que este jugador no tiene ningún valor.
 export const asimSinDatos = (test, catalog, tsess) => orderVars(candidatas(test, catalog).filter((v) => isAsymVariable(v) && isViewable(v) && !hasData(v, tsess)));
@@ -60,7 +60,7 @@ function Barra({ pct, lim }) {
   </svg>`;
 }
 
-export function PanelAsimetrias({ catalog, sessions, q, setQ }) {
+export function PanelAsimetrias({ catalog, sessions, q, setQ, jugador }) {
   const base = BASES.some(([k]) => k === q.am) ? q.am : 'last';
   const mName = (t) => catalog.manifestations.find((m) => m.id === t.manifestationId)?.name ?? null;
   const zName = (t) => catalog.zones.find((z) => z.id === t.zoneId)?.name ?? null;
@@ -75,12 +75,15 @@ export function PanelAsimetrias({ catalog, sessions, q, setQ }) {
   const limDeg = Math.max(5, Math.ceil(Math.max(0, ...todas.filter((r) => r.deg).map((r) => Math.abs(r.pct))) / 5) * 5);
   const hayDeg = todas.some((r) => r.deg);
   return html`<section class="asimetrias" aria-label="Asimetrías del jugador">
-    <fieldset class="modes"><legend>Valor mostrado</legend>${BASES.map(([k, n]) => html`<label class="check" key=${k}><input type="radio" name="asim-base" checked=${base === k} onChange=${() => setQ({ am: k })} /> ${n}</label>`)}</fieldset>
+    <${BarraFija} jugador=${jugador}>
+      <fieldset class="modes"><legend>Valor mostrado</legend>${BASES.map(([k, n]) => html`<label class="check" key=${k}><input type="radio" name="asim-base" checked=${base === k} onChange=${() => setQ({ am: k })} /> ${n}</label>`)}</fieldset>
+    <//>
     ${!bloques.length ? html`<p class="muted">Este jugador aún no tiene asimetrías calculables (hacen falta tests con valores por lado —izquierda y derecha— o variables de asimetría de VALD).</p>` : html`
       <${Desplegable} titulo="Cómo leer las barras"><p class="muted">Barra hacia la izquierda y <span class="asim-l">azul</span>: domina Left. Hacia la derecha y <span class="asim-r">naranja</span>: domina Right. Escala común de ±${limPct} % (la barra llena = ese valor o más)${hayDeg ? `; las medidas en grados (°) usan su propia escala de ±${limDeg} °` : ''}. Asimetría = |R − L| ÷ máx × 100 con el valor del lado más alto. La columna «${rotuloComp(base)}» compara, en cada lado, el valor de la última sesión con la base elegida (con «Latest», con la sesión válida anterior): es la misma comparación que muestra el cuadro «Normative Benchmarking» de cada test.</p><//>
-      ${bloques.map((b) => html`<div class="asim-bloque" key=${b.key}><h3 class="asim-h-bloque">${b.nombre}</h3>
-        ${b.grupos.map((g) => html`<div key=${g.g ?? '-'}>${g.g ? html`<h4 class="asim-h-sub">${g.g}</h4>` : null}
-          ${g.tests.map(({ t, rows, falta }) => html`<div class="table-wrap asim-test" key=${t.id}><table class="asim"><caption><strong>${dn(t.name)}</strong>${zName(t) ? html` <span class="muted">· ${zName(t)}</span>` : null}</caption>
+      ${bloques.map((b) => html`<${Plegable} key=${b.key} nivel="bloque" clase="asim-h-bloque" titulo=${b.nombre} extra=${`${b.grupos.reduce((n, g) => n + g.tests.length, 0)} test(s)`}>
+        ${b.grupos.map((g) => html`<${Plegable} key=${g.g ?? '-'} nivel="sub" clase="asim-h-sub" titulo=${g.g ?? 'Sin manifestación'}>
+          ${g.tests.map(({ t, rows, falta }) => html`<${Plegable} key=${t.id} nivel="test" clase="asim-h-test" titulo=${html`<strong>${dn(t.name)}</strong>${zName(t) ? html` <span class="muted">· ${zName(t)}</span>` : null}`}>
+            <div class="table-wrap asim-test"><table class="asim">
             <thead><tr><th scope="col">Variable</th><th scope="col" class="asim-th-barra"><span class="asim-l">◄ Left</span> <span class="asim-r">Right ►</span></th><th scope="col">Asimetría</th><th scope="col">Valores</th><th scope="col" title=${TIP_COMP[base]}>${rotuloComp(base)}</th><th scope="col">${base === 'last' ? 'Fecha' : base === 'pa' ? 'Periodo' : 'Sesión'}</th></tr></thead>
             <tbody>${rows.map((r) => html`<tr key=${r.v.id} title=${fmtDay(r.date)}>
               <th scope="row">${dn(r.v.name)}</th>
@@ -92,7 +95,8 @@ export function PanelAsimetrias({ catalog, sessions, q, setQ }) {
                 : fmtVar(r.variL) || fmtVar(r.variR)
                   ? html`<span class="asim-l">L ${fmtVar(r.variL) ?? '—'}</span> · <span class="asim-r">R ${fmtVar(r.variR) ?? '—'}</span>`
                   : '—'}</td>
-              <td class="num muted asim-fecha">${base === 'last' ? fmtDay(r.date) : base === 'pb' ? `PB · ${fmtDay(r.date)}` : `PA · ${r.from === r.date ? fmtDay(r.date) : `${fmtDay(r.from)} – ${fmtDay(r.date)}`}`}</td></tr>`)}</tbody></table>${falta.length ? html`<p class="muted asim-falta">Sin valores en este jugador: ${falta.map((v) => dn(v.name)).join(', ')}. Para verlas hay que importar esas columnas de VALD en su sesión.</p>` : null}</div>`)}
-        </div>`)}</div>`)}`}
+              <td class="num muted asim-fecha">${base === 'last' ? fmtDay(r.date) : base === 'pb' ? `PB · ${fmtDay(r.date)}` : `PA · ${r.from === r.date ? fmtDay(r.date) : `${fmtDay(r.from)} – ${fmtDay(r.date)}`}`}</td></tr>`)}</tbody></table>${falta.length ? html`<p class="muted asim-falta">Sin valores en este jugador: ${falta.map((v) => dn(v.name)).join(', ')}. Para verlas hay que importar esas columnas de VALD en su sesión.</p>` : null}</div>
+          <//>`)}
+        <//>`)}<//>`)}`}
   </section>`;
 }

@@ -1,5 +1,5 @@
 {
-"version": "10i-0.13.0",
+"version": "10i-0.14.0",
 "archivos": {
 "alta-manual.js": {
 "bytes": 3994,
@@ -118,8 +118,8 @@
 "sha": "9c8f43c4c32ee9ea"
 },
 "componentes.js": {
-"bytes": 5902,
-"sha": "0bd4df12f07e48b5"
+"bytes": 7131,
+"sha": "e9503ba6b43a61b8"
 },
 "composite.js": {
 "bytes": 14259,
@@ -139,7 +139,7 @@
 },
 "db.js": {
 "bytes": 7186,
-"sha": "315af01cb237cb5c"
+"sha": "cb026aaa9df7770d"
 },
 "dsieur.js": {
 "bytes": 4174,
@@ -246,8 +246,8 @@
 "sha": "79785a2f115f85a4"
 },
 "pages-asimetrias.js": {
-"bytes": 10376,
-"sha": "44f9beb1fc3af8a4"
+"bytes": 10617,
+"sha": "27e2c68798e0b52a"
 },
 "pages-asociaciones.js": {
 "bytes": 12466,
@@ -266,20 +266,20 @@
 "sha": "7d49ff711e7cfd2f"
 },
 "pages-composite.js": {
-"bytes": 35544,
-"sha": "1adfc2f3d7610ef5"
+"bytes": 35614,
+"sha": "adc829630074da8e"
 },
 "pages-deficits.js": {
-"bytes": 15826,
-"sha": "fca81837a8bb3308"
+"bytes": 16150,
+"sha": "62d1cfac8b758702"
 },
 "pages-dsieur.js": {
 "bytes": 6939,
 "sha": "bfb3cb52b2898d56"
 },
 "pages-evolucion.js": {
-"bytes": 60242,
-"sha": "d765d96e44ec6b62"
+"bytes": 60273,
+"sha": "5fbbf73a545a12ff"
 },
 "pages-fv.js": {
 "bytes": 22085,
@@ -358,8 +358,8 @@
 "sha": "88eb500272001f21"
 },
 "style.css": {
-"bytes": 57252,
-"sha": "1594ad054e234790"
+"bytes": 63603,
+"sha": "5718edc32e5eba7a"
 },
 "targets.js": {
 "bytes": 4652,

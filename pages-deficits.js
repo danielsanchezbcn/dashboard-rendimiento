@@ -4,7 +4,8 @@
 // No entran las variables sin dirección «mejor/peor» (su percentil indica posición, no rendimiento) ni las que no llegan a la muestra mínima.
 import { html, useState } from './libs.js';
 import { useApp } from './context.js';
-import { useLoad, Card, Desplegable } from './componentes.js';
+import { useLoad, Card, Desplegable, Plegable, BarraFija } from './componentes.js';
+import { playerLabel } from './jugadores.js';
 import { listCatalog } from './catalogo.js';
 import { listPositions } from './posiciones.js';
 import { getSetting } from './db.js';
@@ -127,16 +128,18 @@ export function Deficits({ player }) {
   }).filter((b) => b.grupos.length);
   const href = (f) => buildHash(`jugador-${player.id}`, { b: f.test.blockKey ?? 'fuerza', t: f.test.id, v: f.variable.id, pn: base });
   return html`<${Card} titulo=${`Déficits (${filas.length})`}>
-    <div class="filters">
+    <${BarraFija} jugador=${playerLabel(player)}>
       <fieldset class="modes"><legend>Valor usado</legend>${BASES.map(([k, n]) => html`<label class="check" key=${k}><input type="radio" name="def-base" checked=${base === k} onChange=${() => setBase(k)} /> ${n}</label>`)}</fieldset>
       <label>Percentil La Liga igual o inferior a <input type="number" min="1" max="99" step="1" value=${umbral} onInput=${(e) => setUmbral(e.target.value)} /></label>
-    </div>
+    <//>
     ${!filas.length
       ? html`<p class="muted">Ninguna variable de este jugador tiene un percentil de La Liga igual o inferior a ${u} con esta base. Solo se miran las variables con dirección «mejor/peor» y con al menos ${minN} jugadores en la referencia.</p>`
-      : bloques.map((b) => html`<div class="asim-bloque" key=${b.key}><h3 class="asim-h-bloque">${b.nombre}</h3>
-        ${b.grupos.map((g) => html`<div key=${g.g ?? '-'}>${g.g ? html`<h4 class="asim-h-sub">${g.g}</h4>` : null}
-          ${g.tests.map(({ test, grupos }) => html`<div class="table-wrap asim-test" key=${test.id}><table class="deficits">
-            <caption><strong><a href=${href({ test, variable: grupos[0][0].variable })}>${dn(test.name)}</a></strong>${zName(test) ? html` <span class="muted">· ${zName(test)}</span>` : null}</caption>
+      : bloques.map((b) => html`<${Plegable} key=${b.key} nivel="bloque" clase="asim-h-bloque" titulo=${b.nombre} extra=${`${b.grupos.reduce((n, g) => n + g.tests.length, 0)} test(s)`}>
+        ${b.grupos.map((g) => html`<${Plegable} key=${g.g ?? '-'} nivel="sub" clase="asim-h-sub" titulo=${g.g ?? 'Sin manifestación'}>
+          ${g.tests.map(({ test, grupos }) => html`<${Plegable} key=${test.id} nivel="test" clase="asim-h-test"
+            titulo=${html`<strong>${dn(test.name)}</strong>${zName(test) ? html` <span class="muted">· ${zName(test)}</span>` : null}`}
+            extra=${html`<a href=${href({ test, variable: grupos[0][0].variable })} onClick=${(e) => e.stopPropagation()}>ver test</a>`}>
+            <div class="table-wrap asim-test"><table class="deficits">
             <thead><tr><th scope="col">Percentil La Liga</th><th scope="col">Variable</th><th scope="col">Lado</th><th scope="col">Valor</th><th scope="col" title=${TIP_COMP[base]}>${rotuloComp(base)}</th><th scope="col">Fecha</th></tr></thead>
             <tbody>${grupos.flatMap((gv) => gv.map((f, i) => html`<tr key=${`${f.test.id}-${f.variable.id}-${f.tipo}-${f.side ?? ''}`} class=${i === 0 ? 'grupo-ini' : ''}>
               <td><${Banda} ev=${f.ev} /></td>
@@ -145,8 +148,9 @@ export function Deficits({ player }) {
               <td class="num">${nf(f.value)}${f.unit ? ` ${f.unit}` : ''}</td>
               <td class="num muted" title=${f.tipo === 'asimetria' ? 'La asimetría ya es un porcentaje: su cambio se da en puntos porcentuales.' : TIP_COMP[base]}>${(f.tipo === 'asimetria' ? fmtPuntos(f.variPuntos) : fmtVar(f.vari)) ?? '—'}</td>
               <td>${f.date ? (f.from && f.from !== f.date ? `${fmtDay(f.from)} – ${fmtDay(f.date)}` : fmtDay(f.date)) : '—'}</td>
-            </tr>`))}</tbody></table></div>`)}
-        </div>`)}</div>`)}
+            </tr>`))}</tbody></table></div>
+          <//>`)}
+        <//>`)}<//>`)}
     <${Desplegable} titulo="Qué entra en esta lista y qué no">
       ${sinMuestra.length ? html`<p class="muted">${sinMuestra.length} variable(s) no se han podido evaluar por muestra insuficiente y no entran en la lista: ${sinMuestra.map((x) => `${dn(x.test.name)} · ${dn(x.variable.name)}${x.side === 'S' ? '' : ` (${LADO[x.side]})`} (N = ${x.n}, mínimo ${x.minN})`).join(' · ')}.</p>` : null}
       <p class="muted">Se recorre cada test con datos del jugador y cada una de sus variables visibles, con el valor de la base elegida (Latest, Personal Average o Personal Best) y el mismo percentil de La Liga que muestra el cuadro «Normative Benchmarking» de ese test: es la misma función de cálculo, no una copia.</p>
