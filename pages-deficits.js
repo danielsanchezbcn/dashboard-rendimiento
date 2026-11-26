@@ -15,6 +15,7 @@ import { isAsymVariable, variableExcluidaDeDeficits, asimetriaLR } from './catal
 import { fmtVar, fmtPuntos, rotuloComp, TIP_COMP } from './evolucion.js';
 import { columnasNormativas, ordenIsoHold } from './pages-normativo.js';
 import { Banda } from './pages-percentiles.js';
+import { BLOQUES_ASIM } from './pages-asimetrias.js';
 import { MIN_N_DEFAULT } from './percentiles.js';
 import { buildHash } from './rutas.js';
 import { fmtDay } from './fechas.js';
@@ -96,19 +97,35 @@ export function Deficits({ player }) {
   const porTest = refs.map(([test, refData]) => deficitsDeTest({ player, test, catalog, refData, base, umbral: u }));
   const filas = porTest.flatMap((x) => x.filas);
   const sinMuestra = porTest.flatMap((x) => x.sinMuestra);
-  // Agrupado por test y variable (16/11/2026, pedido del usuario): si la misma variable aparece repetida (izquierda, derecha y asimetría), sus filas
-  // van juntas en lugar de desperdigarse por la lista. Los grupos siguen ordenados por su percentil más bajo, así que lo peor sigue arriba del todo.
+  // 26/11/2026 (pedido del usuario): la lista se organiza POR BLOQUES, igual que «Asimetrías» —bloque → subcategoría (manifestación) → test—, en vez de
+  // ir del percentil más bajo al más alto. Con muchos déficits, una lista ordenada por percentil mezcla tobillo con cadera y salto con fuerza isométrica,
+  // y cuesta leer de qué va el problema; por categorías se ve de un vistazo dónde se concentra. La información de cada fila no cambia: el nombre del test
+  // pasa al título de su tabla (sigue siendo el mismo enlace a su pantalla), que es como lo presenta Asimetrías.
   const ordenLado = (f) => (f.tipo === 'asimetria' ? 2 : f.side === 'L' ? 0 : f.side === 'R' ? 1 : 3);
-  const grupos = (() => {
+  const mName = (t) => catalog.manifestations.find((m) => m.id === t.manifestationId)?.name ?? null;
+  const zName = (t) => catalog.zones.find((z) => z.id === t.zoneId)?.name ?? null;
+  const rank = (t) => { const z = (zName(t) ?? '').toLowerCase(); return z.startsWith('ankle') ? 0 : z.startsWith('knee') ? 1 : z.startsWith('hip') ? 2 : z.startsWith('groin') ? 3 : 4; };
+  // Dentro de cada test, las variables conservan el orden del catálogo (el mismo que usa Normative Benchmarking) y las filas de una variable van juntas:
+  // izquierda, derecha y asimetría, en ese orden.
+  const testsConFilas = (() => {
     const m = new Map();
-    for (const f of filas) { const k = `${f.test.id}|${f.variable.id}`; if (!m.has(k)) m.set(k, []); m.get(k).push(f); }
-    for (const g of m.values()) g.sort((a, b) => ordenLado(a) - ordenLado(b));
-    const peor = (g) => Math.min(...g.map((f) => f.ev.percentilePerf));
-    return [...m.values()].sort((a, b) => peor(a) - peor(b)
-      || dn(a[0].test.name).localeCompare(dn(b[0].test.name), 'es')
-      || dn(a[0].variable.name).localeCompare(dn(b[0].variable.name), 'es'));
+    for (const f of filas) {
+      if (!m.has(f.test.id)) m.set(f.test.id, { test: f.test, vars: new Map() });
+      const g = m.get(f.test.id).vars;
+      if (!g.has(f.variable.id)) g.set(f.variable.id, []);
+      g.get(f.variable.id).push(f);
+    }
+    for (const x of m.values()) for (const g of x.vars.values()) g.sort((a, b) => ordenLado(a) - ordenLado(b));
+    return [...m.values()].map((x) => ({ test: x.test, grupos: [...x.vars.values()] }));
   })();
-  const href = (f) => buildHash(`jugador-${player.id}`, { b: 'fuerza', t: f.test.id, v: f.variable.id, pn: base });
+  const bloques = BLOQUES_ASIM.map(([key, nombre]) => {
+    const tests = testsConFilas.filter((x) => (x.test.blockKey ?? 'fuerza') === key);
+    const grupos = [...new Set(tests.map((x) => mName(x.test)))].map((g) => ({
+      g, tests: tests.filter((x) => mName(x.test) === g).map((x, i) => [x, i]).sort((a, b) => rank(a[0].test) - rank(b[0].test) || a[1] - b[1]).map(([x]) => x),
+    }));
+    return { key, nombre, grupos };
+  }).filter((b) => b.grupos.length);
+  const href = (f) => buildHash(`jugador-${player.id}`, { b: f.test.blockKey ?? 'fuerza', t: f.test.id, v: f.variable.id, pn: base });
   return html`<${Card} titulo=${`Déficits (${filas.length})`}>
     <div class="filters">
       <fieldset class="modes"><legend>Valor usado</legend>${BASES.map(([k, n]) => html`<label class="check" key=${k}><input type="radio" name="def-base" checked=${base === k} onChange=${() => setBase(k)} /> ${n}</label>`)}</fieldset>
@@ -116,22 +133,25 @@ export function Deficits({ player }) {
     </div>
     ${!filas.length
       ? html`<p class="muted">Ninguna variable de este jugador tiene un percentil de La Liga igual o inferior a ${u} con esta base. Solo se miran las variables con dirección «mejor/peor» y con al menos ${minN} jugadores en la referencia.</p>`
-      : html`<div class="table-wrap"><table class="deficits"><caption>Del percentil más bajo al más alto, con las filas del mismo test y variable (izquierda, derecha y asimetría) agrupadas</caption>
-        <thead><tr><th scope="col">Percentil La Liga</th><th scope="col">Test</th><th scope="col">Variable</th><th scope="col">Lado</th><th scope="col">Valor</th><th scope="col" title=${TIP_COMP[base]}>${rotuloComp(base)}</th><th scope="col">Fecha</th></tr></thead>
-        <tbody>${grupos.flatMap((g) => g.map((f, i) => html`<tr key=${`${f.test.id}-${f.variable.id}-${f.tipo}-${f.side ?? ''}`} class=${i === 0 ? 'grupo-ini' : ''}>
-          <td><${Banda} ev=${f.ev} /></td>
-          <td>${i === 0 ? html`<a href=${href(f)}>${dn(f.test.name)}</a>` : null}</td>
-          <td>${i === 0 ? dn(f.variable.name) : null}${f.tipo === 'asimetria' ? html` <span class="muted">(asimetría)</span>` : ''}</td>
-          <td class=${f.side === 'L' ? 'asim-l' : f.side === 'R' ? 'asim-r' : ''}>${f.tipo === 'asimetria' ? '—' : LADO[f.side] || '—'}</td>
-          <td class="num">${nf(f.value)}${f.unit ? ` ${f.unit}` : ''}</td>
-          <td class="num muted" title=${f.tipo === 'asimetria' ? 'La asimetría ya es un porcentaje: su cambio se da en puntos porcentuales.' : TIP_COMP[base]}>${(f.tipo === 'asimetria' ? fmtPuntos(f.variPuntos) : fmtVar(f.vari)) ?? '—'}</td>
-          <td>${f.date ? (f.from && f.from !== f.date ? `${fmtDay(f.from)} – ${fmtDay(f.date)}` : fmtDay(f.date)) : '—'}</td>
-        </tr>`))}</tbody></table></div>`}
+      : bloques.map((b) => html`<div class="asim-bloque" key=${b.key}><h3 class="asim-h-bloque">${b.nombre}</h3>
+        ${b.grupos.map((g) => html`<div key=${g.g ?? '-'}>${g.g ? html`<h4 class="asim-h-sub">${g.g}</h4>` : null}
+          ${g.tests.map(({ test, grupos }) => html`<div class="table-wrap asim-test" key=${test.id}><table class="deficits">
+            <caption><strong><a href=${href({ test, variable: grupos[0][0].variable })}>${dn(test.name)}</a></strong>${zName(test) ? html` <span class="muted">· ${zName(test)}</span>` : null}</caption>
+            <thead><tr><th scope="col">Percentil La Liga</th><th scope="col">Variable</th><th scope="col">Lado</th><th scope="col">Valor</th><th scope="col" title=${TIP_COMP[base]}>${rotuloComp(base)}</th><th scope="col">Fecha</th></tr></thead>
+            <tbody>${grupos.flatMap((gv) => gv.map((f, i) => html`<tr key=${`${f.test.id}-${f.variable.id}-${f.tipo}-${f.side ?? ''}`} class=${i === 0 ? 'grupo-ini' : ''}>
+              <td><${Banda} ev=${f.ev} /></td>
+              <td>${i === 0 ? dn(f.variable.name) : null}${f.tipo === 'asimetria' ? html` <span class="muted">(asimetría)</span>` : ''}</td>
+              <td class=${f.side === 'L' ? 'asim-l' : f.side === 'R' ? 'asim-r' : ''}>${f.tipo === 'asimetria' ? '—' : LADO[f.side] || '—'}</td>
+              <td class="num">${nf(f.value)}${f.unit ? ` ${f.unit}` : ''}</td>
+              <td class="num muted" title=${f.tipo === 'asimetria' ? 'La asimetría ya es un porcentaje: su cambio se da en puntos porcentuales.' : TIP_COMP[base]}>${(f.tipo === 'asimetria' ? fmtPuntos(f.variPuntos) : fmtVar(f.vari)) ?? '—'}</td>
+              <td>${f.date ? (f.from && f.from !== f.date ? `${fmtDay(f.from)} – ${fmtDay(f.date)}` : fmtDay(f.date)) : '—'}</td>
+            </tr>`))}</tbody></table></div>`)}
+        </div>`)}</div>`)}
     <${Desplegable} titulo="Qué entra en esta lista y qué no">
       ${sinMuestra.length ? html`<p class="muted">${sinMuestra.length} variable(s) no se han podido evaluar por muestra insuficiente y no entran en la lista: ${sinMuestra.map((x) => `${dn(x.test.name)} · ${dn(x.variable.name)}${x.side === 'S' ? '' : ` (${LADO[x.side]})`} (N = ${x.n}, mínimo ${x.minN})`).join(' · ')}.</p>` : null}
       <p class="muted">Se recorre cada test con datos del jugador y cada una de sus variables visibles, con el valor de la base elegida (Latest, Personal Average o Personal Best) y el mismo percentil de La Liga que muestra el cuadro «Normative Benchmarking» de ese test: es la misma función de cálculo, no una copia.</p>
       <p class="muted">La columna «${rotuloComp(base)}» es la misma comparación que muestra el cuadro «Normative Benchmarking»: el valor de la última sesión frente a la base elegida y, con «Latest», frente a la sesión válida anterior. En las filas de asimetría el cambio va en puntos porcentuales (p.p.), porque la asimetría ya es un porcentaje.</p>
-      <p class="muted">Las filas del mismo test y variable van juntas, con la izquierda, la derecha y la asimetría seguidas; los grupos se ordenan por su percentil más bajo, así que lo peor sigue arriba. Se listan las variables por lado (cada pierna por separado) y, además, las asimetrías: en ellas un percentil bajo significa una asimetría grande comparada con la de los demás jugadores.</p>
+      <p class="muted">La lista se organiza por <strong>bloques</strong>, igual que «Asimetrías»: bloque → subcategoría → test, y dentro de cada test las variables van en el orden del catálogo, con la izquierda, la derecha y la asimetría seguidas. Así se ve de un vistazo dónde se concentran los déficits, en lugar de mezclar tobillo con cadera por orden de percentil. Se listan las variables por lado (cada pierna por separado) y, además, las asimetrías: en ellas un percentil bajo significa una asimetría grande comparada con la de los demás jugadores.</p>
       <p class="muted">En los tests cuya medida es una <strong>carga externa</strong> —los iso-hold y todos los de RM— solo se lista el <strong>%BW</strong>: los kilos no se pueden comparar entre jugadores de distinto tamaño, y el MVIC iso-push, el %PIMA y el 1RM estimado se calculan a partir de esa misma carga, así que serían el mismo déficit contado varias veces. La asimetría del test sigue apareciendo: sale del %BW y es la misma que la de los kilos.</p>
       <p class="muted">No entran: las variables sin dirección «mejor/peor» (ahí el percentil solo dice dónde cae en La Liga, no si es bueno o malo), las que no llegan al mínimo de ${minN} jugadores en la referencia, los valores que el jugador no tiene con esa base, y los tests archivados, las variables marcadas como excluidas en el Catálogo (por defecto Torque del Nordic y Force/RFD at 100 ms) y la medida absoluta cuando existe su relativa al peso con datos (se lista solo la relativa). La referencia nunca incluye al propio jugador ni datos sintéticos.</p>
     <//>

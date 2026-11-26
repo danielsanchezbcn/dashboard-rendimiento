@@ -1,5 +1,5 @@
 {
-"version": "10i-0.12.0",
+"version": "10i-0.13.0",
 "archivos": {
 "alta-manual.js": {
 "bytes": 3994,
@@ -139,7 +139,7 @@
 },
 "db.js": {
 "bytes": 7186,
-"sha": "5e04faad2313409c"
+"sha": "315af01cb237cb5c"
 },
 "dsieur.js": {
 "bytes": 4174,
@@ -270,8 +270,8 @@
 "sha": "1adfc2f3d7610ef5"
 },
 "pages-deficits.js": {
-"bytes": 13949,
-"sha": "d2251f4eb1bc7bc9"
+"bytes": 15826,
+"sha": "fca81837a8bb3308"
 },
 "pages-dsieur.js": {
 "bytes": 6939,
@@ -358,8 +358,8 @@
 "sha": "88eb500272001f21"
 },
 "style.css": {
-"bytes": 57288,
-"sha": "460560cf5f947a02"
+"bytes": 57252,
+"sha": "1594ad054e234790"
 },
 "targets.js": {
 "bytes": 4652,
