@@ -54,12 +54,12 @@ check('NME: solo el Jurdan Test precargado y con la etiqueta tal cual', /Jurdan 
 await go('catalogo');
 check('título de la pestaña', document.title.startsWith('Catálogo de tests'));
 let tc = card('Tests');
-check('39 tests del catálogo inicial (36 de fuerza + Perímetros + Jurdan Test + Toe-Touch Test)', rowTexts(tc).length === 39, String(rowTexts(tc).length));
+check('40 tests del catálogo inicial (36 de fuerza + Perímetros + Jurdan Test + Toe-Touch Test + Hip)', rowTexts(tc).length === 40, String(rowTexts(tc).length));
 await setVal(field(tc, 'Buscar'), 'iso-hold');
 check('búsqueda por nombre', rowTexts(card('Tests')).length === 4, String(rowTexts(card('Tests')).length));
 await setVal(field(card('Tests'), 'Buscar'), '');
 check('manifestaciones: 5 y zonas: 4', rowTexts(card('Manifestaciones de la fuerza')).length === 5 && rowTexts(card('Zonas anatómicas')).length === 4);
-check('el catálogo inicial: 36 tests de fuerza + Perímetros + Jurdan Test + Toe-Touch Test', $$('#tests tbody tr').length === 39);
+check('el catálogo inicial: 36 tests de fuerza + Perímetros + Jurdan Test + Toe-Touch Test + Hip', $$('#tests tbody tr').length === 40);
 
 // ---- Alta de un test y duplicado
 tc = card('Tests');
@@ -67,7 +67,7 @@ const nf = $$('form', tc).pop();
 await setVal(field(nf, 'Nombre del test'), 'Test de prueba');
 await setVal(field(nf, 'Manifestación'), $$('option', field(nf, 'Manifestación')).find((o) => o.textContent.toLowerCase() === 'max isometric strength').value, 'change');
 await click(btn(nf, 'Añadir test'));
-check('test nuevo en la lista', !!testRow('Test de prueba') && rowTexts(card('Tests')).length === 40);
+check('test nuevo en la lista', !!testRow('Test de prueba') && rowTexts(card('Tests')).length === 41);
 const nf2 = $$('form', card('Tests')).pop();
 await setVal(field(nf2, 'Nombre del test'), 'test de prueba');
 await setVal(field(nf2, 'Manifestación'), $$('option', field(nf2, 'Manifestación')).find((o) => o.textContent.toLowerCase() === 'max isometric strength').value, 'change');

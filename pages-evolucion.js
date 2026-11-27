@@ -6,6 +6,7 @@ import { Card, Desplegable, Msg, useLoad, useRunner, agruparFiltros, SelectorVar
 import { fmtDay, todayIso } from './fechas.js';
 import { addManualLoad, LOAD_VARIABLE_NAMES, RM_MISMA_CARGA } from './isohold.js';
 import { addManualSession, admiteAltaManual, variablesAltaManual } from './alta-manual.js';
+import { escalaDe, gradosDeEscala, etiquetaValor } from './hip.js';
 import { listCatalog, SIDES } from './catalogo.js';
 import { replaceQuery, buildHash } from './rutas.js';
 import { Migas, KEEP, NotaRelativa } from './pages-test.js';
@@ -373,17 +374,30 @@ function AltaManualResultado({ player, test, catalog, reload }) {
   const { db } = useApp();
   const { msg, busy, run } = useRunner();
   const vars = variablesAltaManual(catalog.variables, test.id);
-  const [f, setF] = useState({ date: todayIso(), time: '', valores: {} });
+  const [f, setF] = useState({ date: todayIso(), time: '', valores: {}, nota: '' });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const setVal = (vid, sd) => (e) => setF({ ...f, valores: { ...f.valores, [vid]: { ...(f.valores[vid] ?? {}), [sd]: e.target.value } } });
   const save = run(async () => {
-    await addManualSession(db, { playerId: player.id, testId: test.id, date: f.date, time: f.time, valores: f.valores });
-    setF({ date: f.date, time: '', valores: {} }); reload();
+    await addManualSession(db, { playerId: player.id, testId: test.id, date: f.date, time: f.time, valores: f.valores, nota: f.nota });
+    setF({ date: f.date, time: '', valores: {}, nota: '' }); reload();
   }, 'Resultado guardado.');
-  const campo = (v, sd, etiqueta) => html`<label key=${`${v.id}-${sd}`}>${etiqueta}${v.unit ? html` <span class="muted">(${v.unit})</span>` : null}
-    <input inputmode="decimal" value=${f.valores[v.id]?.[sd] ?? ''} onInput=${setVal(v.id, sd)} /></label>`;
+  // Variables con escala cerrada (los grados clínicos de la cadera): desplegable con el texto de cada grado, no una casilla numérica. Así no se puede
+  // escribir un 4 ni un 2,5, y se ve lo que significa cada número sin tener que recordarlo (27/11/2026).
+  const conEscala = vars.some((v) => escalaDe(v));
+  const campo = (v, sd, etiqueta) => {
+    const esc = escalaDe(v);
+    if (esc) return html`<label key=${`${v.id}-${sd}`}>${etiqueta}
+      <select value=${f.valores[v.id]?.[sd] ?? ''} onChange=${setVal(v.id, sd)}>
+        <option value="">Sin explorar</option>
+        ${gradosDeEscala(esc).map((g) => html`<option key=${g.valor} value=${String(g.valor)}>${etiquetaValor(esc, g.valor)}</option>`)}
+      </select></label>`;
+    return html`<label key=${`${v.id}-${sd}`}>${etiqueta}${v.unit ? html` <span class="muted">(${v.unit})</span>` : null}
+      <input inputmode="decimal" value=${f.valores[v.id]?.[sd] ?? ''} onInput=${setVal(v.id, sd)} /></label>`;
+  };
   return html`<${Card} titulo="Alta manual de resultados" id="alta-manual-resultado">
-    <p class="muted">Este test no se importa: escribe aquí el resultado del jugador. Se guarda como una sesión más, con su fecha, y entra en los percentiles, las asimetrías y los déficits como cualquier otra. Las casillas que dejes en blanco no se guardan; si te equivocas, corrígelo en la tabla de sesiones.</p>
+    ${conEscala
+      ? html`<p class="muted">Escribe aquí la valoración del jugador. Cada grado se elige en su desplegable, que es el único valor que admite la escala; «Sin explorar» no guarda nada, y no es lo mismo que un 0. Se guarda como una valoración con su fecha: los <strong>impingement positivos</strong> y los <strong>déficits de rango articular de 2 o más</strong> aparecen en el bloque «Déficits», con la anotación de origen de las rotaciones. No entra en los percentiles de La Liga ni en las asimetrías: son grados clínicos, no medidas comparables entre jugadores. Si te equivocas, corrígelo en la tabla de sesiones.</p>`
+      : html`<p class="muted">Este test no se importa: escribe aquí el resultado del jugador. Se guarda como una sesión más, con su fecha, y entra en los percentiles, las asimetrías y los déficits como cualquier otra. Las casillas que dejes en blanco no se guardan; si te equivocas, corrígelo en la tabla de sesiones.</p>`}
     ${vars.length === 0 ? html`<p class="status warn" role="status">Este test todavía no tiene variables. Créalas en «Catálogo de tests» y vuelve aquí.</p>` : html`
     <form onSubmit=${save} aria-label="Alta manual de resultados">
       <div class="fields">
@@ -393,6 +407,8 @@ function AltaManualResultado({ player, test, catalog, reload }) {
       <div class="fields alta-manual-vars">${vars.flatMap((v) => (v.sides === 'LR'
         ? [campo(v, 'L', html`${dn(v.name)} · izquierda`), campo(v, 'R', html`${dn(v.name)} · derecha`)]
         : [campo(v, 'S', dn(v.name))]))}</div>
+      ${conEscala ? html`<label class="nota-valoracion">Anotación de la valoración (opcional)
+        <textarea rows="2" value=${f.nota} onInput=${set('nota')} placeholder="Observaciones de esta exploración: molestia referida, hallazgos, contexto…"></textarea></label>` : null}
       <button type="submit" disabled=${busy}>Guardar resultado</button>
     </form>`}
     <${Msg} msg=${msg} /><//>`;

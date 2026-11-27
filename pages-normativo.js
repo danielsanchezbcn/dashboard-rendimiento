@@ -18,6 +18,7 @@ import { Desplegable } from './componentes.js';
 import { dn } from './nombres.js';
 import { BotonesImagen } from './copiar.js';
 import { playerLabel } from './jugadores.js';
+import { escalaDe } from './hip.js';
 
 const nf = (n, d = 2) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : Number(n).toLocaleString('es-ES', { maximumFractionDigits: d }));
 const BASES = [['last', 'Latest'], ['pa', 'Personal Average'], ['pb', 'Personal Best']];
@@ -106,7 +107,10 @@ export function NormativeBenchmarking({ player, test, catalog, sessions, refData
   // 26/11/2026 (pedido del usuario): se retira el selector «La Liga reference». El percentil de toda La Liga y el de la posición principal del
   // jugador se enseñan SIEMPRE, cada uno en su fila, en vez de tener que cambiar de referencia a mano para ver uno u otro.
   const positionId = null;
-  const visibles = orderVars(catalog.variables.filter((v) => v.testId === test.id && isViewable(v) && hasData(v, sessions)));
+  // Las variables con ESCALA CERRADA (los grados clínicos de la exploración de cadera, 0–3, y el impingement) quedan fuera de este cuadro: un percentil
+  // de La Liga sobre un juicio clínico ordinal no significa nada y se leería como si lo significara. Su déficit se decide por criterio, en el bloque
+  // «Exploración de cadera» de Déficits (27/11/2026). Si el test no tiene ninguna otra variable, el cuadro entero no se dibuja.
+  const visibles = orderVars(catalog.variables.filter((v) => v.testId === test.id && isViewable(v) && hasData(v, sessions) && !escalaDe(v)));
   const normales = ordenIsoHold(visibles.filter((v) => !isAsymVariable(v)));
   const sel = visibles.find((v) => v.id === selectedId) ?? null;
   // Todas las variables en columnas (por defecto) o, si el test lo tiene desactivado en el Catálogo, solo la variable seleccionada. Una variable de asimetría de VALD solo aparece si es la seleccionada.

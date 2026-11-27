@@ -1,9 +1,9 @@
 {
-"version": "10i-0.18.0",
+"version": "10i-0.19.0",
 "archivos": {
 "alta-manual.js": {
-"bytes": 3994,
-"sha": "578d457ba720bbff"
+"bytes": 4758,
+"sha": "7694dabea6a20aae"
 },
 "angulos-app.js": {
 "bytes": 8450,
@@ -98,8 +98,8 @@
 "sha": "1233f013fe906d21"
 },
 "catalogo-inicial.js": {
-"bytes": 51950,
-"sha": "6c0505892be050f3"
+"bytes": 56057,
+"sha": "e43f7cd01e8f1026"
 },
 "catalogo.js": {
 "bytes": 26916,
@@ -135,7 +135,7 @@
 },
 "db.js": {
 "bytes": 7523,
-"sha": "1d767fcd5b4317f4"
+"sha": "edacc0803bb21037"
 },
 "dsieur.js": {
 "bytes": 4174,
@@ -168,6 +168,14 @@
 "fuerzavelocidad.js": {
 "bytes": 10804,
 "sha": "6c24322bcac47877"
+},
+"hip-excel.js": {
+"bytes": 10999,
+"sha": "4ccf13cc2924b046"
+},
+"hip.js": {
+"bytes": 7321,
+"sha": "a00c547156aa817d"
 },
 "iconos.js": {
 "bytes": 13984,
@@ -266,28 +274,32 @@
 "sha": "6a7a8551304548a2"
 },
 "pages-deficits.js": {
-"bytes": 16150,
-"sha": "62d1cfac8b758702"
+"bytes": 20033,
+"sha": "6cad257d6a1b510d"
 },
 "pages-dsieur.js": {
 "bytes": 6937,
 "sha": "6c847734a7b56608"
 },
 "pages-evolucion.js": {
-"bytes": 50431,
-"sha": "6ff5a637c6177239"
+"bytes": 52196,
+"sha": "c774d5813be8f04b"
 },
 "pages-fv.js": {
 "bytes": 22085,
 "sha": "e80a24f20a180d6d"
+},
+"pages-hip.js": {
+"bytes": 8820,
+"sha": "cbe03e844111d3f1"
 },
 "pages-imagen.js": {
 "bytes": 13783,
 "sha": "740c8997e19aea12"
 },
 "pages-importar.js": {
-"bytes": 46369,
-"sha": "9d00996b1b3b7aaa"
+"bytes": 46649,
+"sha": "8d768f489dcedb0f"
 },
 "pages-isorack.js": {
 "bytes": 5240,
@@ -298,8 +310,8 @@
 "sha": "933ec996e7332150"
 },
 "pages-normativo.js": {
-"bytes": 22700,
-"sha": "bca4c50ac369fe38"
+"bytes": 23196,
+"sha": "3c784c1bc747bbdf"
 },
 "pages-percentiles.js": {
 "bytes": 19820,
@@ -354,8 +366,8 @@
 "sha": "87fa4a0f0d89719d"
 },
 "style.css": {
-"bytes": 67047,
-"sha": "1a18f89708f513e5"
+"bytes": 67611,
+"sha": "e8e8d84613c35b9b"
 },
 "teamwide.js": {
 "bytes": 6845,
