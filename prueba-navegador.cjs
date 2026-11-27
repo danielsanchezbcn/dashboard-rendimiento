@@ -64,11 +64,28 @@ const server = http.createServer((req, res) => {
     out.byTest.lpd = T('Double-Leg Leg Press 45° 8RM').id; out.byTest.lpu = T('Single-Leg Leg Press 45° 8RM').id; // Leg Press 45° 8RM (23/11/2026): bilateral y por pierna
     out.byTest.manual = T('Supine Isometric Ankle Inversion').id; // test de alta manual (no se importa: se escribe a mano)
     out.byTest.toe = tests.find((x) => x.blockKey === 'nme' && /toe/i.test(x.name))?.id ?? null;
+    out.byTest.hipnme = tests.find((x) => x.blockKey === 'nme' && x.name === 'Hip')?.id ?? null; // exploración de cadera, NME (27/11/2026). OJO: `hip` ya es el Run-Specific Hip Iso-Push
+    out.hipVars = Object.fromEntries(vars.filter((v) => v.testId === out.byTest.hipnme).map((v) => [v.name, v.id]));
     for (let i = 0; i < 12; i++) {
       const id = await new Promise((ok) => { const rq = db.transaction('players', 'readwrite').objectStore('players').add({ jerseyName: 'J' + (i + 1), active: true, referenceWeight: { value: 75, unit: 'kg' }, createdAt: now, updatedAt: now }); rq.onsuccess = () => ok(rq.result); });
       out.players.push(id);
       for (const [k, d] of [[0, '2026-08-01'], [1, '2026-09-01'], [2, '2026-10-01']]) for (const key of ['cmj', 'hop', 'dj', 'sj']) await seed(T({ cmj: 'CMJ', hop: 'Double-Leg Hop Test', dj: 'DL Drop Jump 30 cm', sj: 'Squat Jump' }[key]), id, d, k, i);
       await seed(T('SL CMJ'), id, '2026-10-01', 1, i); await seed(per, id, '2026-10-01', 1, i); await seed(T('Run-Specific Hip Iso-Push'), id, '2026-10-01', 1, i); await seed(T('Nordic Hamstring Exercise'), id, '2026-10-01', 1, i); await seed(T('Jurdan Test'), id, '2026-10-01', 1, i); await seed(T('Run-Specific Knee Iso-Push'), id, '2026-10-01', 1, i, 70); for (const [k2, d2] of [[0, '2026-09-01'], [1, '2026-10-01']]) await seed(T('Knee Iso-Hold 20 s'), id, d2, k2, i); await seed(T('DL Drop Jump 45 cm'), id, '2026-10-02', 2, i);
+    }
+    // Una valoración de cadera con un hallazgo de cada clase, para el bloque «Exploración de cadera» de Déficits: impingement positivo solo en la
+    // derecha, rotación interna en SUPINO con grado 3 (articular), rotación interna en PRONO con grado 2 (muscular), flexión con grado 2 (sin origen)
+    // y Bent Knee Over bilateral con grado 2. La izquierda de la rotación interna va a 1: por debajo del umbral, no tiene que salir.
+    if (out.byTest.hipnme) {
+      const V = out.hipVars;
+      const valores = {
+        [V['IMPINGEMENT']]: { L: 0, R: 1 },
+        [V['HIP INTERNAL ROTATION · SUPINE POSITION']]: { L: 1, R: 3 },
+        [V['HIP INTERNAL ROTATION · PRONE POSITION']]: { L: 2, R: 0 },
+        [V['HIP EXTERNAL ROTATION · SUPINE POSITION']]: { L: 0, R: 0 },
+        [V['HIP FLEXION']]: { L: 0, R: 2 },
+        [V['BENT KNEE OVER']]: { S: 2 },
+      };
+      await new Promise((ok) => { const tx = db.transaction('sessions', 'readwrite'); tx.objectStore('sessions').add({ playerId: out.players[0], testId: out.byTest.hipnme, protocolId: null, date: '2026-10-05', time: '', values: valores, reps: {}, status: 'valid', excludedReason: '', source: 'manual', nota: 'Molestia referida en el gesto de golpeo.', createdAt: now, updatedAt: now }); tx.oncomplete = ok; });
     }
     out.vars = Object.fromEntries(vars.map((v) => [v.id, { name: v.name, testId: v.testId }]));
     return out;
@@ -126,10 +143,10 @@ const server = http.createServer((req, res) => {
 
   // ---- Déficits: todo lo que está en percentil de La Liga igual o por debajo del umbral
   const PBAJO = ids.players[0]; // el jugador con los valores más bajos de la siembra: es el que tiene déficits
-  await go(`#jugador-${PBAJO}?b=deficits`, 'table.deficits, .status.fail, p.muted', 2500);
+  await go(`#jugador-${PBAJO}?b=deficits`, 'table.deficits:not(.hip), .status.fail, p.muted', 2500);
   // 26/11/2026: la lista se organiza por bloques, como «Asimetrías» (bloque → subcategoría → una tabla por test), así que hay VARIAS tablas.
   const def = await page.evaluate(() => {
-    const ts = [...document.querySelectorAll('table.deficits')];
+    const ts = [...document.querySelectorAll('table.deficits:not(.hip)')];
     return { tablas: ts.length, n: ts.reduce((a, t) => a + t.querySelectorAll('tbody tr').length, 0),
       pct: ts.flatMap((t) => [...t.querySelectorAll('tbody tr td:first-child .band')].map((x) => Number(x.innerText))),
       cab: ts[0] ? [...ts[0].querySelectorAll('thead th')].map((x) => x.innerText) : [],
@@ -139,8 +156,8 @@ const server = http.createServer((req, res) => {
   check('Déficits: tabla con percentil, variable, lado, valor, comparación y fecha (el test va en el título de cada tabla)', def.cab.join('|').toLowerCase() === 'percentil la liga|variable|lado|valor|% change vs previous session|fecha', def.cab.join('|'));
   check('Déficits: cada tabla lleva su test en el título, con enlace a su pantalla', def.tablas > 0 && def.titulos.every((x) => x.length > 2) && def.enlaces.every((h) => /^#jugador-\d+\?/.test(h ?? '')), JSON.stringify({ titulos: def.titulos.slice(0, 3), enlaces: def.enlaces.slice(0, 2) }));
   // La columna de comparación (14/11/2026): el título dice QUÉ compara y cambia con la base, y el contenido es un % con signo.
-  const cabComp = async () => page.evaluate(() => ([...document.querySelectorAll('table.deficits thead th')][4]?.innerText.trim() ?? '').toLowerCase());
-  const compDef = async () => page.evaluate(() => [...document.querySelectorAll('table.deficits tbody tr')].map((r) => r.children[4].innerText.trim()));
+  const cabComp = async () => page.evaluate(() => ([...document.querySelectorAll('table.deficits:not(.hip) thead th')][4]?.innerText.trim() ?? '').toLowerCase());
+  const compDef = async () => page.evaluate(() => [...document.querySelectorAll('table.deficits:not(.hip) tbody tr')].map((r) => r.children[4].innerText.trim()));
   // 16/11/2026: «Latest» va primero y viene marcado por defecto en todas las pantallas.
   check('Déficits: por defecto viene marcado Latest y compara con la sesión anterior', (await cabComp()) === '% change vs previous session', await cabComp());
   check('Déficits: las bases se llaman Latest, Personal Average y Personal Best', (await page.evaluate(() => [...document.querySelectorAll('fieldset.modes label.check')].map((l) => l.textContent.trim()).join('|'))).startsWith('Latest|Personal Average|Personal Best'), await page.evaluate(() => [...document.querySelectorAll('fieldset.modes label.check')].map((l) => l.textContent.trim()).join('|')));
@@ -150,13 +167,45 @@ const server = http.createServer((req, res) => {
   check('Déficits: con Personal Average el título compara con el Personal Average', (await cabComp()) === '% latest session vs personal average', await cabComp());
   await page.locator('input[name="def-base"]').nth(2).check(); await page.waitForTimeout(400);
   check('Déficits: con Personal Best el título compara con el Personal Best', (await cabComp()) === '% latest session vs personal best', await cabComp());
-  const ladoCol = await page.evaluate(() => { const c = (sel) => { const e = document.querySelector(sel); return e ? getComputedStyle(e).color : null; }; return { l: c('table.deficits tbody td.asim-l'), r: c('table.deficits tbody td.asim-r') }; });
+  const ladoCol = await page.evaluate(() => { const c = (sel) => { const e = document.querySelector(sel); return e ? getComputedStyle(e).color : null; }; return { l: c('table.deficits:not(.hip) tbody td.asim-l'), r: c('table.deficits:not(.hip) tbody td.asim-r') }; });
   check('Déficits: el lado va en azul (izquierda) y naranja (derecha)', ladoCol.l === 'rgb(49, 179, 254)' && ladoCol.r === 'rgb(252, 145, 47)', JSON.stringify(ladoCol));
-  const alinDef = await page.evaluate(() => { const t = document.querySelector('table.deficits'); const al = (e) => getComputedStyle(e).textAlign; const th = [...t.querySelectorAll('thead th')]; const tr = t.querySelector('tbody tr'); return th.map((h, i) => `${al(h)}/${al(tr.children[i])}`); });
+  const alinDef = await page.evaluate(() => { const t = document.querySelector('table.deficits:not(.hip)'); const al = (e) => getComputedStyle(e).textAlign; const th = [...t.querySelectorAll('thead th')]; const tr = t.querySelector('tbody tr'); return th.map((h, i) => `${al(h)}/${al(tr.children[i])}`); });
   check('Déficits: cada columna alineada con su título (todo centrado)', alinDef.every((x) => x === 'center/center'), alinDef.join(' · '));
-  const anchoDef = await sinDesborde('table.deficits');
+  const anchoDef = await sinDesborde('table.deficits:not(.hip)');
   check('Déficits: cabe a lo ancho a 1840, 1440 y 1280 px, sin desplazamiento horizontal', anchoDef.length === 0, anchoDef.join(' · '));
   await shot('deficits');
+
+  // ---- Exploración de cadera (27/11/2026): bloque por CRITERIO clínico dentro de Déficits, no por percentil.
+  {
+    const hip = await page.evaluate(() => {
+      for (const d of document.querySelectorAll('details')) d.open = true;
+      const bloques = [...document.querySelectorAll('.asim-h-bloque')].map((x) => x.innerText.split('\n')[0].trim());
+      const tabla = document.querySelector('table.deficits.hip');
+      if (!tabla) return { bloques, filas: null };
+      return { bloques,
+        cab: [...tabla.querySelectorAll('thead th')].map((x) => x.innerText.trim()),
+        filas: [...tabla.querySelectorAll('tbody tr')].map((r) => [...r.children].map((c) => c.innerText.trim())),
+        nota: document.querySelector('.hip-nota')?.innerText.replace(/\s+/g, ' ').trim() ?? '' };
+    });
+    check('Déficits: hay un bloque propio para la exploración de cadera', hip.bloques.some((b) => /Exploración de cadera/i.test(b)), JSON.stringify(hip.bloques));
+    check('cadera: la tabla no lleva percentil ni comparación, sino hallazgo, test, lado, grado y anotación',
+      (hip.cab ?? []).join('|').toLowerCase() === 'hallazgo|test|lado|grado|anotación', JSON.stringify(hip.cab));
+    const filas = hip.filas ?? [];
+    check('cadera: salen los cinco hallazgos y ninguno más (el grado 1 y los ceros no entran)', filas.length === 5, JSON.stringify(filas));
+    check('cadera: el impingement positivo sale solo en la derecha', filas.filter((f) => /Impingement/i.test(f[0])).map((f) => `${f[2]}|${f[3]}`).join() === 'Derecha|Positivo (+)', JSON.stringify(filas.filter((f) => /Impingement/i.test(f[0]))));
+    check('cadera: el grado se lee con su texto, no solo con el número', filas.some((f) => f[3] === '3 · Limitación severa') && filas.some((f) => f[3] === '2 · Limitación moderada'), JSON.stringify(filas.map((f) => f[3])));
+    check('cadera: el déficit en decúbito supino se anota como compromiso articular',
+      filas.filter((f) => /SUPINE/i.test(f[1])).every((f) => /articular/i.test(f[4])) && filas.some((f) => /SUPINE/i.test(f[1])), JSON.stringify(filas.filter((f) => /SUPINE/i.test(f[1]))));
+    check('cadera: el déficit en decúbito prono se anota como de origen muscular',
+      filas.filter((f) => /PRONE/i.test(f[1])).every((f) => /muscular/i.test(f[4])) && filas.some((f) => /PRONE/i.test(f[1])), JSON.stringify(filas.filter((f) => /PRONE/i.test(f[1]))));
+    check('cadera: la flexión y el Bent Knee Over salen sin anotación de origen',
+      filas.filter((f) => /FLEXION|BENT KNEE/i.test(f[1])).every((f) => f[4] === '—'), JSON.stringify(filas.filter((f) => /FLEXION|BENT KNEE/i.test(f[1]))));
+    check('cadera: el Bent Knee Over sale como bilateral, sin pierna', filas.filter((f) => /BENT KNEE/i.test(f[1])).map((f) => f[2]).join() === 'Bilateral', JSON.stringify(filas.filter((f) => /BENT KNEE/i.test(f[1]))));
+    check('cadera: la anotación de texto de la valoración se enseña', /golpeo/.test(hip.nota), hip.nota);
+    if (CAP) { await page.evaluate(() => document.querySelector('table.deficits.hip')?.closest('.asim-h-bloque')?.scrollIntoView({ block: 'center' })); await page.waitForTimeout(300);
+      await page.locator('table.deficits.hip').screenshot({ path: path.join(CAP, 'deficits-cadera.png') }); }
+  }
+
   // 26/11/2026: la barra con el jugador y los mandos tiene que seguir visible al bajar por la pantalla.
   await page.evaluate(() => window.scrollTo(0, 1200)); await page.waitForTimeout(350);
   const pegada = await page.evaluate(() => { const b = document.querySelector('.barra-fija'); if (!b) return null; const r = b.getBoundingClientRect();
@@ -168,7 +217,7 @@ const server = http.createServer((req, res) => {
   // 16/11/2026: las filas del mismo test y variable van juntas (izquierda, derecha y asimetría) y los GRUPOS se ordenan por su percentil más bajo.
   const grupos = await page.evaluate(() => {
     const out = [];
-    for (const t of document.querySelectorAll('table.deficits')) {
+    for (const t of document.querySelectorAll('table.deficits:not(.hip)')) {
       let g = null;
       for (const tr of t.querySelectorAll('tbody tr')) {
         if (tr.classList.contains('grupo-ini')) { g = { clave: (t.closest('details.plg-test')?.querySelector('summary .plg-txt')?.innerText.trim() ?? '') + ' | ' + tr.children[1].innerText.trim().replace(/\s*\(asimetría\)$/, ''), pct: [], lados: [] }; out.push(g); }
@@ -181,7 +230,7 @@ const server = http.createServer((req, res) => {
   });
   // 26/11/2026: organizada por bloques como «Asimetrías», no por orden de percentil.
   const bloquesDef = await page.evaluate(() => {
-    const card = document.querySelector('table.deficits')?.closest('.card');
+    const card = document.querySelector('table.deficits:not(.hip)')?.closest('.card');
     const hs = [...(card?.querySelectorAll('summary.asim-h-bloque, summary.asim-h-sub') ?? [])].map((h) => (h.closest('details').classList.contains('plg-bloque') ? 'H3:' : 'H4:') + h.querySelector('.plg-txt').innerText.trim());
     return { hs, bloques: hs.filter((x) => x.startsWith('H3')).length, subs: hs.filter((x) => x.startsWith('H4')).length };
   });
@@ -207,14 +256,14 @@ const server = http.createServer((req, res) => {
   check('Déficits: cuando una variable se repite por lado, sus filas van juntas', grupos.some((g) => g.lados.length > 1), JSON.stringify(grupos.slice(0, 3)));
   await page.locator('input[type=number]').first().fill('10');
   await page.waitForTimeout(600);
-  const def10 = await page.evaluate(() => [...document.querySelectorAll('table.deficits tbody tr td:first-child .band')].map((x) => Number(x.innerText)));
-  const vars = await page.evaluate(() => [...document.querySelectorAll('table.deficits tbody tr')].map((r) => r.children[2].innerText.trim().toLowerCase()));
+  const def10 = await page.evaluate(() => [...document.querySelectorAll('table.deficits:not(.hip) tbody tr td:first-child .band')].map((x) => Number(x.innerText)));
+  const vars = await page.evaluate(() => [...document.querySelectorAll('table.deficits:not(.hip) tbody tr')].map((r) => r.children[2].innerText.trim().toLowerCase()));
   check('Déficits: fuera Torque, Force at 100 ms y RFD at 100 ms', !vars.some((v) => /torque|(force|rfd) at 100/.test(v)), JSON.stringify(vars.slice(0, 12)));
   check('Déficits: con la relativa al peso presente, no se lista la absoluta', !(vars.includes('peak force') && vars.includes('peak force relativo (bw)')) && !(vars.includes('max force') && vars.includes('max force relativo (bw)')), JSON.stringify(vars.filter((v) => /force/.test(v))));
   check('Déficits: al bajar el umbral a 10 solo quedan los percentiles ≤ 10', def10.every((x) => x <= 10) && def10.length <= def.n, JSON.stringify(def10));
   // El percentil que sale aquí debe ser EL MISMO que muestra Normative Benchmarking de ese test (una sola función de cálculo)
   // 26/11/2026: el enlace al test está en el título de su tabla, no en la fila.
-  const primera = await page.evaluate(() => { const t = document.querySelector('table.deficits'); const r = t?.querySelector('tbody tr'); return r ? { pct: Number(r.querySelector('.band').innerText), href: t.closest('details.plg-test').querySelector('summary .plg-extra a').getAttribute('href'), lado: r.children[2].innerText.trim(), variable: r.children[1].innerText.trim() } : null; });
+  const primera = await page.evaluate(() => { const t = document.querySelector('table.deficits:not(.hip)'); const r = t?.querySelector('tbody tr'); return r ? { pct: Number(r.querySelector('.band').innerText), href: t.closest('details.plg-test').querySelector('summary .plg-extra a').getAttribute('href'), lado: r.children[2].innerText.trim(), variable: r.children[1].innerText.trim() } : null; });
   await page.locator('input[type=number]').first().fill('35');
   await page.waitForTimeout(400);
   if (primera) {
@@ -452,6 +501,46 @@ const server = http.createServer((req, res) => {
   check('alta manual: el test pasa a tener datos y aparece su cuadro Normative Benchmarking', (await page.locator('section.panorama').count()) > 0);
   await go(`#jugador-${P}?t=${t.cmj}&b=fuerza`, 'table.pano');
   check('alta manual: NO aparece en los tests que sí se importan (CMJ)', (await page.locator('#alta-manual-resultado').count()) === 0);
+
+  // ---- Exploración de cadera: alta manual con desplegables de grado, anotación de texto y SIN cuadro de percentiles (27/11/2026).
+  {
+    await go(`#jugador-${P}?t=${t.hipnme}&b=nme`, '#alta-manual-resultado');
+    const am = await page.evaluate(() => {
+      const card = document.getElementById('alta-manual-resultado');
+      const sel = [...card.querySelectorAll('select')];
+      return { selects: sel.length, cajas: card.querySelectorAll('input[inputmode="decimal"]').length,
+        opciones: sel.length ? [...sel[sel.length - 1].options].map((o) => o.text.trim()) : [],
+        impingement: (sel.find((x) => /IMPINGEMENT/i.test(x.closest('label')?.innerText ?? '')) ?? null) && [...sel.find((x) => /IMPINGEMENT/i.test(x.closest('label')?.innerText ?? '')).options].map((o) => o.text.trim()),
+        nota: card.querySelectorAll('.nota-valoracion textarea').length };
+    });
+    check('cadera: los grados se eligen en un desplegable, no se escriben a mano', am.selects === 13 && am.cajas === 0, JSON.stringify({ selects: am.selects, cajas: am.cajas }));
+    check('cadera: el desplegable dice lo que significa cada grado y no deja poner un 4',
+      am.opciones.join('|') === 'Sin explorar|0 · Sin déficit|1 · Limitación leve|2 · Limitación moderada|3 · Limitación severa', JSON.stringify(am.opciones));
+    check('cadera: el impingement se elige entre positivo y negativo', (am.impingement ?? []).join('|') === 'Sin explorar|Negativo (✓)|Positivo (+)', JSON.stringify(am.impingement));
+    check('cadera: hay un espacio de anotación de texto por valoración', am.nota === 1, String(am.nota));
+    check('cadera: no se dibuja el cuadro de percentiles de La Liga sobre un grado clínico', (await page.locator('table.pano').count()) === 0);
+    if (CAP) await page.locator('#alta-manual-resultado').screenshot({ path: path.join(CAP, 'cadera-alta-manual.png') });
+    // Guardar una valoración desde la pantalla: el desplegable escribe el grado y la anotación se guarda con ella.
+    await page.locator('#alta-manual-resultado select').first().selectOption('1'); // impingement: positivo
+    await page.locator('#alta-manual-resultado select').last().selectOption('3'); // Bent Knee Over: limitación severa
+    await page.locator('#alta-manual-resultado .nota-valoracion textarea').fill('Prueba de anotación.');
+    await page.locator('#alta-manual-resultado button[type="submit"]').click(); await page.waitForTimeout(700);
+    const tras = await page.evaluate(() => document.querySelector('#alta-manual-resultado .status')?.textContent ?? '');
+    check('cadera: la valoración escrita a mano se guarda', /guardado/i.test(tras), tras);
+  }
+  // ---- Importar: pestaña propia para el Excel de la exploración de cadera
+  {
+    await go('#importar', 'nav.nav');
+    const pestanas = await page.evaluate(() => [...document.querySelectorAll('[role="tab"]')].map((b) => b.innerText.trim()));
+    check('Importar: hay una pestaña para el Excel de la exploración de cadera', pestanas.some((x) => /Exploración de cadera/i.test(x)), JSON.stringify(pestanas));
+    await page.getByRole('tab', { name: /Exploración de cadera/i }).click();
+    await page.waitForFunction(() => /Exploraci[oó]n de cadera desde Excel/.test(document.body.textContent), null, { timeout: 15000 });
+    const txt = await page.evaluate(() => document.body.textContent.replace(/\s+/g, ' ')); // textContent: el formato va dentro de un desplegable cerrado
+    check('Importar cadera: la pantalla explica la escala y que nada se redondea', /de 0 a 3/.test(txt) && /enteros/.test(txt) && /[Nn]ada se redondea/.test(txt), txt.slice(-320));
+    const anchoImp = await sinDesborde('.card');
+    check('Importar cadera: con cinco pestañas la pantalla sigue cabiendo a 1840, 1440 y 1280 px', anchoImp.length === 0, anchoImp.join(' · '));
+    if (CAP) await page.screenshot({ path: path.join(CAP, 'importar-cadera.png'), fullPage: false });
+  }
 
   // ---- Perímetros: orden de filas y percentil de asimetría
   // Celdas de una fila de «Normative Benchmarking» localizada por su rótulo (no por su posición: así añadir una fila no rompe nada).

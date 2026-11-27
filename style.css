@@ -44,7 +44,7 @@ main a { color: var(--accent); }
 .fields { display: flex; flex-wrap: wrap; gap: .75rem 1rem; margin: .5rem 0; }
 .fields label { display: flex; flex-direction: column; gap: .2rem; font-size: .9rem; color: var(--muted); }
 .fields label.check, label.check { flex-direction: row; align-items: center; gap: .4rem; color: var(--text); display: flex; margin: .5rem 0; }
-select, input[type=text], input[type=search], input[type=date], input[type=number], input[type=password], input[type=file] { font: inherit; padding: .35rem .5rem; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); }
+select, textarea, input[type=text], input[type=search], input[type=date], input[type=number], input[type=password], input[type=file] { font: inherit; padding: .35rem .5rem; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); }
 input[type=number] { width: 8rem; }
 .actions { display: flex; flex-wrap: wrap; gap: .5rem; margin: .75rem 0 .25rem; }
 button, .btn { font: inherit; padding: .5rem .9rem; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-text); cursor: pointer; text-decoration: none; display: inline-block; }
@@ -261,7 +261,7 @@ button.danger { background: transparent; box-shadow: none; }
 button.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--fail) 12%, transparent); filter: none; }
 a.button { border-radius: var(--r-sm); background: var(--surface-2); font-weight: 600; padding: .45rem .95rem; transition: border-color .15s, color .15s; }
 a.button:hover { color: var(--accent); }
-select, input[type=text], input[type=search], input[type=date], input[type=number], input[type=password], input[type=file], input[inputmode], input[type=time] {
+select, textarea, input[type=text], input[type=search], input[type=date], input[type=number], input[type=password], input[type=file], input[inputmode], input[type=time] {
   background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: .45rem .65rem; transition: border-color .15s, box-shadow .15s; }
 select:hover, input:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
 select:focus, input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 26%, transparent); }
@@ -448,7 +448,7 @@ button.secondary { background: transparent; border-color: #34343a; color: var(--
 button.secondary:hover:not(:disabled) { border-color: #8c8c90; color: #fff; }
 a.button { background: transparent; border: 1px solid #34343a; color: var(--text); }
 a.button:hover, a.button:focus-visible { border-color: #8c8c90; color: #fff; }
-select, input[type=text], input[type=search], input[type=date], input[type=number], input[type=password], input[type=file], input[inputmode], input[type=time] { background: #0a0a0b; border-color: #2a2a2d; }
+select, textarea, input[type=text], input[type=search], input[type=date], input[type=number], input[type=password], input[type=file], input[inputmode], input[type=time] { background: #0a0a0b; border-color: #2a2a2d; }
 select:hover, input:hover { border-color: #55555a; }
 select:focus, input:focus { border-color: #b4b4b8; box-shadow: 0 0 0 3px rgba(255, 255, 255, .12); }
 :focus-visible { outline-color: #d8d8dc; }
@@ -734,3 +734,9 @@ table.calor td.calor-c.band-amarillo, table.calor td.calor-c.band-verde-suave, t
 table.calor td.calor-c.band-rojo { background: var(--b1); } table.calor td.calor-c.band-naranja { background: var(--b2); }
 table.calor td.calor-c.band-amarillo-suave { background: var(--b3); } table.calor td.calor-c.band-amarillo { background: var(--b4); }
 table.calor td.calor-c.band-verde-suave { background: var(--b5); } table.calor td.calor-c.band-verde { background: var(--b6); }
+
+/* Anotación de texto libre de una valoración (exploración de cadera, 27/11/2026): una por valoración, debajo de los grados. */
+.nota-valoracion { display: flex; flex-direction: column; gap: .2rem; font-size: .78rem; letter-spacing: .02em; font-weight: 500; color: var(--muted); margin: .6rem 0; }
+.nota-valoracion textarea { width: 100%; max-width: 46rem; resize: vertical; }
+.hip-nota { margin: .4rem 0 0; font-size: .85rem; color: var(--muted); white-space: pre-wrap; }
+.hip-origen { font-size: .82rem; color: var(--muted); }
