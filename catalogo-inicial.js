@@ -13,8 +13,9 @@ import { SW_FACTOR_DEFAULT, testUsage, PERFILES_POR_DEFECTO, pbCriterionOf, sinA
 import { ISO_PAIRS, RM_EST_TESTS, pairFactor } from './isohold.js';
 
 import { mismoTest } from './nombres.js';
+import { HIP_TEST, ESCALA_ROM, ESCALA_IMPINGEMENT } from './hip.js';
 
-export const CATALOG_SEED_VERSION = 19; // 19 (25/11/2026): variables del «Standing Isometric 90°/20° Hamstring Test», que estaba en el catálogo pero vacío
+export const CATALOG_SEED_VERSION = 20; // 20 (27/11/2026): «Hip», exploración clínica de la cadera, tercer sub-apartado de NME
 
 const BLOCKS = [
   { key: 'fuerza', name: 'Manifestaciones de la fuerza' },
@@ -233,6 +234,7 @@ async function sembrarCatalogo(db) {
     await ensurePerimeters(db, ts, counts);
     await ensureJurdan(db, ts, counts);
     await ensureToeTouch(db, ts, counts);
+    await ensureHip(db, ts, counts);
     await ensureNordicRelative(db, ts, counts);
     counts.direccionesAsignadas = await defaultDirections(db, ts);
     await db.meta.put({ key: 'catalogSeeded', value: { version: CATALOG_SEED_VERSION, at: ts, vacioAlSembrar: empty } });
@@ -340,6 +342,44 @@ async function ensureToeTouch(db, ts, counts) {
   const order = (await db.variables.orderBy('order').last())?.order ?? 0;
   await db.variables.add({ testId: t.id, name: 'TOE-TOUCH TEST', unit: 'cm', sides: 'single', direction: null, manifestationId: man.id, kind: 'raw', formula: null, formulaVersion: 0, notes: 'Distancia dedos-suelo. Escala del usuario: mano plana −10, metacarpo −5, dedos 0.', archived: false, order: order + 1, createdAt: ts, updatedAt: ts, source: 'inicial' });
   counts.variables = (counts.variables ?? 0) + 1;
+}
+
+// 27/11/2026: «Hip», tercer sub-apartado de NME (exploración clínica de la cadera, Excel «GENERICO.xlsx» del usuario). Son grados clínicos ordinales
+// y un test dicotómico, no medidas continuas: van SIN dirección «mejor/peor», fuera de Asimetrías (el grado de una pierna frente al de la otra no es un
+// porcentaje de asimetría) y fuera del déficit por percentil, porque su déficit se decide por CRITERIO en el bloque Hip de Déficits (ver hip.js).
+// El nombre del impingement va con la grafía correcta en inglés («IMPINGEMENT»); el importador acepta además la del Excel («IMPIGMENT»). Idempotente.
+export const HIP_VARIABLES = [
+  { clave: 'impingement', name: 'IMPINGEMENT', sides: 'LR', escala: ESCALA_IMPINGEMENT, notes: '«+» = test positivo (hay limitación); «✓» = realizado y negativo; sin dato = no explorado. Se guarda 1 = positivo, 0 = negativo.' },
+  { clave: 'ri-supina', name: 'HIP INTERNAL ROTATION · SUPINE POSITION', sides: 'LR', escala: ESCALA_ROM, notes: 'Déficit de rango articular, 0 a 3 (solo enteros). En supino, el déficit se anota como compromiso articular.' },
+  { clave: 'ri-prona', name: 'HIP INTERNAL ROTATION · PRONE POSITION', sides: 'LR', escala: ESCALA_ROM, notes: 'Déficit de rango articular, 0 a 3 (solo enteros). En prono, el déficit se anota como de origen muscular.' },
+  { clave: 're-supina', name: 'HIP EXTERNAL ROTATION · SUPINE POSITION', sides: 'LR', escala: ESCALA_ROM, notes: 'Déficit de rango articular, 0 a 3 (solo enteros). En supino, el déficit se anota como compromiso articular.' },
+  { clave: 're-prona', name: 'HIP EXTERNAL ROTATION · PRONE POSITION', sides: 'LR', escala: ESCALA_ROM, notes: 'Déficit de rango articular, 0 a 3 (solo enteros). En prono, el déficit se anota como de origen muscular.' },
+  { clave: 'flexion', name: 'HIP FLEXION', sides: 'LR', escala: ESCALA_ROM, notes: 'Déficit de rango articular, 0 a 3 (solo enteros). Sin anotación de origen (decisión del usuario).' },
+  { clave: 'bent-knee-over', name: 'BENT KNEE OVER', sides: 'single', escala: ESCALA_ROM, notes: 'Un único valor bilateral, no se anota por pierna. Déficit de rango articular, 0 a 3 (solo enteros). Sin anotación de origen.' },
+];
+async function ensureHip(db, ts, counts) {
+  const lc = (x) => String(x ?? '').trim().toLowerCase();
+  let man = (await db.manifestations.toArray()).find((m) => lc(m.name) === lc(HIP_TEST) && m.blockKey === 'nme');
+  if (!man) {
+    const morder = (await db.manifestations.orderBy('order').last())?.order ?? 0;
+    const id = await db.manifestations.add({ name: HIP_TEST, blockKey: 'nme', order: morder + 1, archived: false, createdAt: ts, source: 'inicial' });
+    man = await db.manifestations.get(id);
+  }
+  let t = (await db.tests.toArray()).find((x) => lc(x.name) === lc(HIP_TEST) && x.blockKey === 'nme');
+  if (!t) {
+    const torder = (await db.tests.orderBy('order').last())?.order ?? 0;
+    const id = await db.tests.add({ name: HIP_TEST, blockKey: 'nme', manifestationId: man.id, zoneId: null, notes: 'Exploración clínica de la cadera: impingement y déficit de rango articular (0 a 3).', archived: false, order: torder + 1, createdAt: ts, updatedAt: ts, source: 'inicial' });
+    t = await db.tests.get(id);
+    counts.tests = (counts.tests ?? 0) + 1;
+  }
+  const existing = await db.variables.where('testId').equals(t.id).toArray();
+  let order = (await db.variables.orderBy('order').last())?.order ?? 0;
+  for (const v of HIP_VARIABLES) {
+    if (existing.some((x) => lc(x.name) === lc(v.name))) continue;
+    await db.variables.add({ testId: t.id, name: v.name, unit: '', sides: v.sides, direction: null, manifestationId: man.id, kind: 'raw', formula: null, formulaVersion: 0,
+      escala: v.escala, excluirAsimetrias: true, excluirDeficits: true, notes: v.notes, archived: false, order: ++order, createdAt: ts, updatedAt: ts, source: 'inicial' });
+    counts.variables = (counts.variables ?? 0) + 1; counts.hipAnadidas = (counts.hipAnadidas ?? 0) + 1;
+  }
 }
 
 // Variables calculadas del Iso-Hold y del 1RM estimado (D5). Idempotente: crea solo las que falten, por nombre, a partir de la variable de carga del test.
@@ -617,6 +657,7 @@ async function migrateCatalog(db, prev) {
     await ensurePerimeters(db, ts, res);
     await ensureJurdan(db, ts, res);
     await ensureToeTouch(db, ts, res);
+    await ensureHip(db, ts, res);
     await ensureNordicRelative(db, ts, res);
     res.direccionesAsignadas = await defaultDirections(db, ts);
     await db.meta.put({ key: 'catalogSeeded', value: { ...(cur?.value ?? {}), version: CATALOG_SEED_VERSION, actualizadoEn: ts } });

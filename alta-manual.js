@@ -6,6 +6,7 @@
 import { audit } from './db.js';
 import { isIsoDay } from './fechas.js';
 import { mismoTest } from './nombres.js';
+import { escalaDe, validarValorEscala } from './hip.js';
 
 // Tests con alta manual, por nombre (lista del usuario). «Perímetros», el toe-touch y los tests de NME entran por su BLOQUE, así que
 // cualquier test que se cree más adelante en NME o en Perímetros tendrá alta manual sin tocar esta lista.
@@ -34,7 +35,8 @@ const num = (x) => {
 };
 
 // `valores`: { [variableId]: { L, R } | { S } } con lo escrito (texto o número). Las casillas vacías no se guardan.
-export async function addManualSession(db, { playerId, testId, date, time = '', valores = {} }) {
+// `nota`: anotación de texto libre de la valoración, una por sesión (27/11/2026, pedido del usuario para la exploración de cadera). Se guarda tal cual.
+export async function addManualSession(db, { playerId, testId, date, time = '', valores = {}, nota = '' }) {
   const player = await db.players.get(playerId);
   if (!player) throw new Error('Elige un jugador.');
   const test = await db.tests.get(testId);
@@ -51,7 +53,12 @@ export async function addManualSession(db, { playerId, testId, date, time = '', 
     for (const sd of lados) {
       const n = num(valores?.[v.id]?.[sd]);
       if (n === null) continue;
-      if (Number.isNaN(n)) throw new Error(`${v.name}${v.sides === 'LR' ? ` (${sd === 'L' ? 'izquierda' : 'derecha'})` : ''}: escribe un número.`);
+      const donde = `${v.name}${v.sides === 'LR' ? ` (${sd === 'L' ? 'izquierda' : 'derecha'})` : ''}`;
+      if (Number.isNaN(n)) throw new Error(`${donde}: escribe un número.`);
+      // Variables con escala cerrada (los grados clínicos de la cadera): se valida AQUÍ, en el único sitio por el que pasan tanto el alta manual
+      // como la importación, para que no haya dos reglas distintas. No se redondea nada: un 4 o un 2,5 se rechazan con su motivo (27/11/2026).
+      const esc = escalaDe(v);
+      if (esc) { const ok = validarValorEscala(esc, n); if (!ok.ok) throw new Error(`${donde}: ${ok.razon}.`); }
       dentro[sd] = n;
     }
     if (Object.keys(dentro).length) values[v.id] = dentro;
@@ -61,7 +68,7 @@ export async function addManualSession(db, { playerId, testId, date, time = '', 
   if (clash) throw new Error('Ya hay una sesión de ese jugador y test en esa fecha y hora. Corrígela desde su tabla de sesiones.');
   const id = await db.sessions.add({
     playerId, testId, protocolId: null, date: d, time: t, values, reps: {}, status: 'valid', excludedReason: '',
-    source: 'manual', createdAt: new Date().toISOString(), ...(player.synthetic ? { synthetic: 1 } : {}),
+    source: 'manual', createdAt: new Date().toISOString(), ...(String(nota ?? '').trim() ? { nota: String(nota).trim() } : {}), ...(player.synthetic ? { synthetic: 1 } : {}),
   });
   await audit(db, 'sesion-alta-manual', { sessionId: id, playerId, testId, date: d, variables: Object.keys(values).length });
   return id;
