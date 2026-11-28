@@ -147,4 +147,15 @@ check('importar dos veces el mismo día no duplica la valoración', r2.creadas =
 const r3 = await commitHip(db, { catalog: cat, date: '2026-11-27', items: [{ name: 'X', playerId: null, valores: {} }] });
 check('una fila sin jugador vinculado se omite, no se inventa', r3.creadas === 0 && r3.omitidas === 1);
 
+
+// ---- El Excel de cadera NO se puede importar por el importador genérico (27/11/2026, error visto por el usuario).
+// Aquel importador exige números, así que con «+» y «✓» soltaba un «no es un número» por celda y parecía que el fichero estuviera mal.
+{
+  const importables = cat.tests.filter((t) => !t.archived && cat.variables.some((v) => v.testId === t.id && v.kind === 'raw' && !v.archived && !escalaDe(v)));
+  check('el test «Hip» no aparece en la lista del importador genérico', !importables.some((t) => t.id === hip.test.id), importables.filter((t) => t.blockKey === 'nme').map((t) => t.name).join());
+  check('los demás tests de NME sí siguen apareciendo', importables.some((t) => t.blockKey === 'nme'), importables.filter((t) => t.blockKey === 'nme').map((t) => t.name).join());
+  const asignables = cat.variables.filter((v) => v.testId === hip.test.id && v.kind === 'raw' && !v.archived && !escalaDe(v));
+  check('ninguna variable de cadera se puede asignar a una columna del importador genérico', asignables.length === 0, asignables.map((v) => v.name).join());
+}
+
 process.exit(failed ? 1 : 0);

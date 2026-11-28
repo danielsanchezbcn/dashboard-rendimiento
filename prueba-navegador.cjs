@@ -537,6 +537,14 @@ const server = http.createServer((req, res) => {
     await page.waitForFunction(() => /Exploraci[oó]n de cadera desde Excel/.test(document.body.textContent), null, { timeout: 15000 });
     const txt = await page.evaluate(() => document.body.textContent.replace(/\s+/g, ' ')); // textContent: el formato va dentro de un desplegable cerrado
     check('Importar cadera: la pantalla explica la escala y que nada se redondea', /de 0 a 3/.test(txt) && /enteros/.test(txt) && /[Nn]ada se redondea/.test(txt), txt.slice(-320));
+    // El Excel de cadera subido por la pestaña equivocada: la pantalla avisa y dice a dónde ir (27/11/2026, error del usuario).
+    {
+      await page.getByRole('tab', { name: /Datos de tests/i }).click(); await page.waitForTimeout(400);
+      const tests = await page.evaluate(() => { const s = [...document.querySelectorAll('select')].find((x) => /Elige un test/.test(x.innerText)); return s ? [...s.options].map((o) => o.text.trim()) : []; });
+      check('Importar genérico: el test «Hip» no se ofrece (sus valores no son números)', !tests.some((x) => x.trim().toLowerCase() === 'hip'), tests.filter((x) => /hip/i.test(x)).join());
+      await page.getByRole('tab', { name: /Exploración de cadera/i }).click();
+      await page.waitForFunction(() => /Exploraci[oó]n de cadera desde Excel/.test(document.body.textContent), null, { timeout: 15000 });
+    }
     const anchoImp = await sinDesborde('.card');
     check('Importar cadera: con cinco pestañas la pantalla sigue cabiendo a 1840, 1440 y 1280 px', anchoImp.length === 0, anchoImp.join(' · '));
     if (CAP) await page.screenshot({ path: path.join(CAP, 'importar-cadera.png'), fullPage: false });

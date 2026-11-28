@@ -32,7 +32,7 @@ await tick(600);
 const links = $$('nav a').map((a) => a.textContent.trim());
 check('menú con 6 entradas, con «Configuración ISO-rack» justo detrás de «Team-Wide Analysis»', links.length === 6 && links.join(' | ') === 'Inicio | Players | Team-Wide Analysis | Configuración ISO-rack | Catálogo de tests | Importar', links.join(' | '));
 check('Inicio agrupa Copias de seguridad (con el resumen dentro) y Configuración en pestañas', ['Copias de seguridad', 'Configuración'].every((t) => $$('.tabs-nav a').some((a) => a.textContent.trim() === t)), $$('.tabs-nav a').map((a) => a.textContent.trim()).join(' | '));
-check('versión visible 4-0.1.0', document.querySelector('.ver')?.textContent === 'v10i-0.19.0', document.querySelector('.ver')?.textContent);
+check('versión visible 4-0.1.0', document.querySelector('.ver')?.textContent === 'v10i-0.19.1', document.querySelector('.ver')?.textContent);
 check('inicio por defecto con aria-current', $('nav a[aria-current="page"]')?.textContent === 'Inicio');
 check('aviso de que no hay copia (sin plazo definido)', /Todavía no has creado ninguna copia/.test(text()));
 check('almacenamiento no persistente explicado', /no garantiza conservar los datos/.test(text()));
