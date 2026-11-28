@@ -1,5 +1,5 @@
 {
-"version": "10i-0.19.0",
+"version": "10i-0.19.1",
 "archivos": {
 "alta-manual.js": {
 "bytes": 4758,
@@ -135,7 +135,7 @@
 },
 "db.js": {
 "bytes": 7523,
-"sha": "edacc0803bb21037"
+"sha": "7ceb09748adcea36"
 },
 "dsieur.js": {
 "bytes": 4174,
@@ -298,8 +298,8 @@
 "sha": "740c8997e19aea12"
 },
 "pages-importar.js": {
-"bytes": 46649,
-"sha": "8d768f489dcedb0f"
+"bytes": 47894,
+"sha": "283373842d7384ce"
 },
 "pages-isorack.js": {
 "bytes": 5240,

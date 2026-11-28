@@ -18,6 +18,7 @@ import { ImportarImagen } from './pages-imagen.js';
 import { ImportarCargas } from './pages-cargas.js';
 import { ImportarCargasDos } from './pages-cargas-dos.js';
 import { ImportarHip } from './pages-hip.js';
+import { escalaDe } from './hip.js';
 import { dn } from './nombres.js';
 
 const show = (v) => (v === null || v === undefined ? '' : v instanceof Date ? v.toISOString().slice(0, 10) : String(v));
@@ -65,7 +66,12 @@ function ImportarFicheros() {
   const headers = noHeader ? I.genericHeaders(grid, headerRow + 1) : I.effectiveHeaders(grid, headerRow, subHeader).map(show);
   const variables = cat && testId ? cat.variables.filter((v) => v.testId === Number(testId)) : [];
   const test = cat?.tests.find((t) => t.id === Number(testId));
-  const importable = cat ? cat.tests.filter((t) => !t.archived && cat.variables.some((v) => v.testId === t.id && v.kind === 'raw' && !v.archived)) : [];
+  // 27/11/2026: los tests cuyas variables van con ESCALA CERRADA (la exploración de cadera: «+» / «✓» y grados 0–3) NO se importan por aquí. Este
+  // importador exige números, así que el Excel de cadera daba un error por celda («no es un número») y parecía que el fichero estaba mal. Tiene su
+  // propia pestaña, que entiende los símbolos, la cabecera de tres filas y la escala.
+  const importable = cat ? cat.tests.filter((t) => !t.archived && cat.variables.some((v) => v.testId === t.id && v.kind === 'raw' && !v.archived && !escalaDe(v))) : [];
+  // Si el fichero que ha subido es justo ese Excel, se dice dónde va en vez de dejarle pelear con el mapeo.
+  const pareceCadera = headers.some((h) => /impig|imping|hip (internal|external) rotation|bent\s*knee/i.test(String(h ?? '')));
 
   const reset = () => { setVald(null); setStep('archivo'); setFile(null); setDup(null); setAckDup(false); setSheetIdx(0); setHeaderRow(0); setNoHeader(false); setSubHeader(false); setTestId(''); setProtocolId(''); setCols([]); setFixedDate(''); setMappingName(''); setParsed(null); setProposals([]); setResolutions({}); setRemember({}); setPlan(null); setChoices({}); setResult(null); setMsg(null); };
 
@@ -202,6 +208,7 @@ function ImportarFicheros() {
             : html`<button type="button" disabled=${(dup && !ackDup) || headers.filter(Boolean).length < 2} onClick=${() => setStep('mapeo')}>Continuar: asignar columnas</button>`}</div>
           ${headers.filter(Boolean).length < 2 ? html`<p class="muted">La fila de encabezados elegida debe tener al menos dos columnas con texto.</p>` : null}` : null}
       <//>` : null}
+    ${pareceCadera && (step === 'archivo' || step === 'mapeo') ? html`<p class="status warn" role="status">Este fichero parece la <strong>exploración de cadera</strong> (impingement, rotaciones de cadera, bent knee over). No se importa desde aquí: esta pestaña solo admite números, y ahí hay «+», «✓» y grados del 0 al 3. Usa la pestaña <strong>«Exploración de cadera (Excel)»</strong>, que entiende la cabecera de tres filas, los símbolos y la escala.</p>` : null}
     ${step === 'mapeo' ? html`<${PasoMapeo} ...${{ cat, importable, headers, grid, headerRow, subHeader, testId, chooseTest, protocolId, setProtocolId, cols, setCol, setCols, fixedDate, setFixedDate, mappingName, setMappingName, variables, test, msg, toPreview, back: () => setStep('archivo'), busy, db }} />` : null}
     ${step === 'vista' && parsed ? html`<${PasoVista} ...${{ parsed, cols: origin === 'vald' ? [] : cols, headers: origin === 'vald' ? [] : headers, vald: origin === 'vald' ? vald : null, back: () => setStep(origin === 'vald' ? 'archivo' : 'mapeo'), next: toPlayers, busy, msg }} />` : null}
     ${step === 'jugadores' ? html`<${PasoJugadores} ...${{ proposals, resolutions, setResolutions, remember, setRemember, back: () => setStep('vista'), next: toSummary, busy, msg }} />` : null}
@@ -215,7 +222,7 @@ function PasoMapeo({ cat, importable, headers, grid, headerRow, subHeader, testI
   const { bump } = useApp();
   const { data: saved } = useLoad(async () => (testId ? I.listMappings(db, Number(testId)) : []), [db, testId]);
   const { data: protocols } = useLoad(async () => (testId ? db.protocols.where('testId').equals(Number(testId)).toArray() : []), [db, testId]);
-  const raw = variables.filter((v) => v.kind === 'raw' && !v.archived);
+  const raw = variables.filter((v) => v.kind === 'raw' && !v.archived && !escalaDe(v)); // los grados clínicos no se asignan aquí: ver arriba
   const example = (i) => { for (let r = headerRow + 1 + (subHeader ? 1 : 0); r < Math.min(grid.length, headerRow + 31); r++) { const v = grid[r]?.[i]; if (v !== null && v !== undefined && v !== '') return show(v); } return ''; };
   const hasDate = cols.some((c) => c.role === 'fecha');
   const { msg: m2, setMsg: setM2, run } = useRunner();
